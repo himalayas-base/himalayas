@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "himalayas"
+version = "0.0.1"
+description = "Hierarchical Matrix Layout and Annotation Software"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.8"
+
+authors = [
+    { name = "Ira Horecka" }
+]
+
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: BSD License",
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent"
+]
+
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/himalayas-base/himalayas"
+Repository = "https://github.com/himalayas-base/himalayas"
