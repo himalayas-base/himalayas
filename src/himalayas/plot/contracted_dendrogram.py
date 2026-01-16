@@ -144,7 +144,10 @@ def plot_term_hierarchy_contracted(
     # Prefer an explicit 'n' column in cluster_labels if present, otherwise
     # fall back to results.clusters.cluster_sizes or len(cluster_to_labels[cid]).
     cluster_sizes = None
-    if hasattr(results, "clusters") and getattr(results.clusters, "cluster_sizes", None) is not None:
+    if (
+        hasattr(results, "clusters")
+        and getattr(results.clusters, "cluster_sizes", None) is not None
+    ):
         cluster_sizes = dict(results.clusters.cluster_sizes)
 
     def get_cluster_size(cid: int) -> Optional[int]:
@@ -309,7 +312,9 @@ def plot_term_hierarchy_contracted(
     if background_color is not None:
         ax_sig.set_facecolor(background_color)
     txt_x0 = 0.66 + sigbar_width + float(label_left_pad)
-    ax_txt = fig.add_axes([txt_x0, 0.05, 0.33 - sigbar_width - float(label_left_pad), 0.90], frameon=False)
+    ax_txt = fig.add_axes(
+        [txt_x0, 0.05, 0.33 - sigbar_width - float(label_left_pad), 0.90], frameon=False
+    )
     if background_color is not None:
         ax_txt.set_facecolor(background_color)
 

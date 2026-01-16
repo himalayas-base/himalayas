@@ -25,7 +25,7 @@ class ClusterLayout:
 
 
 def compute_col_order(
-    matrix: "Matrix",
+    matrix: Matrix,
     *,
     linkage_method: str = "ward",
     linkage_metric: str = "euclidean",

@@ -2,6 +2,8 @@
 # Foundational Plotter spine for HiMaLAYAS (prototype)
 # ============================================================
 
+from __future__ import annotations
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -66,22 +68,18 @@ class Plotter:
             # Figure layout
             "figsize": (9, 7),
             "subplots_adjust": {"left": 0.15, "right": 0.70, "bottom": 0.05, "top": 0.95},
-
             # Dendrogram axis box [x0, y0, w, h]
             "dendro_axes": [0.06, 0.05, 0.09, 0.90],
             "dendro_color": "#888888",
             "dendro_lw": 1.0,
-
             # Label panel axis box [x0, y0, w, h]
             "label_axes": [0.70, 0.05, 0.29, 0.90],
             "label_x": 0.02,
-
             # Gutter between matrix and label panel
             "label_gutter_width": 0.01,
             "label_gutter_color": "white",
             # Padding between matrix and ylabel axis (fraction of figure width)
             "ylabel_pad": 0.015,
-
             # Gene-level annotation bar (row-level, purely visual)
             # Placed between dendrogram and matrix by default.
             "gene_bar_width": 0.012,
@@ -89,7 +87,6 @@ class Plotter:
             "gene_bar_missing_color": "#eeeeee",
             # Bars rendered inside the label panel (to the left of text)
             # (label_bar_default_width, label_bar_default_gap removed)
-
             # Default settings for cluster p-value bars (e.g., sigbar)
             # NOTE: scaling is controlled by an explicit `norm` passed to plot_cluster_bar.
             # `sigbar_min_logp` / `sigbar_max_logp` are legacy defaults used only for the legend.
@@ -100,10 +97,8 @@ class Plotter:
             "sigbar_alpha": 0.9,
             "show_sigbar": True,
             # (sigbar_gap removed)
-
             # Label panel bar/text spacing
             "label_bar_pad": 0.01,
-
             # Cluster boundary lines
             "boundary_color": "black",
             "boundary_lw": 0.5,
@@ -111,18 +106,15 @@ class Plotter:
             "dendro_boundary_color": "white",
             "dendro_boundary_lw": 0.5,
             "dendro_boundary_alpha": 0.3,
-
             # Placeholder for unlabeled clusters
             "placeholder_text": "—",
             "placeholder_color": "#b22222",
             "placeholder_alpha": 0.6,
-
             # Default text color (used unless overridden via kwargs)
             "text_color": "black",
             "title_fontsize": 14,
             "title_pad": 15,
             "label_fontsize": 9,
-
             # Separator lines in label panel
             "label_sep_color": "gray",
             "label_sep_lw": 0.5,
@@ -153,7 +145,7 @@ class Plotter:
         label: Optional[str] = None,
         ticks: Optional[Sequence[float]] = None,
         enabled: bool = True,
-    ) -> "Plotter":
+    ) -> Plotter:
         """
         Declare a global colorbar explaining a visual encoding.
 
@@ -190,7 +182,7 @@ class Plotter:
         font: Optional[str] = None,
         color: Optional[str] = None,
         label_position: str = "below",
-    ) -> "Plotter":
+    ) -> Plotter:
         """
         Declare layout for the bottom colorbar strip.
 
@@ -241,14 +233,14 @@ class Plotter:
         }
         return self
 
-    def set_background(self, color: str) -> "Plotter":
+    def set_background(self, color: str) -> Plotter:
         """
         Set figure background color (used for display and save).
         """
         self._background = color
         return self
 
-    def set_label_track_order(self, order: Optional[Sequence[str]]) -> "Plotter":
+    def set_label_track_order(self, order: Optional[Sequence[str]]) -> Plotter:
         """
         Set the order of label-panel tracks in the label panel.
         Pass None to use default order. Otherwise, must be a list/tuple of unique strings.
@@ -266,7 +258,7 @@ class Plotter:
         self._label_track_order = tuple(names)
         return self
 
-    def plot_cluster_bar(self, name: str, values: object, **kwargs) -> "Plotter":
+    def plot_cluster_bar(self, name: str, values: object, **kwargs) -> Plotter:
         """
         Declare a cluster-level label-panel bar (e.g. for p-values or other cluster metrics).
         Supported values: dict, pandas Series, DataFrame with columns (cluster, pval).
@@ -284,10 +276,14 @@ class Plotter:
             col_val = kwargs.get("pval_col", "pval")
             if col_cluster not in values.columns or col_val not in values.columns:
                 raise ValueError(f"DataFrame must contain columns '{col_cluster}' and '{col_val}'")
-            value_map = {int(row[col_cluster]): float(row[col_val]) if pd.notna(row[col_val]) else None
-                         for _, row in values.iterrows()}
+            value_map = {
+                int(row[col_cluster]): float(row[col_val]) if pd.notna(row[col_val]) else None
+                for _, row in values.iterrows()
+            }
         else:
-            raise TypeError("values must be dict, pandas Series, or DataFrame with 'cluster' and 'pval' columns")
+            raise TypeError(
+                "values must be dict, pandas Series, or DataFrame with 'cluster' and 'pval' columns"
+            )
         kind = kwargs.get("kind", "pvalue")
         if kind != "pvalue":
             raise NotImplementedError("Only kind='pvalue' is implemented for cluster bar")
@@ -300,7 +296,9 @@ class Plotter:
         enabled = kwargs.get("enabled", True)
         title = kwargs.get("title", None)
 
-        def _renderer_cluster_bar(ax, x0, width, payload, cluster_spans, label_map, style, row_order) -> None:
+        def _renderer_cluster_bar(
+            ax, x0, width, payload, cluster_spans, label_map, style, row_order
+        ) -> None:
             # value_map: cluster_id -> float or None
             value_map = payload.get("value_map", {})
 
@@ -370,6 +368,7 @@ class Plotter:
                         zorder=1,
                     )
                 )
+
         track_spec = {
             "name": name,
             "kind": "cluster",
@@ -390,7 +389,7 @@ class Plotter:
             self._declared_label_tracks.append(track_spec)
         return self
 
-    def plot_sigbar_legend(self, **kwargs) -> "Plotter":
+    def plot_sigbar_legend(self, **kwargs) -> Plotter:
         """
         Declare a significance bar legend.
 
@@ -403,7 +402,7 @@ class Plotter:
     # --------------------------------------------------------
     # Core plotting layers (declarative only)
     # --------------------------------------------------------
-    def plot_matrix(self, **kwargs) -> "Plotter":
+    def plot_matrix(self, **kwargs) -> Plotter:
         """
         Declare the main matrix heatmap layer.
 
@@ -412,35 +411,35 @@ class Plotter:
         self._layers.append(("matrix", kwargs))
         return self
 
-    def plot_matrix_axis_labels(self, **kwargs) -> "Plotter":
+    def plot_matrix_axis_labels(self, **kwargs) -> Plotter:
         """
         Declare axis labels for the matrix.
         """
         self._layers.append(("matrix_axis_labels", kwargs))
         return self
 
-    def plot_row_ticks(self, labels: Optional[Sequence[str]] = None, **kwargs) -> "Plotter":
+    def plot_row_ticks(self, labels: Optional[Sequence[str]] = None, **kwargs) -> Plotter:
         """
         Declare row tick labels for the matrix.
         """
         self._layers.append(("row_ticks", {"labels": labels, **kwargs}))
         return self
 
-    def plot_col_ticks(self, labels: Optional[Sequence[str]] = None, **kwargs) -> "Plotter":
+    def plot_col_ticks(self, labels: Optional[Sequence[str]] = None, **kwargs) -> Plotter:
         """
         Declare column tick labels for the matrix.
         """
         self._layers.append(("col_ticks", {"labels": labels, **kwargs}))
         return self
 
-    def plot_bar_labels(self, **kwargs) -> "Plotter":
+    def plot_bar_labels(self, **kwargs) -> Plotter:
         """
         Declare titles for bar tracks (shown below bars in label panel).
         """
         self._layers.append(("bar_labels", kwargs))
         return self
 
-    def plot_dendrogram(self, **kwargs) -> "Plotter":
+    def plot_dendrogram(self, **kwargs) -> Plotter:
         """
         Declare a dendrogram layer aligned to the matrix.
 
@@ -450,14 +449,14 @@ class Plotter:
         self._layers.append(("dendrogram", kwargs))
         return self
 
-    def plot_cluster_bars(self, **kwargs) -> "Plotter":
+    def plot_cluster_bars(self, **kwargs) -> Plotter:
         """
         Declare a cluster membership bar layer.
         """
         self._layers.append(("cluster_bars", kwargs))
         return self
 
-    def plot_gene_bar(self, values: Mapping[Any, Any], **kwargs) -> "Plotter":
+    def plot_gene_bar(self, values: Mapping[Any, Any], **kwargs) -> Plotter:
         """Declare a single row-level gene annotation bar.
 
         This layer is purely visual: it never affects clustering, ordering, or statistics.
@@ -497,6 +496,7 @@ class Plotter:
             left_pad = kwargs.get("gene_bar_left_pad", 0.0)
             width = kwargs.get("gene_bar_width", self._style.get("gene_bar_width", 0.015))
             right_pad = kwargs.get("gene_bar_right_pad", 0.0)
+
             # Compose renderer
             def _renderer_row_bar(ax, x0, width, payload, matrix, row_order, style) -> None:
                 values = payload["values"]
@@ -506,12 +506,16 @@ class Plotter:
                 if mode == "categorical":
                     colors = payload.get("colors", None)
                     if colors is None or not isinstance(colors, dict):
-                        raise TypeError("categorical label_panel gene bar requires `colors` as a dict")
+                        raise TypeError(
+                            "categorical label_panel gene bar requires `colors` as a dict"
+                        )
                     for i, gid in enumerate(row_ids):
                         cat = values.get(gid, None)
                         c = colors.get(cat, missing_color)
                         ax.add_patch(
-                            plt.Rectangle((x0, i - 0.5), width, 1.0, facecolor=c, edgecolor="none", zorder=2)
+                            plt.Rectangle(
+                                (x0, i - 0.5), width, 1.0, facecolor=c, edgecolor="none", zorder=2
+                            )
                         )
                 elif mode == "continuous":
                     cmap = plt.get_cmap(payload.get("cmap", "viridis"))
@@ -520,7 +524,14 @@ class Plotter:
                     if not np.any(finite):
                         for i in range(len(row_ids)):
                             ax.add_patch(
-                                plt.Rectangle((x0, i - 0.5), width, 1.0, facecolor=missing_color, edgecolor="none", zorder=2)
+                                plt.Rectangle(
+                                    (x0, i - 0.5),
+                                    width,
+                                    1.0,
+                                    facecolor=missing_color,
+                                    edgecolor="none",
+                                    zorder=2,
+                                )
                             )
                     else:
                         vmin = payload.get("vmin", float(np.nanmin(vals[finite])))
@@ -531,10 +542,20 @@ class Plotter:
                         for i, v in enumerate(vals):
                             c = missing_color if not np.isfinite(v) else cmap(norm(v))
                             ax.add_patch(
-                                plt.Rectangle((x0, i - 0.5), width, 1.0, facecolor=c, edgecolor="none", zorder=2)
+                                plt.Rectangle(
+                                    (x0, i - 0.5),
+                                    width,
+                                    1.0,
+                                    facecolor=c,
+                                    edgecolor="none",
+                                    zorder=2,
+                                )
                             )
                 else:
-                    raise ValueError("label_panel gene bar mode must be 'categorical' or 'continuous'")
+                    raise ValueError(
+                        "label_panel gene bar mode must be 'categorical' or 'continuous'"
+                    )
+
             # Compose track spec
             track_spec = {
                 "name": kwargs.get("name", "gene_bar"),
@@ -554,14 +575,14 @@ class Plotter:
         self._layers.append(("gene_bar", {"values": values, **kwargs}))
         return self
 
-    def plot_labels(self, **kwargs) -> "Plotter":
+    def plot_labels(self, **kwargs) -> Plotter:
         """
         Declare annotation label overlays (e.g. GO terms).
         """
         self._layers.append(("labels", kwargs))
         return self
 
-    def plot_cluster_labels(self, cluster_labels: pd.DataFrame, **kwargs) -> "Plotter":
+    def plot_cluster_labels(self, cluster_labels: pd.DataFrame, **kwargs) -> Plotter:
         """
         Declare cluster-level textual labels.
 
@@ -604,8 +625,14 @@ class Plotter:
         """
         # Reject deprecated sigbar/track-order kwargs
         _deprecated = [
-            "show_sigbar", "sigbar_width", "sigbar_left_pad", "sigbar_right_pad",
-            "sigbar_cmap", "sigbar_min_logp", "sigbar_max_logp", "sigbar_alpha",
+            "show_sigbar",
+            "sigbar_width",
+            "sigbar_left_pad",
+            "sigbar_right_pad",
+            "sigbar_cmap",
+            "sigbar_min_logp",
+            "sigbar_max_logp",
+            "sigbar_alpha",
             "label_track_order",
         ]
         present = [k for k in _deprecated if k in kwargs]
@@ -617,7 +644,7 @@ class Plotter:
         self._layers.append(("cluster_labels", {"df": cluster_labels, **kwargs}))
         return self
 
-    def plot_title(self, title: str, **kwargs) -> "Plotter":
+    def plot_title(self, title: str, **kwargs) -> Plotter:
         """
         Declare a plot title.
         """
@@ -681,7 +708,6 @@ class Plotter:
 
         # (removed obsolete render-flag cleanup)
 
-
         n_rows, n_cols = data.shape
 
         for layer, kwargs in self._layers:
@@ -691,7 +717,9 @@ class Plotter:
                     continue
                 values = kwargs.get("values")
                 if not isinstance(values, dict):
-                    raise TypeError("plot_gene_bar expects `values` as a dict mapping row IDs to values")
+                    raise TypeError(
+                        "plot_gene_bar expects `values` as a dict mapping row IDs to values"
+                    )
 
                 mode = kwargs.get("mode", "categorical")
                 missing_color = kwargs.get("missing_color", self._style["gene_bar_missing_color"])
@@ -718,7 +746,9 @@ class Plotter:
                 if mode == "categorical":
                     colors = kwargs.get("colors", None)
                     if colors is None or not isinstance(colors, dict):
-                        raise TypeError("categorical gene_bar requires `colors` as a dict mapping category -> color")
+                        raise TypeError(
+                            "categorical gene_bar requires `colors` as a dict mapping category -> color"
+                        )
 
                     for i, gid in enumerate(row_ids):
                         cat = values.get(gid, None)
@@ -736,7 +766,13 @@ class Plotter:
                         # All missing: draw a uniform bar
                         for i in range(len(row_ids)):
                             ax_bar.add_patch(
-                                plt.Rectangle((0.0, i - 0.5), 1.0, 1.0, facecolor=missing_color, edgecolor="none")
+                                plt.Rectangle(
+                                    (0.0, i - 0.5),
+                                    1.0,
+                                    1.0,
+                                    facecolor=missing_color,
+                                    edgecolor="none",
+                                )
                             )
                     else:
                         vmin = kwargs.get("vmin", float(np.nanmin(vals[finite])))
@@ -748,7 +784,9 @@ class Plotter:
                         for i, v in enumerate(vals):
                             c = missing_color if not np.isfinite(v) else cmap(norm(v))
                             ax_bar.add_patch(
-                                plt.Rectangle((0.0, i - 0.5), 1.0, 1.0, facecolor=c, edgecolor="none")
+                                plt.Rectangle(
+                                    (0.0, i - 0.5), 1.0, 1.0, facecolor=c, edgecolor="none"
+                                )
                             )
 
                 else:
@@ -958,15 +996,15 @@ class Plotter:
                     ax_dend.plot(dcoord, icoord_mapped, color=dendro_color, linewidth=dendro_lw)
 
                 ax_dend.set_ylim(target_y_min - DATA_PAD, target_y_max + DATA_PAD)
-                ax_dend.invert_yaxis()   # match imshow row orientation
-                ax_dend.invert_xaxis()   # left-oriented dendrogram
+                ax_dend.invert_yaxis()  # match imshow row orientation
+                ax_dend.invert_xaxis()  # left-oriented dendrogram
 
                 ax_dend.set_xticks([])
                 ax_dend.set_yticks([])
-                ax_dend.spines['top'].set_visible(False)
-                ax_dend.spines['right'].set_visible(False)
-                ax_dend.spines['bottom'].set_visible(False)
-                ax_dend.spines['left'].set_visible(False)
+                ax_dend.spines["top"].set_visible(False)
+                ax_dend.spines["right"].set_visible(False)
+                ax_dend.spines["bottom"].set_visible(False)
+                ax_dend.spines["left"].set_visible(False)
 
             elif layer == "title":
                 ax.set_title(
@@ -981,7 +1019,9 @@ class Plotter:
                 if not isinstance(df, pd.DataFrame):
                     raise TypeError("cluster_labels must be a pandas DataFrame.")
                 if "cluster" not in df.columns or "label" not in df.columns:
-                    raise ValueError("cluster_labels DataFrame must contain columns: 'cluster', 'label'.")
+                    raise ValueError(
+                        "cluster_labels DataFrame must contain columns: 'cluster', 'label'."
+                    )
 
                 # Build mapping cluster_id -> (label, pval)
                 overrides = kwargs.get("overrides", None)
@@ -1004,24 +1044,44 @@ class Plotter:
                 boundary_lw = kwargs.get("boundary_lw", self._style["boundary_lw"])
                 boundary_alpha = kwargs.get("boundary_alpha", self._style["boundary_alpha"])
 
-                dendro_boundary_color = kwargs.get("dendro_boundary_color", self._style["dendro_boundary_color"])
-                dendro_boundary_lw = kwargs.get("dendro_boundary_lw", self._style["dendro_boundary_lw"])
-                dendro_boundary_alpha = kwargs.get("dendro_boundary_alpha", self._style["dendro_boundary_alpha"])
+                dendro_boundary_color = kwargs.get(
+                    "dendro_boundary_color", self._style["dendro_boundary_color"]
+                )
+                dendro_boundary_lw = kwargs.get(
+                    "dendro_boundary_lw", self._style["dendro_boundary_lw"]
+                )
+                dendro_boundary_alpha = kwargs.get(
+                    "dendro_boundary_alpha", self._style["dendro_boundary_alpha"]
+                )
 
                 # Draw cluster boundary lines (including top and bottom for polish)
                 for cid, s, e in spans:
                     boundary = s - 0.5
 
-                    ax.axhline(boundary, color=boundary_color, linewidth=boundary_lw, alpha=boundary_alpha)
+                    ax.axhline(
+                        boundary, color=boundary_color, linewidth=boundary_lw, alpha=boundary_alpha
+                    )
                     if ax_dend is not None:
-                        ax_dend.axhline(boundary, color=dendro_boundary_color, linewidth=dendro_boundary_lw, alpha=dendro_boundary_alpha)
+                        ax_dend.axhline(
+                            boundary,
+                            color=dendro_boundary_color,
+                            linewidth=dendro_boundary_lw,
+                            alpha=dendro_boundary_alpha,
+                        )
 
                 # Bottom border after last cluster
                 last_e = spans[-1][2]
                 boundary = last_e + 0.5
-                ax.axhline(boundary, color=boundary_color, linewidth=boundary_lw, alpha=boundary_alpha)
+                ax.axhline(
+                    boundary, color=boundary_color, linewidth=boundary_lw, alpha=boundary_alpha
+                )
                 if ax_dend is not None:
-                    ax_dend.axhline(boundary, color=dendro_boundary_color, linewidth=dendro_boundary_lw, alpha=dendro_boundary_alpha)
+                    ax_dend.axhline(
+                        boundary,
+                        color=dendro_boundary_color,
+                        linewidth=dendro_boundary_lw,
+                        alpha=dendro_boundary_alpha,
+                    )
 
                 label_axes = kwargs.get("axes", self._style["label_axes"])
                 ax_lab = fig.add_axes(label_axes, frameon=False)
@@ -1048,7 +1108,9 @@ class Plotter:
                 # Explicit label-panel track-rail model
                 # ------------------------------------------------------------
                 # Track default spacings
-                LABEL_TEXT_PAD = kwargs.get("label_text_pad", self._style.get("label_bar_pad", 0.01))
+                LABEL_TEXT_PAD = kwargs.get(
+                    "label_text_pad", self._style.get("label_bar_pad", 0.01)
+                )
 
                 # --- Track ordering API (label_track_order) ---
                 tracks = []
@@ -1071,7 +1133,9 @@ class Plotter:
                     if any(n is None for n in active_names):
                         raise ValueError("All label-panel tracks must have a non-empty 'name'")
                     if len(set(active_names)) != len(active_names):
-                        raise ValueError(f"Active label-panel track names must be unique. Got: {active_names}")
+                        raise ValueError(
+                            f"Active label-panel track names must be unique. Got: {active_names}"
+                        )
 
                     # Check for duplicates in requested ordering
                     if len(set(names)) != len(names):
@@ -1081,7 +1145,9 @@ class Plotter:
                     available = set(active_names)
                     unknown = [n for n in names if n not in available]
                     if unknown:
-                        raise ValueError(f"Unknown track(s) in label_track_order: {unknown}. Available tracks: {active_names}")
+                        raise ValueError(
+                            f"Unknown track(s) in label_track_order: {unknown}. Available tracks: {active_names}"
+                        )
 
                     # Reorder: tracks in user order, then any omitted in original order
                     name_to_track = {t["name"]: t for t in tracks}
@@ -1101,7 +1167,7 @@ class Plotter:
                     x_cursor = track["x1"] + track["right_pad"]
                 label_text_x = x_cursor + LABEL_TEXT_PAD
 
-                font = kwargs.get("font", 'Helvetica')
+                font = kwargs.get("font", "Helvetica")
                 fontsize = kwargs.get("fontsize", self._style.get("label_fontsize", 9))
                 max_words = kwargs.get("max_words", None)
                 skip_unlabeled = kwargs.get("skip_unlabeled", False)
@@ -1159,7 +1225,9 @@ class Plotter:
                         text_kwargs = {
                             "font": bar_kwargs.get("font", "Helvetica"),
                             "fontsize": bar_kwargs.get("fontsize", 10),
-                            "color": bar_kwargs.get("color", self._style.get("text_color", "black")),
+                            "color": bar_kwargs.get(
+                                "color", self._style.get("text_color", "black")
+                            ),
                             "alpha": bar_kwargs.get("alpha", 1.0),
                         }
                         ax_lab.annotate(
@@ -1238,6 +1306,7 @@ class Plotter:
                         # Layout-level wrapping (purely visual)
                         if wrap_text and wrap_width is not None:
                             import textwrap
+
                             text = "\n".join(textwrap.wrap(text, width=wrap_width))
                         text_kwargs = {
                             "font": font,
@@ -1282,7 +1351,9 @@ class Plotter:
                         )
 
             elif layer == "sigbar_legend":
-                cmap = plt.get_cmap(kwargs.get("sigbar_cmap", self._style.get("sigbar_cmap", "YlOrBr")))
+                cmap = plt.get_cmap(
+                    kwargs.get("sigbar_cmap", self._style.get("sigbar_cmap", "YlOrBr"))
+                )
                 norm = kwargs.get("norm", None)
                 if norm is not None and hasattr(norm, "vmin") and hasattr(norm, "vmax"):
                     lo = float(norm.vmin)

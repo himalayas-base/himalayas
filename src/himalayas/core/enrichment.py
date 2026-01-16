@@ -19,6 +19,7 @@ from .results import Results
 # Helper functions for hypergeometric enrichment
 # ------------------------------------------------------------
 
+
 def _encode_label_indices(labels: np.ndarray) -> Dict[Any, int]:
     """Map label -> dense integer index for fast set operations."""
     # labels are already validated unique in Matrix
@@ -49,6 +50,7 @@ def _count_intersection_sorted(a: np.ndarray, b: np.ndarray) -> int:
 # ------------------------------------------------------------
 # First-pass cluster × term enrichment using hypergeometric test
 # ------------------------------------------------------------
+
 
 def run_cluster_hypergeom(
     matrix: Matrix,
@@ -204,7 +206,7 @@ def run_first_pass(
     col_linkage_method: str = "ward",
     col_linkage_metric: str = "euclidean",
 ) -> Results:
-    """Bone-simple first-pass: cluster → hypergeom enrichment → (optional) q-values.
+    """Bone-simple first-pass: cluster to hypergeom enrichment to (optional) q-values.
 
     Use `background` to define the enrichment universe when running on a subset / zoomed matrix.
 

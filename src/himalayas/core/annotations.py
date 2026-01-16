@@ -5,7 +5,7 @@ himalayas/core/annotations
 
 from __future__ import annotations
 
-from typing import Dict, Iterable
+from typing import Dict, Iterable, Set
 
 from himalayas.util.warnings import warn
 
@@ -23,7 +23,7 @@ class Annotations:
         Initializes Annotations.
         """
         self.matrix_labels = set(matrix.labels)
-        self.term_to_labels = {}
+        self.term_to_labels: Dict[str, Set] = {}
         self._validate_and_filter(term_to_labels)
 
     def _validate_and_filter(self, term_to_labels: Dict[str, Iterable]) -> None:
@@ -51,8 +51,7 @@ class Annotations:
 
         if len(self.term_to_labels) == 0:
             raise ValueError(
-                "No annotation terms overlap matrix labels "
-                "(all terms dropped after filtering)"
+                "No annotation terms overlap matrix labels " "(all terms dropped after filtering)"
             )
 
         if dropped_terms:

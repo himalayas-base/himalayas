@@ -5,7 +5,6 @@ himalayas
 HiMaLAYAS: Hierarchical Matrix Layout and Annotation Software
 """
 
-
 from .core.matrix import Matrix
 from .core.annotations import Annotations
 from .core.clustering import cluster

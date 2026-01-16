@@ -10,7 +10,9 @@ import numpy as np
 import pandas as pd
 
 
-def summarize_terms(words: Iterable[str], weights: Optional[Iterable[float]] = None, max_words: int = 6) -> str:
+def summarize_terms(
+    words: Iterable[str], weights: Optional[Iterable[float]] = None, max_words: int = 6
+) -> str:
     """
     Compress a list of annotation terms into a short representative label.
 
@@ -91,7 +93,7 @@ def summarize_clusters(
     label_mode: str = "compressed",
 ) -> pd.DataFrame:
     """
-    Return a DataFrame mapping cluster → short textual label, suitable for plotting.
+    Return a DataFrame mapping cluster to short textual label, suitable for plotting.
 
     Parameters
     ----------
@@ -162,8 +164,4 @@ def summarize_clusters(
     if not rows:
         return pd.DataFrame(columns=["cluster", "label", "pval"])
 
-    return (
-        pd.DataFrame(rows)
-        .sort_values("cluster")
-        .reset_index(drop=True)
-    )
+    return pd.DataFrame(rows).sort_values("cluster").reset_index(drop=True)

@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
-from typing import List, Tuple
+from typing import List, Tuple, TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
 
 from .matrix import Matrix
+
+if TYPE_CHECKING:
+    from .layout import ClusterLayout
 
 
 class Results:
@@ -27,7 +30,7 @@ class Results:
         if clusters is not None:
             self.params["linkage_threshold"] = clusters.threshold
 
-    def filter(self, expr, **kwargs) -> "Results":
+    def filter(self, expr, **kwargs) -> Results:
         filtered_df = self.df.query(expr, **kwargs)
         return Results(
             filtered_df,
@@ -42,7 +45,7 @@ class Results:
         self,
         *,
         cluster: int,
-    ) -> "Results":
+    ) -> Results:
         """
         Return a Results object restricted to a single cluster.
 
@@ -83,7 +86,7 @@ class Results:
             parent=self,
         )
 
-    def cluster_view(self, cid: int) -> "Results":
+    def cluster_view(self, cid: int) -> Results:
         """Alias for subset(cluster=cid)."""
         return self.subset(cluster=cid)
 
@@ -113,7 +116,7 @@ class Results:
         out[order] = q
         return out
 
-    def with_qvalues(self, pval_col: str = "pval", qval_col: str = "qval") -> "Results":
+    def with_qvalues(self, pval_col: str = "pval", qval_col: str = "qval") -> Results:
         """
         Return a new Results with BH-FDR q-values added as `qval_col`.
         Does not mutate the original Results.
@@ -137,7 +140,7 @@ class Results:
             parent=self,
         )
 
-    def cluster_layout(self, *, strict: bool = True) -> "ClusterLayout":
+    def cluster_layout(self, *, strict: bool = True) -> ClusterLayout:
         """Return the authoritative clustering layout for downstream plotting."""
         if self._layout is None:
             raise ValueError("Results has no attached ClusterLayout")

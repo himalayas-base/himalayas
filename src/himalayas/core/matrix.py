@@ -22,7 +22,9 @@ class Matrix:
     layouts, and enrichment assume matrix contents do not change.
     """
 
-    def __init__(self, df: pd.DataFrame, *, matrix_semantics: str = "similarity", axis: str = "rows") -> None:
+    def __init__(
+        self, df: pd.DataFrame, *, matrix_semantics: str = "similarity", axis: str = "rows"
+    ) -> None:
         # Defensive copy: Matrix contents are treated as immutable downstream
         self.df = df.copy()
         self.values = self.df.values
