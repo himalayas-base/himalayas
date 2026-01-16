@@ -22,7 +22,15 @@ classifiers = [
     "Operating System :: OS Independent"
 ]
 
-dependencies = []
+dependencies = [
+    "matplotlib",
+    "numpy",
+    "pandas",
+    "scipy",
+]
+
+[project.optional-dependencies]
+text = ["nltk"]
 
 [project.urls]
 Homepage = "https://github.com/himalayas-base/himalayas"
