@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from himalayas import Matrix, run_first_pass
+from himalayas import Analysis, Matrix
 from himalayas.core import Annotations
 
 
@@ -20,13 +20,16 @@ def test_plotter_smoke():
     matrix = Matrix(df, matrix_semantics="distance")
     annotations = Annotations({"t1": ["a", "b"], "t2": ["c"]}, matrix)
 
-    results = run_first_pass(
-        matrix,
-        annotations,
-        linkage_threshold=100.0,
-        add_qvalues=False,
-        col_cluster=False,
+    analysis = (
+        Analysis(matrix, annotations)
+        .cluster(linkage_threshold=100.0)
+        .enrich()
+        .finalize(
+            add_qvalues=False,
+            col_cluster=False,
+        )
     )
+    results = analysis.results
 
     cluster_labels = pd.DataFrame(
         {

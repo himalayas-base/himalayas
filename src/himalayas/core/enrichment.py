@@ -9,8 +9,7 @@ import pandas as pd
 from scipy.stats import hypergeom
 
 from .annotations import Annotations
-from .clustering import Clusters, cluster
-from .layout import compute_col_order
+from .clustering import Clusters
 from .matrix import Matrix
 from .results import Results
 
@@ -189,67 +188,3 @@ def run_cluster_hypergeom(
         matrix=matrix,
         clusters=clusters,
     )
-
-
-def run_first_pass(
-    matrix: Matrix,
-    annotations: Annotations,
-    *,
-    background: Optional[Matrix] = None,
-    linkage_method: str = "ward",
-    linkage_metric: str = "euclidean",
-    linkage_threshold: float = 0.7,
-    min_cluster_size: Optional[int] = None,
-    min_overlap: int = 1,
-    add_qvalues: bool = True,
-    col_cluster: bool = False,
-    col_linkage_method: str = "ward",
-    col_linkage_metric: str = "euclidean",
-) -> Results:
-    """Bone-simple first-pass: cluster to hypergeom enrichment to (optional) q-values.
-
-    Use `background` to define the enrichment universe when running on a subset / zoomed matrix.
-
-    This keeps the end-user workflow minimal:
-        results = run_first_pass(matrix, annotations, ...)
-
-    Returns
-    -------
-    Results
-        Enrichment results with `matrix` and `clusters` attached.
-    """
-    clusters = cluster(
-        matrix,
-        linkage_method=linkage_method,
-        linkage_metric=linkage_metric,
-        linkage_threshold=linkage_threshold,
-        min_cluster_size=min_cluster_size,
-    )
-    res = run_cluster_hypergeom(
-        matrix,
-        clusters,
-        annotations,
-        min_overlap=min_overlap,
-        background=background,
-    )
-
-    # Optionally compute column order for layout (visual only)
-    col_order = None
-    if col_cluster:
-        col_order = compute_col_order(
-            matrix,
-            linkage_method=col_linkage_method,
-            linkage_metric=col_linkage_metric,
-        )
-
-    # Attach authoritative cluster layout for plotting (single source of truth)
-    layout = clusters.layout(strict=True, col_order=col_order)
-    res = Results(
-        res.df,
-        method=res.method,
-        matrix=matrix,
-        clusters=clusters,
-        layout=layout,
-        parent=res.parent,
-    )
-    return res.with_qvalues() if add_qvalues else res

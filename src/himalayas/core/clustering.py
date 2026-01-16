@@ -213,7 +213,7 @@ def _relabel_by_dendrogram_order(cluster_ids: np.ndarray, leaf_order: np.ndarray
     """
     cluster_ids = np.asarray(cluster_ids)
     leaf_order = np.asarray(leaf_order, dtype=int)
-    # Map cluster ID -> first position in dendrogram order
+    # Map cluster ID to first position in dendrogram order
     first_pos: Dict[int, int] = {}
     for pos, leaf in enumerate(leaf_order.tolist()):
         cid = int(cluster_ids[int(leaf)])
@@ -276,7 +276,7 @@ def _enforce_min_cluster_size(
     # Group leaves by initial cluster IDs.
     groups = _group_leaves_by_cluster(cluster_ids)
 
-    # Map each initial cluster -> target subtree node.
+    # Map each initial cluster to target subtree node.
     target_for_cluster: Dict[int, int] = {}
     for cid, leaves in groups.items():
         lca = _lca_many(leaves, parent)
