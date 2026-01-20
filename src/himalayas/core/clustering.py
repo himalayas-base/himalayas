@@ -354,8 +354,8 @@ class Clusters:
             linkage_matrix (np.ndarray): Linkage matrix from hierarchical clustering.
             labels (np.ndarray): Labels aligned to the rows/columns of the matrix.
             threshold (float): Distance threshold for cutting the dendrogram.
-            min_cluster_size (int): Enforces a minimum cluster size by merging smaller clusters upward
-                along the dendrogram. Values ≤1 disable enforcement.
+            min_cluster_size (int, optional): Enforces a minimum cluster size by merging smaller clusters upward
+                along the dendrogram. Values <= 1 disable enforcement. Defaults to 1.
 
         Raises:
             ValueError: If labels and cluster IDs length mismatch.
@@ -459,7 +459,8 @@ class Clusters:
         Returns cluster IDs aligned to dendrogram order (or a provided order).
 
         Args:
-            order (Optional[np.ndarray]): Optional order of leaf indices. If None, uses dendrogram
+            order (Optional[np.ndarray]): Optional order of leaf indices. If None, uses dendrogram.
+                Defaults to None.
 
         Returns:
             np.ndarray: Array of cluster IDs in the specified order.
@@ -473,7 +474,8 @@ class Clusters:
         Labels aligned to dendrogram order (or a provided order).
 
         Args:
-            order (Optional[np.ndarray]): Optional order of leaf indices. If None, uses dendrogram
+            order (Optional[np.ndarray]): Optional order of leaf indices. If None, uses dendrogram.
+                Defaults to None.
 
         Returns:
             np.ndarray: Array of labels in the specified order.
@@ -493,8 +495,9 @@ class Clusters:
 
         Args:
             order (Optional[np.ndarray]): Optional order of leaf indices. If None, uses dendrogram
-                order.
-            strict (bool): If True, raises an error if any cluster is non-contiguous in the order.
+                order. Defaults to None.
+            strict (bool, optional): If True, raises an error if any cluster is non-contiguous in the order.
+                Defaults to True.
 
         Returns:
             List[Tuple[int, int, int]]: List of (cluster_id, start_index, end_index) spans in the order.
@@ -542,9 +545,10 @@ class Clusters:
         Returns a frozen, read-only layout object for downstream plotting.
 
         Args:
-            strict (bool): If True, raises an error if any cluster is non-contiguous in the order.
+            strict (bool, optional): If True, raises an error if any cluster is non-contiguous in the order.
+                Defaults to True.
             col_order (Optional[np.ndarray]): Optional order of leaf indices for columns. If None,
-                uses dendrogram order.
+                columns are left in their original order. Defaults to None.
 
         Returns:
             ClusterLayout: Cached cluster layout object.
@@ -576,15 +580,15 @@ def cluster(
     """
     Performs hierarchical clustering and returns a `Clusters` object with cached metadata.
     If `min_cluster_size` is set to a value greater than 1, clusters smaller than this value are merged
-    upward along the dendrogram until the size constraint is satisfied. Values ≤1 disable enforcement.
+    upward along the dendrogram until the size constraint is satisfied. Values <= 1 disable enforcement.
 
     Args:
         matrix (Matrix): Matrix to cluster.
-        linkage_method (str): Linkage method for hierarchical clustering.
-        linkage_metric (str): Distance metric for hierarchical clustering.
-        linkage_threshold (float): Distance threshold for cutting the dendrogram.
-        min_cluster_size (int): Enforces a minimum cluster size by merging smaller clusters
-            upward along the dendrogram. Values ≤1 disable enforcement.
+        linkage_method (str, optional): Linkage method for hierarchical clustering. Defaults to "ward".
+        linkage_metric (str, optional): Distance metric for hierarchical clustering. Defaults to "euclidean".
+        linkage_threshold (float, optional): Distance threshold for cutting the dendrogram. Defaults to 0.7.
+        min_cluster_size (int, optional): Enforces a minimum cluster size by merging smaller clusters
+            upward along the dendrogram. Values <= 1 disable enforcement. Defaults to 1.
 
     Returns:
         Clusters: Clusters object containing dendrogram and cluster assignments.
