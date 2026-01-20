@@ -1,4 +1,7 @@
-"""Cluster-term enrichment routines."""
+"""
+himalayas/core/enrichment
+~~~~~~~~~~~~~~~~~~~~~~~~~
+"""
 
 from __future__ import annotations
 
@@ -14,24 +17,39 @@ from .matrix import Matrix
 from .results import Results
 
 
-# ------------------------------------------------------------
-# Helper functions for hypergeometric enrichment
-# ------------------------------------------------------------
-
-
 def _encode_label_indices(labels: np.ndarray) -> Dict[Any, int]:
-    """Map label -> dense integer index for fast set operations."""
-    # labels are already validated unique in Matrix
+    """
+    Map label to dense integer index for fast set operations.
+
+    Args:
+        labels (np.ndarray): Array of unique labels.
+
+    Returns:
+        Dict[Any, int]: Mapping from label to integer index.
+    """
+    # Labels are validated to be unique already
     return {lab: i for i, lab in enumerate(labels.tolist())}
 
 
 def _count_intersection_sorted(a: np.ndarray, b: np.ndarray) -> int:
-    """Count intersection size between two sorted, unique int arrays (two-pointer, no allocations)."""
+    """
+    Count intersection size between two sorted, unique int arrays (two-pointer, no allocations).
+
+    Args:
+        a (np.ndarray): First sorted array of integers.
+        b (np.ndarray): Second sorted array of integers.
+
+    Returns:
+        int: Size of the intersection between a and b.
+    """
+    # Initialize pointers and count
     i = 0
     j = 0
     na = int(a.size)
     nb = int(b.size)
     c = 0
+
+    # Two-pointer scan
     while i < na and j < nb:
         av = int(a[i])
         bv = int(b[j])
@@ -43,58 +61,50 @@ def _count_intersection_sorted(a: np.ndarray, b: np.ndarray) -> int:
             i += 1
         else:
             j += 1
+
     return c
 
 
-# ------------------------------------------------------------
-# First-pass cluster × term enrichment using hypergeometric test
-# ------------------------------------------------------------
-
-
-def run_cluster_hypergeom(
-    matrix: Matrix,
-    clusters: Clusters,
-    annotations: Annotations,
-    *,
-    min_overlap: int = 1,
-    background: Optional[Matrix] = None,
-) -> Results:
+def _validate_background(matrix: Matrix, background: Optional[Matrix]) -> Tuple[np.ndarray, int]:
     """
-    First-pass cluster × term enrichment using the hypergeometric test.
+    Validate background matrix and determine universe labels and size.
 
-    If `background` is provided, it defines the enrichment universe (N). Otherwise, the universe defaults to the analysis matrix.
+    Args:
+        matrix (Matrix): Analysis matrix.
+        background (Optional[Matrix]): Background matrix defining enrichment universe.
 
-    Returns a Results whose `.df` contains:
-      cluster, term, k, K, n, N, pval
+    Returns:
+        Tuple[np.ndarray, int]: Background labels and universe size N.
 
-    Performance notes
-    -----------------
-    This implementation avoids Python set intersections in the inner loop.
-    It encodes labels into dense integer IDs, then counts intersections via
-    a two-pointer scan over sorted integer arrays (no temporary allocations).
-
-    It also caches hypergeom.sf evaluations per cluster for repeated (K, k)
-    pairs (N and n are fixed per cluster).
+    Raises:
+        ValueError: If background matrix does not contain all analysis matrix labels.
     """
     bg_labels = background.labels if background is not None else matrix.labels
-
-    # Enrichment universe
     N = int(bg_labels.shape[0])
-
     if background is not None:
         if not set(matrix.labels).issubset(set(bg_labels)):
             raise ValueError(
                 "background matrix must contain all labels present in the analysis matrix"
             )
-
     if N == 0:
         raise ValueError("Enrichment universe is empty (N=0)")
+    return bg_labels, N
 
-    label_to_idx = _encode_label_indices(bg_labels)
 
-    # --------------------------------------------------------
-    # Pre-encode term label sets -> sorted unique int arrays
-    # --------------------------------------------------------
+def _encode_terms(
+    annotations: Annotations, label_to_idx: Dict[Any, int], *, min_overlap: int
+) -> List[Tuple[str, np.ndarray, int]]:
+    """
+    Pre-encode term label sets as sorted unique int arrays.
+
+    Args:
+        annotations (Annotations): Annotations aligned to the matrix.
+        label_to_idx (Dict[Any, int]): Mapping from label to integer index.
+        min_overlap (int): Minimum overlap (k) to report.
+
+    Returns:
+        List[Tuple[str, np.ndarray, int]]: List of tuples (term, idx_array, K).
+    """
     term_items: List[Tuple[str, np.ndarray, int]] = []  # (term, idx_array, K)
     for term, term_labels in annotations.term_to_labels.items():
         # term_labels already overlaps matrix labels by construction
@@ -107,21 +117,28 @@ def run_cluster_hypergeom(
         if K < int(min_overlap):
             continue
         term_items.append((term, idx, K))
+    return term_items
 
-    if not term_items:
-        return Results(
-            pd.DataFrame(columns=["cluster", "term", "k", "K", "n", "N", "pval"]),
-            method="hypergeom",
-            matrix=matrix,
-            clusters=clusters,
-        )
 
-    # --------------------------------------------------------
-    # Pre-encode clusters -> sorted unique int arrays
-    # --------------------------------------------------------
+def _encode_clusters(
+    clusters: Clusters, label_to_idx: Dict[Any, int], *, min_overlap: int
+) -> Dict[int, Tuple[np.ndarray, int]]:
+    """
+    Pre-encode clusters as sorted unique int arrays.
+
+    Args:
+        clusters (Clusters): Clustering results aligned to the matrix.
+        label_to_idx (Dict[Any, int]): Mapping from label to integer index.
+        min_overlap (int): Minimum overlap (k) to report.
+
+    Returns:
+        Dict[int, Tuple[np.ndarray, int]]: Mapping cluster_id → (cidx, n).
+
+    Raises:
+        RuntimeError: If a cluster has zero label indices after validation.
+    """
+    cluster_dict: Dict[int, Tuple[np.ndarray, int]] = {}
     cluster_ids = clusters.unique_clusters
-
-    rows: List[Dict[str, Any]] = []
 
     for cid in cluster_ids:
         cid_int = int(cid)
@@ -137,22 +154,71 @@ def run_cluster_hypergeom(
         if cidx.size == 0:
             raise RuntimeError("Cluster with zero label indices encountered after validation")
 
+        cluster_dict[cid_int] = (cidx, n)
+    return cluster_dict
+
+
+def run_cluster_hypergeom(
+    matrix: Matrix,
+    clusters: Clusters,
+    annotations: Annotations,
+    *,
+    min_overlap: int = 1,
+    background: Optional[Matrix] = None,
+) -> Results:
+    """
+    First-pass cluster x term enrichment using the hypergeometric test. If `background` is
+    provided, it defines the enrichment universe (N). Otherwise, the universe defaults to
+    the analysis matrix.
+    Returns a Results whose `.df` contains the following columns: cluster, term, k, K, n, N, pval
+
+    Args:
+        matrix (Matrix): Analysis matrix.
+        clusters (Clusters): Clustering results aligned to the matrix.
+        annotations (Annotations): Annotations aligned to the matrix.
+        min_overlap (int, optional): Minimum overlap (k) to report. Defaults to 1.
+        background (Optional[Matrix], optional): Background matrix defining enrichment universe.
+            Defaults to None.
+
+    Returns:
+        Results: Enrichment results.
+
+    Raises:
+        ValueError: If background matrix does not contain all analysis matrix labels.
+    """
+    # Validate background and get universe labels and size
+    bg_labels, N = _validate_background(matrix, background)
+    label_to_idx = _encode_label_indices(bg_labels)
+    term_items = _encode_terms(annotations, label_to_idx, min_overlap=min_overlap)
+    # Early exit if no terms pass filtering
+    if not term_items:
+        return Results(
+            pd.DataFrame(columns=["cluster", "term", "k", "K", "n", "N", "pval"]),
+            method="hypergeom",
+            matrix=matrix,
+            clusters=clusters,
+        )
+
+    # Encode clusters as index arrays
+    cluster_dict = _encode_clusters(clusters, label_to_idx, min_overlap=min_overlap)
+    rows: List[Dict[str, Any]] = []
+    for cid_int, (cidx, n) in cluster_dict.items():
         # Cache hypergeom.sf for this cluster (N and n fixed)
         sf_cache: Dict[Tuple[int, int], float] = {}
-
+        #  Test all terms
         for term, tidx, K in term_items:
-            # Fast intersection size
+            # Fast intersection size; skip if below min_overlap
             k = _count_intersection_sorted(cidx, tidx)
             if k < int(min_overlap):
                 continue
-
+            # Compute p-value with caching
             key = (K, k)
             pval = sf_cache.get(key)
             if pval is None:
                 # P(X >= k) under Hypergeom(N population, K successes, n draws)
                 pval = float(hypergeom.sf(k - 1, N, K, n))
                 sf_cache[key] = pval
-
+            # Record result row
             rows.append(
                 {
                     "cluster": cid_int,
@@ -165,6 +231,7 @@ def run_cluster_hypergeom(
                 }
             )
 
+    # Assemble results DataFrame
     df = pd.DataFrame(rows)
     if not df.empty:
         df = df.sort_values(["pval", "cluster", "term"], kind="mergesort").reset_index(drop=True)
