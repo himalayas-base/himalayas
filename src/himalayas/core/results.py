@@ -1,22 +1,20 @@
-"""Immutable container for analysis results."""
+"""
+himalayas/core/results
+~~~~~~~~~~~~~~~~~~~~~~
+"""
 
 from __future__ import annotations
 
-from typing import List, Tuple, TYPE_CHECKING
+from typing import List, Tuple
 
 import numpy as np
 import pandas as pd
 
 from .matrix import Matrix
 
-if TYPE_CHECKING:
-    from .layout import ClusterLayout
-
 
 class Results:
-    """
-    Immutable container for post-statistical results.
-    """
+    """ """
 
     def __init__(self, df, method, *, matrix=None, clusters=None, layout=None, parent=None) -> None:
         self.df = df

@@ -19,7 +19,7 @@ from .results import Results
 
 def _encode_label_indices(labels: np.ndarray) -> Dict[Any, int]:
     """
-    Map label to dense integer index for fast set operations.
+    Maps label to dense integer index for fast set operations.
 
     Args:
         labels (np.ndarray): Array of unique labels.
@@ -33,7 +33,7 @@ def _encode_label_indices(labels: np.ndarray) -> Dict[Any, int]:
 
 def _count_intersection_sorted(a: np.ndarray, b: np.ndarray) -> int:
     """
-    Count intersection size between two sorted, unique int arrays (two-pointer, no allocations).
+    Counts intersection size between two sorted, unique int arrays (two-pointer, no allocations).
 
     Args:
         a (np.ndarray): First sorted array of integers.
@@ -67,7 +67,7 @@ def _count_intersection_sorted(a: np.ndarray, b: np.ndarray) -> int:
 
 def _validate_background(matrix: Matrix, background: Optional[Matrix]) -> Tuple[np.ndarray, int]:
     """
-    Validate background matrix and determine universe labels and size.
+    Validates background matrix and determine universe labels and size.
 
     Args:
         matrix (Matrix): Analysis matrix.
@@ -95,7 +95,7 @@ def _encode_terms(
     annotations: Annotations, label_to_idx: Dict[Any, int], *, min_overlap: int
 ) -> List[Tuple[str, np.ndarray, int]]:
     """
-    Pre-encode term label sets as sorted unique int arrays.
+    Pre-encodes term label sets as sorted unique int arrays.
 
     Args:
         annotations (Annotations): Annotations aligned to the matrix.
@@ -124,7 +124,7 @@ def _encode_clusters(
     clusters: Clusters, label_to_idx: Dict[Any, int], *, min_overlap: int
 ) -> Dict[int, Tuple[np.ndarray, int]]:
     """
-    Pre-encode clusters as sorted unique int arrays.
+    Pre-encodes clusters as sorted unique int arrays.
 
     Args:
         clusters (Clusters): Clustering results aligned to the matrix.
@@ -167,10 +167,8 @@ def run_cluster_hypergeom(
     background: Optional[Matrix] = None,
 ) -> Results:
     """
-    First-pass cluster x term enrichment using the hypergeometric test. If `background` is
-    provided, it defines the enrichment universe (N). Otherwise, the universe defaults to
-    the analysis matrix.
-    Returns a Results whose `.df` contains the following columns: cluster, term, k, K, n, N, pval
+    Performs cluster x term enrichment using the hypergeometric test. If `background` is provided,
+    it defines the enrichment universe (N). Otherwise, the universe defaults to the analysis matrix.
 
     Args:
         matrix (Matrix): Analysis matrix.
@@ -181,7 +179,7 @@ def run_cluster_hypergeom(
             Defaults to None.
 
     Returns:
-        Results: Enrichment results.
+        Results: Enrichment results with the following columns: cluster, term, k, K, n, N, pval
 
     Raises:
         ValueError: If background matrix does not contain all analysis matrix labels.
