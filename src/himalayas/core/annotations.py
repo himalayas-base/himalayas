@@ -5,7 +5,7 @@ himalayas/core/annotations
 
 from __future__ import annotations
 
-from typing import Dict, Iterable, Set
+from typing import Dict, Iterable, Set, cast
 
 from himalayas.util.warnings import warn
 
@@ -18,15 +18,20 @@ class Annotations:
     filters annotations to labels present in the matrix.
     """
 
-    def __init__(self, term_to_labels: Dict[str, Iterable], matrix: Matrix) -> None:
+    def __init__(self, term_to_labels: Dict[str, Iterable[str]], matrix: Matrix) -> None:
         """
         Initializes Annotations.
+
+        Args:
+            term_to_labels (Dict[str, Iterable[str]]): Mapping of terms to their
+                associated labels.
+            matrix (Matrix): Matrix to align annotations to.
         """
         self.matrix_labels = set(matrix.labels)
-        self.term_to_labels: Dict[str, Set] = {}
+        self.term_to_labels: Dict[str, Set[str]] = {}
         self._validate_and_filter(term_to_labels)
 
-    def _validate_and_filter(self, term_to_labels: Dict[str, Iterable]) -> None:
+    def _validate_and_filter(self, term_to_labels: Dict[str, Iterable[str]]) -> None:
         """
         Validates and filters the input term-to-labels mapping to ensure
         that only labels present in the matrix are retained. Terms with no
@@ -34,7 +39,7 @@ class Annotations:
         are dropped. Raises an error if no terms remain after filtering.
 
         Args:
-            term_to_labels (Dict[str, Iterable]): Mapping of terms to their
+            term_to_labels (Dict[str, Iterable[str]]): Mapping of terms to their
                 associated labels.
 
         Raises:
@@ -49,11 +54,12 @@ class Annotations:
                 continue
             self.term_to_labels[term] = labels
 
+        # Check if any terms remain after filtering
         if len(self.term_to_labels) == 0:
             raise ValueError(
                 "No annotation terms overlap matrix labels " "(all terms dropped after filtering)"
             )
-
+        # Warn if any terms were dropped
         if dropped_terms:
             kept = len(self.term_to_labels)
             dropped = len(dropped_terms)
@@ -84,4 +90,4 @@ class Annotations:
         Returns:
             Annotations: A new Annotations object aligned to `matrix`.
         """
-        return Annotations(self.term_to_labels, matrix)
+        return Annotations(cast(Dict[str, Iterable[str]], self.term_to_labels), matrix)
