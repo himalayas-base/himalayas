@@ -136,6 +136,116 @@ class Plotter:
         self._background = None
         self._fig = None
 
+    def _draw_horizontal_boundary(
+        self,
+        ax: plt.Axes,
+        y: float,
+        *,
+        kind: str,
+        lw: float,
+        color: str,
+        alpha: float,
+        clip: bool = True,
+        zorder: Optional[int] = None,
+    ) -> None:
+        """
+        Draw a single horizontal line with global de-duplication and edge suppression.
+
+        This is the ONLY sanctioned way to draw row-aligned horizontal lines.
+        It prevents stacked/fuzzy borders by:
+          - suppressing lines at the top/bottom axis extremes
+          - de-duplicating coincident lines per-axis, preferring higher-priority kinds
+
+        Parameters
+        ----------
+        ax : plt.Axes
+            Matplotlib axis to draw into.
+        y : float
+            Y data coordinate.
+        kind : str
+            Semantic kind used for priority/de-duplication. Supported kinds:
+              - "minor"      : subtle gridlines
+              - "label_sep"  : label-panel separators
+              - "cluster"    : cluster boundaries
+        lw : float
+            Line width.
+        color : str
+            Line color.
+        alpha : float
+            Line alpha.
+        clip : bool, default True
+            Whether to clip to the axis area.
+        zorder : int or None, default None
+            If None, z-order is chosen by `kind`.
+        """
+        # Canonical per-kind priority and default z-order.
+        # Higher priority wins when multiple callers target the same y.
+        priority_map = {"minor": 1, "label_sep": 2, "cluster": 3}
+        if kind not in priority_map:
+            raise ValueError(f"Unknown horizontal boundary kind: {kind!r}")
+        priority = priority_map[kind]
+        if zorder is None:
+            zorder = priority
+
+        # Robust suppression at top/bottom extremes (handles inverted axes).
+        y0, y1 = ax.get_ylim()
+        ymin, ymax = (y0, y1) if y0 < y1 else (y1, y0)
+        eps = 1e-6
+        if y <= ymin + eps or y >= ymax - eps:
+            return
+
+        # Global de-duplication per-axis per-y (rounded to avoid float jitter).
+        # If a line was already drawn at this y with >= priority, suppress it.
+        registry = getattr(self, "_hline_registry", None)
+        if registry is None:
+            registry = {}
+            setattr(self, "_hline_registry", registry)
+
+        key = (id(ax), round(float(y), 6))
+        prev = registry.get(key, None)
+        if prev is not None and prev >= priority:
+            return
+        registry[key] = priority
+
+        ax.axhline(
+            y,
+            linewidth=lw,
+            color=color,
+            alpha=alpha,
+            zorder=zorder,
+            clip_on=clip,
+        )
+
+    # Internal layout rail for cluster separators (reserved whitespace).
+    # Not user-facing; preserves legacy layout behavior.
+    _CLUSTER_SEPARATOR_GAP: float = 0.02
+
+    # Draw a horizontal separator line in reserved whitespace (cluster label panel)
+    def _draw_horizontal_separator(
+        self,
+        ax: plt.Axes,
+        y: float,
+        *,
+        xmin: float,
+        xmax: float,
+        color: str,
+        lw: float,
+        alpha: float,
+    ) -> None:
+        """Draw a single horizontal separator line in reserved whitespace."""
+        if lw <= 0:
+            return
+        ax.hlines(
+            y,
+            xmin=xmin,
+            xmax=xmax,
+            colors=color,
+            linewidth=lw,
+            alpha=alpha,
+            zorder=2,
+            clip_on=False,
+        )
+
     def add_colorbar(
         self,
         *,
@@ -421,6 +531,9 @@ class Plotter:
     def plot_row_ticks(self, labels: Optional[Sequence[str]] = None, **kwargs) -> Plotter:
         """
         Declare row tick labels for the matrix.
+
+        Keyword arguments:
+          - position (str): "left" or "right" (default: "right").
         """
         self._layers.append(("row_ticks", {"labels": labels, **kwargs}))
         return self
@@ -428,6 +541,9 @@ class Plotter:
     def plot_col_ticks(self, labels: Optional[Sequence[str]] = None, **kwargs) -> Plotter:
         """
         Declare column tick labels for the matrix.
+
+        Keyword arguments:
+          - position (str): "top" or "bottom" (default: "top").
         """
         self._layers.append(("col_ticks", {"labels": labels, **kwargs}))
         return self
@@ -709,6 +825,8 @@ class Plotter:
         # (removed obsolete render-flag cleanup)
 
         n_rows, n_cols = data.shape
+        has_row_ticks = any(layer == "row_ticks" for layer, _ in self._layers)
+        has_col_ticks = any(layer == "col_ticks" for layer, _ in self._layers)
 
         for layer, kwargs in self._layers:
             if layer == "gene_bar":
@@ -839,10 +957,13 @@ class Plotter:
                 # ------------------------------------------------------------
                 outer_lw = kwargs.get("outer_lw", 1.2)
                 outer_color = kwargs.get("outer_color", "black")
-                for spine in ax.spines.values():
+                # Vertical spines only; horizontal boundaries are handled centrally
+                for name, spine in ax.spines.items():
                     spine.set_visible(True)
                     spine.set_linewidth(outer_lw)
                     spine.set_color(outer_color)
+                    if name in ("top", "bottom"):
+                        spine.set_visible(False)
 
                 # ------------------------------------------------------------
                 # Subtle minor row gridlines (render-only, non-semantic)
@@ -852,14 +973,14 @@ class Plotter:
                     minor_row_step = kwargs.get("minor_row_step", 1)
                     minor_row_lw = kwargs.get("minor_row_lw", 0.15)
                     minor_row_alpha = kwargs.get("minor_row_alpha", 0.15)
-
                     for y in range(0, n_rows, minor_row_step):
-                        ax.axhline(
+                        self._draw_horizontal_boundary(
+                            ax,
                             y - 0.5,
-                            color="black",
+                            kind="minor",
                             lw=minor_row_lw,
+                            color="black",
                             alpha=minor_row_alpha,
-                            zorder=2,
                         )
 
             # Note: orientation="left" already handles axis direction.
@@ -929,6 +1050,13 @@ class Plotter:
                     visible[idxs] = True
                 ax.set_yticks(np.arange(n))
                 ax.set_yticklabels(ordered_labels, fontsize=font_size)
+                position = kwargs.get("position", "right")
+                if position == "right":
+                    ax.yaxis.tick_right()
+                elif position == "left":
+                    ax.yaxis.tick_left()
+                else:
+                    raise ValueError("row_ticks position must be 'left' or 'right'")
                 # Hide non-visible labels
                 for tick, vis in zip(ax.get_yticklabels(), visible):
                     tick.set_visible(vis)
@@ -952,6 +1080,13 @@ class Plotter:
                     visible[idxs] = True
                 ax.set_xticks(np.arange(n))
                 ax.set_xticklabels(ordered_labels, fontsize=font_size, rotation=rotation)
+                position = kwargs.get("position", "top")
+                if position == "top":
+                    ax.xaxis.tick_top()
+                elif position == "bottom":
+                    ax.xaxis.tick_bottom()
+                else:
+                    raise ValueError("col_ticks position must be 'top' or 'bottom'")
                 for tick, vis in zip(ax.get_xticklabels(), visible):
                     tick.set_visible(vis)
 
@@ -1054,34 +1189,26 @@ class Plotter:
                     "dendro_boundary_alpha", self._style["dendro_boundary_alpha"]
                 )
 
-                # Draw cluster boundary lines (including top and bottom for polish)
+                # Draw cluster boundary lines (semantic only; no outermost borders)
                 for cid, s, e in spans:
                     boundary = s - 0.5
-
-                    ax.axhline(
-                        boundary, color=boundary_color, linewidth=boundary_lw, alpha=boundary_alpha
+                    self._draw_horizontal_boundary(
+                        ax,
+                        boundary,
+                        kind="cluster",
+                        lw=boundary_lw,
+                        color=boundary_color,
+                        alpha=boundary_alpha,
                     )
                     if ax_dend is not None:
-                        ax_dend.axhline(
+                        self._draw_horizontal_boundary(
+                            ax_dend,
                             boundary,
+                            kind="cluster",
+                            lw=dendro_boundary_lw,
                             color=dendro_boundary_color,
-                            linewidth=dendro_boundary_lw,
                             alpha=dendro_boundary_alpha,
                         )
-
-                # Bottom border after last cluster
-                last_e = spans[-1][2]
-                boundary = last_e + 0.5
-                ax.axhline(
-                    boundary, color=boundary_color, linewidth=boundary_lw, alpha=boundary_alpha
-                )
-                if ax_dend is not None:
-                    ax_dend.axhline(
-                        boundary,
-                        color=dendro_boundary_color,
-                        linewidth=dendro_boundary_lw,
-                        alpha=dendro_boundary_alpha,
-                    )
 
                 label_axes = kwargs.get("axes", self._style["label_axes"])
                 ax_lab = fig.add_axes(label_axes, frameon=False)
@@ -1329,25 +1456,26 @@ class Plotter:
                         sep_color = kwargs.get("label_sep_color", self._style["label_sep_color"])
                         sep_lw = kwargs.get("label_sep_lw", self._style["label_sep_lw"])
                         sep_alpha = kwargs.get("label_sep_alpha", self._style["label_sep_alpha"])
-                        # Separator start: label_sep_xmin
-                        xmin = kwargs.get("label_sep_xmin", self._style.get("label_sep_xmin", None))
-                        xmax = kwargs.get("label_sep_xmax", self._style.get("label_sep_xmax", None))
-                        if xmin is None:
-                            xmin = label_text_x
-                        if xmax is None:
-                            xmax = 1.0
-                        xmin = float(np.clip(xmin, 0.0, 1.0))
-                        xmax = float(np.clip(xmax, 0.0, 1.0))
-                        if xmin > xmax:
-                            xmin, xmax = xmax, xmin
-                        ax_lab.axhline(
-                            s - 0.5,
-                            xmin=xmin,
-                            xmax=xmax,
+                        # Compute separator span in axes coordinates: from label_text_x to 1.0
+                        sep_y = None
+                        prev_e = None
+                        for prev_cid, ps, pe in spans:
+                            if prev_cid == cid:
+                                break
+                            prev_e = pe
+                        if prev_e is None:
+                            continue
+                        sep_y = (prev_e + s) / 2.0
+                        # Draw separator using plot in axes coordinates (avoid axhline with custom transform)
+                        ax_lab.plot(
+                            [label_text_x, 1.0],
+                            [sep_y, sep_y],
                             color=sep_color,
                             linewidth=sep_lw,
                             alpha=sep_alpha,
-                            zorder=0,
+                            zorder=2,
+                            clip_on=False,
+                            transform=ax_lab.get_yaxis_transform(),
                         )
 
             elif layer == "sigbar_legend":
@@ -1492,8 +1620,10 @@ class Plotter:
                                 pad=2,
                                 fontname=font if font is not None else None,
                             )
-        ax.set_xticks([])
-        ax.set_yticks([])
+        if not has_col_ticks:
+            ax.set_xticks([])
+        if not has_row_ticks:
+            ax.set_yticks([])
         # Attach layout metadata for advanced users
         self.layout_ = layout
         self.colorbar_layout_ = colorbar_layout
