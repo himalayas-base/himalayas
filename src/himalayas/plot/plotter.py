@@ -971,61 +971,91 @@ class Plotter:
                     )
 
             elif layer == "row_ticks":
-                # Render row tick labels
+                # Render row tick labels on overlay axis (no tick marks)
                 labels = kwargs.get("labels", None)
                 font_size = kwargs.get("fontsize", 9)
                 max_labels = kwargs.get("max_labels", None)
-                # Default: use matrix row index
+                position = kwargs.get("position", "right")
+
+                # Build label array
                 base_labels = labels if labels is not None else list(self.matrix.df.index)
-                # Reorder according to row_order
                 ordered_labels = np.array(base_labels)[row_order]
                 n = len(ordered_labels)
+
+                # Visibility mask
                 visible = np.ones(n, dtype=bool)
                 if max_labels is not None and max_labels < n:
-                    # Evenly spaced visible mask
                     idxs = np.linspace(0, n - 1, num=max_labels, dtype=int)
                     visible[:] = False
                     visible[idxs] = True
-                ax.set_yticks(np.arange(n))
-                ax.set_yticklabels(ordered_labels, fontsize=font_size)
-                position = kwargs.get("position", "right")
-                if position == "right":
-                    ax.yaxis.tick_right()
-                elif position == "left":
-                    ax.yaxis.tick_left()
-                else:
-                    raise ValueError("row_ticks position must be 'left' or 'right'")
+
+                # Create transparent overlay axis (same position as matrix axis)
+                bbox = ax.get_position()
+                ax_row = fig.add_axes(bbox, frameon=False, zorder=10)
+                ax_row.set_xlim(ax.get_xlim())
+                ax_row.set_ylim(ax.get_ylim())
+
+                # Configure ticks with marks explicitly disabled
+                ax_row.set_yticks(np.arange(n))
+                ax_row.set_yticklabels(ordered_labels, fontsize=font_size)
+                ax_row.tick_params(
+                    axis="y",
+                    which="both",
+                    left=False,
+                    right=False,
+                    labelleft=(position == "left"),
+                    labelright=(position == "right"),
+                )
+                ax_row.set_xticks([])
+
                 # Hide non-visible labels
-                for tick, vis in zip(ax.get_yticklabels(), visible):
+                for tick, vis in zip(ax_row.get_yticklabels(), visible):
                     tick.set_visible(vis)
 
             elif layer == "col_ticks":
+                # Render column tick labels on overlay axis (no tick marks)
                 labels = kwargs.get("labels", None)
                 font_size = kwargs.get("fontsize", 9)
                 rotation = kwargs.get("rotation", 90)
                 max_labels = kwargs.get("max_labels", None)
-                # Default: use matrix col index
+                position = kwargs.get("position", "top")
+
+                # Build label array
                 base_labels = labels if labels is not None else list(self.matrix.df.columns)
                 if col_order is not None:
                     ordered_labels = np.array(base_labels)[col_order]
                 else:
                     ordered_labels = np.array(base_labels)
                 n = len(ordered_labels)
+
+                # Visibility mask
                 visible = np.ones(n, dtype=bool)
                 if max_labels is not None and max_labels < n:
                     idxs = np.linspace(0, n - 1, num=max_labels, dtype=int)
                     visible[:] = False
                     visible[idxs] = True
-                ax.set_xticks(np.arange(n))
-                ax.set_xticklabels(ordered_labels, fontsize=font_size, rotation=rotation)
-                position = kwargs.get("position", "top")
-                if position == "top":
-                    ax.xaxis.tick_top()
-                elif position == "bottom":
-                    ax.xaxis.tick_bottom()
-                else:
-                    raise ValueError("col_ticks position must be 'top' or 'bottom'")
-                for tick, vis in zip(ax.get_xticklabels(), visible):
+
+                # Create transparent overlay axis (same position as matrix axis)
+                bbox = ax.get_position()
+                ax_col = fig.add_axes(bbox, frameon=False, zorder=10)
+                ax_col.set_xlim(ax.get_xlim())
+                ax_col.set_ylim(ax.get_ylim())
+
+                # Configure ticks with marks explicitly disabled
+                ax_col.set_xticks(np.arange(n))
+                ax_col.set_xticklabels(ordered_labels, fontsize=font_size, rotation=rotation)
+                ax_col.tick_params(
+                    axis="x",
+                    which="both",
+                    top=False,
+                    bottom=False,
+                    labeltop=(position == "top"),
+                    labelbottom=(position == "bottom"),
+                )
+                ax_col.set_yticks([])
+
+                # Hide non-visible labels
+                for tick, vis in zip(ax_col.get_xticklabels(), visible):
                     tick.set_visible(vis)
 
             elif layer == "dendrogram":
@@ -1227,6 +1257,26 @@ class Plotter:
                     x_cursor = track["x1"] + track["right_pad"]
                 label_text_x = x_cursor + LABEL_TEXT_PAD
 
+                # Resolve label separator span once (explicit geometry; no None sentinels)
+                sep_xmin = kwargs.get(
+                    "label_sep_xmin",
+                    self._style.get("label_sep_xmin"),
+                )
+                sep_xmax = kwargs.get(
+                    "label_sep_xmax",
+                    self._style.get("label_sep_xmax"),
+                )
+
+                if sep_xmin is None:
+                    sep_xmin = label_text_x
+                if sep_xmax is None:
+                    sep_xmax = 1.0
+
+                sep_xmin = float(np.clip(sep_xmin, 0.0, 1.0))
+                sep_xmax = float(np.clip(sep_xmax, 0.0, 1.0))
+                if sep_xmin > sep_xmax:
+                    sep_xmin, sep_xmax = sep_xmax, sep_xmin
+
                 font = kwargs.get("font", "Helvetica")
                 fontsize = kwargs.get("fontsize", self._style.get("label_fontsize", 9))
                 max_words = kwargs.get("max_words", None)
@@ -1389,21 +1439,10 @@ class Plotter:
                         sep_color = kwargs.get("label_sep_color", self._style["label_sep_color"])
                         sep_lw = kwargs.get("label_sep_lw", self._style["label_sep_lw"])
                         sep_alpha = kwargs.get("label_sep_alpha", self._style["label_sep_alpha"])
-                        # Separator start: label_sep_xmin
-                        xmin = kwargs.get("label_sep_xmin", self._style.get("label_sep_xmin", None))
-                        xmax = kwargs.get("label_sep_xmax", self._style.get("label_sep_xmax", None))
-                        if xmin is None:
-                            xmin = label_text_x
-                        if xmax is None:
-                            xmax = 1.0
-                        xmin = float(np.clip(xmin, 0.0, 1.0))
-                        xmax = float(np.clip(xmax, 0.0, 1.0))
-                        if xmin > xmax:
-                            xmin, xmax = xmax, xmin
                         ax_lab.axhline(
                             s - 0.5,
-                            xmin=xmin,
-                            xmax=xmax,
+                            xmin=sep_xmin,
+                            xmax=sep_xmax,
                             color=sep_color,
                             linewidth=sep_lw,
                             alpha=sep_alpha,
@@ -1552,10 +1591,9 @@ class Plotter:
                                 pad=2,
                                 fontname=font if font is not None else None,
                             )
-        if not has_col_ticks:
-            ax.set_xticks([])
-        if not has_row_ticks:
-            ax.set_yticks([])
+        # Matrix axis never owns ticks; always keep clean
+        ax.set_xticks([])
+        ax.set_yticks([])
         # Attach layout metadata for advanced users
         self.layout_ = layout
         self.colorbar_layout_ = colorbar_layout
