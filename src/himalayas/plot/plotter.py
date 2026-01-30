@@ -20,6 +20,8 @@ from .renderers import (
     DendrogramRenderer,
     GeneBarRenderer,
     MatrixRenderer,
+    render_cluster_bar_track,
+    SigbarLegendRenderer,
 )
 from .renderers.gene_bar import render_gene_bar_track
 from .style import StyleConfig
@@ -221,82 +223,11 @@ class Plotter:
         enabled = kwargs.get("enabled", True)
         title = kwargs.get("title", None)
 
-        def _renderer_cluster_bar(
-            ax, x0, width, payload, cluster_spans, label_map, style, row_order
-        ) -> None:
-            # value_map: cluster_id -> float or None
-            value_map = payload.get("value_map", {})
-
-            cmap_in = payload.get("cmap", style["sigbar_cmap"])
-            cmap = plt.get_cmap(cmap_in) if isinstance(cmap_in, str) else cmap_in
-
-            alpha = payload.get("alpha", style["sigbar_alpha"])
-            norm = payload.get("norm", None)
-
-            source = payload.get("source", None)
-
-            # Collect p-values for clusters in span order
-            pvals = np.full(len(cluster_spans), np.nan, dtype=float)
-            if source == "cluster_labels_pval":
-                for i, (cid, _s, _e) in enumerate(cluster_spans):
-                    _label, pval = label_map.get(cid, (None, np.nan))
-                    if pval is None or pd.isna(pval):
-                        pvals[i] = np.nan
-                    else:
-                        pvals[i] = float(pval)
-            else:
-                for i, (cid, _s, _e) in enumerate(cluster_spans):
-                    v = value_map.get(cid, np.nan)
-                    if v is None or pd.isna(v):
-                        pvals[i] = np.nan
-                    else:
-                        pvals[i] = float(v)
-
-            # Convert to -log10(p) (visual space)
-            with np.errstate(divide="ignore", invalid="ignore"):
-                logp = -np.log10(pvals)
-
-            valid = np.isfinite(logp) & (logp >= 0)
-            if not np.any(valid):
-                return
-
-            # Implicit normalization: if no norm provided, scale to [0, max(-log10(p))]
-            if norm is None:
-                vmax = float(np.nanmax(logp[valid]))
-                if not np.isfinite(vmax) or vmax <= 0:
-                    return
-                norm = plt.Normalize(vmin=0.0, vmax=vmax)
-
-            # Map through norm -> cmap
-            scaled = np.full_like(logp, np.nan, dtype=float)
-            try:
-                scaled[valid] = np.asarray(norm(logp[valid]), dtype=float)
-            except TypeError:
-                # If norm doesn't support vector input, fall back to scalar mapping
-                scaled[valid] = np.array([float(norm(v)) for v in logp[valid]], dtype=float)
-
-            # Draw patches (loop only for patch placement; colors are precomputed)
-            for (cid, s, e), sv in zip(cluster_spans, scaled):
-                if not np.isfinite(sv):
-                    continue
-                bar_color = cmap(sv)
-                ax.add_patch(
-                    plt.Rectangle(
-                        (x0, s - 0.5),
-                        width,
-                        e - s + 1,
-                        facecolor=bar_color,
-                        edgecolor="none",
-                        alpha=alpha,
-                        zorder=1,
-                    )
-                )
-
         if enabled:
             self._track_layout.register_track(
                 name=name,
                 kind="cluster",
-                renderer=_renderer_cluster_bar,
+                renderer=render_cluster_bar_track,
                 left_pad=left_pad,
                 width=width,
                 right_pad=right_pad,
@@ -705,27 +636,8 @@ class Plotter:
                 )
 
             elif layer == "sigbar_legend":
-                cmap = plt.get_cmap(
-                    kwargs.get("sigbar_cmap", self._style.get("sigbar_cmap", "YlOrBr"))
-                )
-                norm = kwargs.get("norm", None)
-                if norm is not None and hasattr(norm, "vmin") and hasattr(norm, "vmax"):
-                    lo = float(norm.vmin)
-                    hi = float(norm.vmax)
-                else:
-                    lo = kwargs.get("sigbar_min_logp", self._style.get("sigbar_min_logp", 2.0))
-                    hi = kwargs.get("sigbar_max_logp", self._style.get("sigbar_max_logp", 10.0))
-                legend_axes = kwargs.get("axes", [0.92, 0.20, 0.015, 0.25])
-                ax_leg = fig.add_axes(legend_axes, frameon=False)
-                grad = np.linspace(0, 1, 256).reshape(-1, 1)
-                ax_leg.imshow(grad, aspect="auto", cmap=cmap, origin="lower")
-                ax_leg.set_yticks([0, 255])
-                ax_leg.set_yticklabels([f"{lo:g}", f"{hi:g}"])
-                ax_leg.set_ylabel("-log10(p)", fontsize=8)
-                ax_leg.set_xticks([])
-                ax_leg.tick_params(axis="y", labelsize=7)
-                for spine in ax_leg.spines.values():
-                    spine.set_visible(False)
+                renderer = SigbarLegendRenderer(**kwargs)
+                renderer.render(fig, self._style)
 
             elif layer == "bar_labels":
                 # Consumed inside the cluster label panel; no direct rendering.

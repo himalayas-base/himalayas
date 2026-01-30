@@ -48,9 +48,7 @@ class TrackLayoutManager:
             self.order = None
             return
         if not isinstance(order, (list, tuple)):
-            raise TypeError(
-                "label_track_order must be None or a list/tuple of unique strings"
-            )
+            raise TypeError("label_track_order must be None or a list/tuple of unique strings")
         names = list(order)
         if any(not isinstance(n, str) for n in names):
             raise TypeError("label_track_order must be a list/tuple of unique strings")
@@ -66,9 +64,7 @@ class TrackLayoutManager:
         if any(not n for n in active_names):
             raise ValueError("All label-panel tracks must have a non-empty 'name'")
         if len(set(active_names)) != len(active_names):
-            raise ValueError(
-                f"Active label-panel track names must be unique. Got: {active_names}"
-            )
+            raise ValueError(f"Active label-panel track names must be unique. Got: {active_names}")
 
         if self.order is None:
             return tracks

@@ -81,6 +81,13 @@ class ClusterLabelsRenderer:
                 label = base_label
                 pval = row.get("pval", None)
             label_map[cid] = (label, pval)
+        if override_map:
+            unknown = set(override_map) - set(label_map)
+            if unknown:
+                raise ValueError(
+                    "overrides contain cluster ids not present in cluster_labels: "
+                    f"{sorted(unknown)}"
+                )
 
         spans = layout.cluster_spans
         cluster_sizes = layout.cluster_sizes
