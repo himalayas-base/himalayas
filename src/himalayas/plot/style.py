@@ -25,6 +25,8 @@ DEFAULT_STYLE = {
     "label_gutter_color": "white",
     # Padding between matrix and ylabel axis (fraction of figure width)
     "ylabel_pad": 0.015,
+    # Matrix panel background (used to mask edge artifacts if desired)
+    "matrix_gutter_color": None,
     # Gene-level annotation bar (row-level, purely visual)
     # Placed between dendrogram and matrix by default.
     "gene_bar_width": 0.012,
