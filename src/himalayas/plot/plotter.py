@@ -378,7 +378,7 @@ class Plotter:
             scaled = np.full_like(logp, np.nan, dtype=float)
             try:
                 scaled[valid] = np.asarray(norm(logp[valid]), dtype=float)
-            except Exception:
+            except TypeError:
                 # If norm doesn't support vector input, fall back to scalar mapping
                 scaled[valid] = np.array([float(norm(v)) for v in logp[valid]], dtype=float)
 
