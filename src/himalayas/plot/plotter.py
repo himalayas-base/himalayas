@@ -8,7 +8,6 @@ from __future__ import annotations
 from typing import Any, Mapping, Optional, Sequence
 
 import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
 
 from ..core.results import Results
