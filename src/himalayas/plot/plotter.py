@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 
 from ..core.results import Results
-from .renderers import BoundaryRegistry, DendrogramRenderer, MatrixRenderer
+from .renderers import AxesRenderer, BoundaryRegistry, DendrogramRenderer, MatrixRenderer
 from .style import StyleConfig
 from .track_layout import TrackLayoutManager
 
@@ -164,34 +164,6 @@ class Plotter:
         """
         self._background = color
         return self
-
-    def _apply_text_style(
-        self,
-        text_obj,
-        *,
-        font: Optional[str] = None,
-        fontsize: Optional[float] = None,
-        color: Optional[str] = None,
-        alpha: Optional[float] = None,
-        fontweight: Optional[str] = None,
-    ) -> None:
-        """Apply a consistent text style to a Matplotlib Text object."""
-        if text_obj is None:
-            return
-        if font is not None:
-            # Prefer font family to avoid backend-specific fontname quirks
-            if hasattr(text_obj, "set_fontfamily"):
-                text_obj.set_fontfamily(font)
-            elif hasattr(text_obj, "set_fontname"):
-                text_obj.set_fontname(font)
-        if fontsize is not None:
-            text_obj.set_fontsize(fontsize)
-        if color is not None:
-            text_obj.set_color(color)
-        if alpha is not None:
-            text_obj.set_alpha(alpha)
-        if fontweight is not None:
-            text_obj.set_fontweight(fontweight)
 
     def set_label_track_order(self, order: Optional[Sequence[str]]) -> Plotter:
         """
@@ -807,150 +779,16 @@ class Plotter:
             # Note: orientation="left" already handles axis direction.
             # Do NOT manually reverse x-limits or the dendrogram will be mirrored.
             elif layer == "matrix_axis_labels":
-                xlabel = kwargs.get("xlabel", "")
-                ylabel = kwargs.get("ylabel", "")
-                fontsize = kwargs.get("fontsize", 12)
-                fontweight = kwargs.get("fontweight", "normal")
-                xlabel_pad = kwargs.get("xlabel_pad", 8)
-                font = kwargs.get("font", None)
-                color = kwargs.get("color", self._style.get("text_color", "black"))
-                alpha = kwargs.get("alpha", 1.0)
-
-                # Set x-label on the matrix axis
-                txt_xlabel = ax.set_xlabel(
-                    xlabel,
-                    fontweight=fontweight,
-                    labelpad=xlabel_pad,
-                )
-                self._apply_text_style(
-                    txt_xlabel,
-                    font=font,
-                    fontsize=fontsize,
-                    color=color,
-                    alpha=alpha,
-                    fontweight=fontweight,
-                )
-                # Do NOT set y-label on the matrix axis
-                # Instead, if ylabel is non-empty, create a new axis to the right of the matrix for the y-label
-                if isinstance(ylabel, str) and ylabel.strip():
-                    # Get matrix axis position in figure coordinates
-                    bbox = ax.get_position()
-                    pad_frac = kwargs.get("ylabel_pad", self._style.get("ylabel_pad", 0.015))
-                    # Compute new axes: just to the right of the matrix
-                    x = bbox.x1 + pad_frac
-                    y = bbox.y0
-                    width = 0.015
-                    height = bbox.height
-                    ax_ylabel = ax.figure.add_axes([x, y, width, height], frameon=False)
-                    ax_ylabel.set_xticks([])
-                    ax_ylabel.set_yticks([])
-                    for spine in ax_ylabel.spines.values():
-                        spine.set_visible(False)
-                    text_kwargs = {
-                        "fontname": font if font is not None else "Helvetica",
-                        "fontsize": fontsize,
-                        "color": color,
-                        "alpha": alpha,
-                        "fontweight": fontweight,
-                    }
-                    ax_ylabel.text(
-                        0.5,
-                        0.5,
-                        ylabel,
-                        transform=ax_ylabel.transAxes,
-                        rotation=90,
-                        va="center",
-                        ha="center",
-                        **text_kwargs,
-                    )
+                renderer = AxesRenderer("matrix_axis_labels", **kwargs)
+                renderer.render(fig, ax, self.matrix, layout, self._style)
 
             elif layer == "row_ticks":
-                # Render row tick labels on overlay axis (no tick marks)
-                labels = kwargs.get("labels", None)
-                font_size = kwargs.get("fontsize", 9)
-                max_labels = kwargs.get("max_labels", None)
-                position = kwargs.get("position", "right")
-
-                # Build label array
-                base_labels = labels if labels is not None else list(self.matrix.df.index)
-                ordered_labels = np.array(base_labels)[row_order]
-                n = len(ordered_labels)
-
-                # Visibility mask
-                visible = np.ones(n, dtype=bool)
-                if max_labels is not None and max_labels < n:
-                    idxs = np.linspace(0, n - 1, num=max_labels, dtype=int)
-                    visible[:] = False
-                    visible[idxs] = True
-
-                # Create transparent overlay axis (same position as matrix axis)
-                bbox = ax.get_position()
-                ax_row = fig.add_axes(bbox, frameon=False, zorder=10)
-                ax_row.set_xlim(ax.get_xlim())
-                ax_row.set_ylim(ax.get_ylim())
-
-                # Configure ticks with marks explicitly disabled
-                ax_row.set_yticks(np.arange(n))
-                ax_row.set_yticklabels(ordered_labels, fontsize=font_size)
-                ax_row.tick_params(
-                    axis="y",
-                    which="both",
-                    left=False,
-                    right=False,
-                    labelleft=(position == "left"),
-                    labelright=(position == "right"),
-                )
-                ax_row.set_xticks([])
-
-                # Hide non-visible labels
-                for tick, vis in zip(ax_row.get_yticklabels(), visible):
-                    tick.set_visible(vis)
+                renderer = AxesRenderer("row_ticks", **kwargs)
+                renderer.render(fig, ax, self.matrix, layout, self._style)
 
             elif layer == "col_ticks":
-                # Render column tick labels on overlay axis (no tick marks)
-                labels = kwargs.get("labels", None)
-                font_size = kwargs.get("fontsize", 9)
-                rotation = kwargs.get("rotation", 90)
-                max_labels = kwargs.get("max_labels", None)
-                position = kwargs.get("position", "top")
-
-                # Build label array
-                base_labels = labels if labels is not None else list(self.matrix.df.columns)
-                if col_order is not None:
-                    ordered_labels = np.array(base_labels)[col_order]
-                else:
-                    ordered_labels = np.array(base_labels)
-                n = len(ordered_labels)
-
-                # Visibility mask
-                visible = np.ones(n, dtype=bool)
-                if max_labels is not None and max_labels < n:
-                    idxs = np.linspace(0, n - 1, num=max_labels, dtype=int)
-                    visible[:] = False
-                    visible[idxs] = True
-
-                # Create transparent overlay axis (same position as matrix axis)
-                bbox = ax.get_position()
-                ax_col = fig.add_axes(bbox, frameon=False, zorder=10)
-                ax_col.set_xlim(ax.get_xlim())
-                ax_col.set_ylim(ax.get_ylim())
-
-                # Configure ticks with marks explicitly disabled
-                ax_col.set_xticks(np.arange(n))
-                ax_col.set_xticklabels(ordered_labels, fontsize=font_size, rotation=rotation)
-                ax_col.tick_params(
-                    axis="x",
-                    which="both",
-                    top=False,
-                    bottom=False,
-                    labeltop=(position == "top"),
-                    labelbottom=(position == "bottom"),
-                )
-                ax_col.set_yticks([])
-
-                # Hide non-visible labels
-                for tick, vis in zip(ax_col.get_xticklabels(), visible):
-                    tick.set_visible(vis)
+                renderer = AxesRenderer("col_ticks", **kwargs)
+                renderer.render(fig, ax, self.matrix, layout, self._style)
 
             elif layer == "dendrogram":
                 renderer = DendrogramRenderer(**kwargs)
@@ -965,12 +803,8 @@ class Plotter:
                 )
 
             elif layer == "title":
-                ax.set_title(
-                    kwargs["title"],
-                    fontsize=kwargs.get("fontsize", self._style.get("title_fontsize", 14)),
-                    pad=kwargs.get("pad", self._style.get("title_pad", 15)),
-                    color=kwargs.get("color", self._style.get("text_color", "black")),
-                )
+                renderer = AxesRenderer("title", **kwargs)
+                renderer.render(fig, ax, self.matrix, layout, self._style)
 
             elif layer == "cluster_labels":
                 df = kwargs["df"]
