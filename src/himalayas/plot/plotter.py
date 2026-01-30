@@ -1,35 +1,37 @@
-# ============================================================
-# Foundational Plotter spine for HiMaLAYAS (prototype)
-# ============================================================
+"""
+himalayas/plot/plotter
+~~~~~~~~~~~~~~~~~~~~~
+"""
 
 from __future__ import annotations
+
+from typing import Any, Mapping, Optional, Sequence
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from scipy.cluster.hierarchy import dendrogram
-from typing import Any, Mapping, Optional, Sequence
-from matplotlib.colors import TwoSlopeNorm, to_rgba
-
 from matplotlib.collections import LineCollection
+from matplotlib.colors import TwoSlopeNorm, to_rgba
+from scipy.cluster.hierarchy import dendrogram
+
+from ..core.results import Results
 
 
 class Plotter:
     """
-    Layered plot builder for HiMaLAYAS.
-
-    The Plotter is a pure consumer of analysis results:
-      - It never recomputes clustering or statistics
-      - It never mutates Matrix, Clusters, or Results
-      - It accumulates declarative plotting layers
-      - Rendering happens only when `show()` is called
-
-    Designed as a deterministic, matrix-first plotting spine:
-    dendrogram order is authoritative and never mutated at render time.
+    Layered, matrix-first plotter for HiMaLAYAS. Rendering happens only when `show()` is called.
     """
 
-    def __init__(self, results: Any) -> None:
-        # Store authoritative inputs (support both Results and filtered Results)
+    def __init__(self, results: Results) -> None:
+        """
+        Initializes Plotter.
+
+        Args:
+            results (Results): Results object to plot.
+
+        Raises:
+            AttributeError: If Results object is missing required attributes.
+        """
         self.results = results
 
         if not hasattr(results, "matrix"):
@@ -146,7 +148,7 @@ class Plotter:
         norm,
         label: Optional[str] = None,
         ticks: Optional[Sequence[float]] = None,
-        enabled: bool = True,
+        color: Optional[str] = None,
     ) -> Plotter:
         """
         Declare a global colorbar explaining a visual encoding.
@@ -163,7 +165,7 @@ class Plotter:
                 "norm": norm,
                 "label": label,
                 "ticks": ticks,
-                "enabled": enabled,
+                "color": color,
             }
         )
         return self
@@ -241,6 +243,37 @@ class Plotter:
         """
         self._background = color
         return self
+
+    def _apply_text_style(
+        self,
+        text_obj,
+        *,
+        font: Optional[str] = None,
+        fontsize: Optional[float] = None,
+        color: Optional[str] = None,
+        alpha: Optional[float] = None,
+        fontweight: Optional[str] = None,
+    ) -> None:
+        """Apply a consistent text style to a Matplotlib Text object."""
+        if text_obj is None:
+            return
+        if font is not None:
+            # Prefer font family to avoid backend-specific fontname quirks
+            try:
+                text_obj.set_fontfamily(font)
+            except Exception:
+                try:
+                    text_obj.set_fontname(font)
+                except Exception:
+                    pass
+        if fontsize is not None:
+            text_obj.set_fontsize(fontsize)
+        if color is not None:
+            text_obj.set_color(color)
+        if alpha is not None:
+            text_obj.set_alpha(alpha)
+        if fontweight is not None:
+            text_obj.set_fontweight(fontweight)
 
     def set_label_track_order(self, order: Optional[Sequence[str]]) -> Plotter:
         """
@@ -414,8 +447,18 @@ class Plotter:
         return self
 
     def plot_matrix_axis_labels(self, **kwargs) -> Plotter:
-        """
-        Declare axis labels for the matrix.
+        """Declare axis labels for the matrix.
+
+        Keyword arguments
+        -----------------
+        xlabel, ylabel : str
+            Axis label text.
+        fontsize : float
+            Font size for both axis labels.
+        font : str or None
+            Font family to apply to both axis labels (e.g., "Helvetica").
+        color : str
+            Text color for both axis labels.
         """
         self._layers.append(("matrix_axis_labels", kwargs))
         return self
@@ -700,29 +743,22 @@ class Plotter:
                 raise ValueError("Column order does not match matrix dimensions.")
             data = data.iloc[:, col_order]
 
+        # Work with raw numpy array for plotting
         data = data.values
+        n_rows, n_cols = data.shape
 
+        # Create figure and main axis
         fig, ax = plt.subplots(figsize=self._style["figsize"])
         fig.subplots_adjust(**self._style["subplots_adjust"])
         if self._background is not None:
             fig.patch.set_facecolor(self._background)
 
-        ax_dend = None  # created if dendrogram layer is rendered
-
+        # Created if dendrogram layer is rendered
+        ax_dend = None
         # Precompute dendrogram geometry for rendering only (for dendrogram panel)
         dendro = None
 
-        # (removed: Render-safety padding block)
-
-        # (removed obsolete render-flag cleanup)
-
-        n_rows, n_cols = data.shape
-        has_row_ticks = any(layer == "row_ticks" for layer, _ in self._layers)
-        has_col_ticks = any(layer == "col_ticks" for layer, _ in self._layers)
-
-        # ------------------------------------------------------------
         # Single-ownership boundary registry (matrix-aligned horizontals)
-        # ------------------------------------------------------------
         matrix_kwargs = None
         cluster_boundary_kwargs = None
         for _layer, _kwargs in self._layers:
@@ -929,13 +965,23 @@ class Plotter:
                 fontsize = kwargs.get("fontsize", 12)
                 fontweight = kwargs.get("fontweight", "normal")
                 xlabel_pad = kwargs.get("xlabel_pad", 8)
-                # Set x-label on the matrix axis as usual
-                ax.set_xlabel(
+                font = kwargs.get("font", None)
+                color = kwargs.get("color", self._style.get("text_color", "black"))
+                alpha = kwargs.get("alpha", 1.0)
+
+                # Set x-label on the matrix axis
+                txt_xlabel = ax.set_xlabel(
                     xlabel,
-                    fontsize=fontsize,
                     fontweight=fontweight,
                     labelpad=xlabel_pad,
-                    color=kwargs.get("color", self._style.get("text_color", "black")),
+                )
+                self._apply_text_style(
+                    txt_xlabel,
+                    font=font,
+                    fontsize=fontsize,
+                    color=color,
+                    alpha=alpha,
+                    fontweight=fontweight,
                 )
                 # Do NOT set y-label on the matrix axis
                 # Instead, if ylabel is non-empty, create a new axis to the right of the matrix for the y-label
@@ -954,10 +1000,11 @@ class Plotter:
                     for spine in ax_ylabel.spines.values():
                         spine.set_visible(False)
                     text_kwargs = {
-                        "font": kwargs.get("font", "Helvetica"),
+                        "fontname": font if font is not None else "Helvetica",
                         "fontsize": fontsize,
-                        "color": kwargs.get("color", self._style.get("text_color", "black")),
-                        "alpha": kwargs.get("alpha", 1.0),
+                        "color": color,
+                        "alpha": alpha,
+                        "fontweight": fontweight,
                     }
                     ax_ylabel.text(
                         0.5,
@@ -1385,7 +1432,7 @@ class Plotter:
                             elif field == "n" and n_members is not None:
                                 parts.append(f"n={n_members}")
                             elif field == "p" and pval is not None and not pd.isna(pval):
-                                parts.append(f"p={pval:.2e}")
+                                parts.append(rf"$p$={pval:.2e}")
                         if not parts:
                             text = label
                         else:
@@ -1490,107 +1537,112 @@ class Plotter:
         # ------------------------------------------------------------
         colorbar_layout = None
         if self._colorbars:
-            enabled_bars = [cb for cb in self._colorbars if cb.get("enabled", True)]
-            if enabled_bars:
-                colorbar_layout = self._colorbar_layout or {}
-                nrows = colorbar_layout.get("nrows")
-                ncols = colorbar_layout.get("ncols")
-                height = colorbar_layout.get("height", 0.05)
-                hpad = colorbar_layout.get("hpad", 0.01)
-                vpad = colorbar_layout.get("vpad", 0.01)
-                gap = colorbar_layout.get("gap", 0.02)
-                label_position = colorbar_layout.get("label_position", "below")
+            colorbar_layout = self._colorbar_layout or {}
+            nrows = colorbar_layout.get("nrows")
+            ncols = colorbar_layout.get("ncols")
+            height = colorbar_layout.get("height", 0.05)
+            hpad = colorbar_layout.get("hpad", 0.01)
+            vpad = colorbar_layout.get("vpad", 0.01)
+            gap = colorbar_layout.get("gap", 0.02)
+            label_position = colorbar_layout.get("label_position", "below")
 
-                border_color = colorbar_layout.get("border_color")
-                if border_color is None:
-                    border_color = self._style.get("text_color", "black")
-                border_width = colorbar_layout.get("border_width", 0.8)
-                border_alpha = colorbar_layout.get("border_alpha", 1.0)
+            border_color = colorbar_layout.get("border_color")
+            if border_color is None:
+                border_color = self._style.get("text_color", "black")
+            border_width = colorbar_layout.get("border_width", 0.8)
+            border_alpha = colorbar_layout.get("border_alpha", 1.0)
 
-                # Typography (explicit, colorbar-scoped)
-                fontsize = colorbar_layout.get("fontsize")
-                if fontsize is None:
-                    fontsize = self._style.get("label_fontsize", 9)
+            # Typography (explicit, colorbar-scoped)
+            fontsize = colorbar_layout.get("fontsize")
+            if fontsize is None:
+                fontsize = self._style.get("label_fontsize", 9)
 
-                text_color = colorbar_layout.get("color")
-                if text_color is None:
-                    text_color = self._style.get("text_color", "black")
+            text_color = colorbar_layout.get("color")
+            if text_color is None:
+                text_color = self._style.get("text_color", "black")
 
-                font = colorbar_layout.get("font", None)
+            font = colorbar_layout.get("font", None)
 
-                N = len(enabled_bars)
-                if nrows is None and ncols is None:
-                    nrows, ncols = 1, N
-                elif nrows is None:
-                    nrows = int(np.ceil(N / ncols))
-                elif ncols is None:
-                    ncols = int(np.ceil(N / nrows))
+            N = len(self._colorbars)
+            if nrows is None and ncols is None:
+                nrows, ncols = 1, N
+            elif nrows is None:
+                nrows = int(np.ceil(N / ncols))
+            elif ncols is None:
+                ncols = int(np.ceil(N / nrows))
 
-                # Matrix axis bbox defines horizontal alignment
-                bbox = ax.get_position()
-                strip_y0 = bbox.y0 - height - gap
-                strip_x0 = bbox.x0
-                strip_w = bbox.width
-                strip_h = height
+            # Matrix axis bbox defines horizontal alignment
+            bbox = ax.get_position()
+            strip_y0 = bbox.y0 - height - gap
+            strip_x0 = bbox.x0
+            strip_w = bbox.width
+            strip_h = height
 
-                cell_w = (strip_w - hpad * (ncols - 1)) / ncols
-                cell_h = (strip_h - vpad * (nrows - 1)) / nrows
+            cell_w = (strip_w - hpad * (ncols - 1)) / ncols
+            cell_h = (strip_h - vpad * (nrows - 1)) / nrows
 
-                from matplotlib.colorbar import ColorbarBase
+            from matplotlib.colorbar import ColorbarBase
 
-                for i, cb in enumerate(enabled_bars):
-                    r = i // ncols
-                    c = i % ncols
+            for i, cb in enumerate(self._colorbars):
+                r = i // ncols
+                c = i % ncols
 
-                    x0 = strip_x0 + c * (cell_w + hpad)
-                    y0 = strip_y0 + (nrows - 1 - r) * (cell_h + vpad)
+                x0 = strip_x0 + c * (cell_w + hpad)
+                y0 = strip_y0 + (nrows - 1 - r) * (cell_h + vpad)
 
-                    ax_cb = fig.add_axes([x0, y0, cell_w, cell_h], frameon=True)
+                ax_cb = fig.add_axes([x0, y0, cell_w, cell_h], frameon=True)
+                bar_text_color = cb.get("color")
+                if bar_text_color is None:
+                    bar_text_color = text_color
 
-                    # Set border styling for colorbar axes
-                    for spine in ax_cb.spines.values():
-                        spine.set_visible(True)
-                        spine.set_linewidth(border_width)
-                        spine.set_edgecolor(border_color)
-                        spine.set_alpha(border_alpha)
-
-                    ColorbarBase(
+                    cbar = ColorbarBase(
                         ax_cb,
                         cmap=cb["cmap"],
                         norm=cb["norm"],
                         orientation="horizontal",
                         ticks=cb.get("ticks", None),
                     )
+                    outline = getattr(cbar, "outline", None)
+                    if outline is not None:
+                        outline.set_edgecolor(border_color)
+                        outline.set_linewidth(border_width)
+                        outline.set_alpha(border_alpha)
+                    else:
+                        for spine in ax_cb.spines.values():
+                            spine.set_visible(True)
+                            spine.set_linewidth(border_width)
+                            spine.set_edgecolor(border_color)
+                            spine.set_alpha(border_alpha)
 
-                    ax_cb.tick_params(
-                        axis="x",
-                        labelsize=fontsize,
-                        colors=text_color,
-                    )
-                    ax_cb.set_yticks([])
+                ax_cb.tick_params(
+                    axis="x",
+                    labelsize=fontsize,
+                    colors=bar_text_color,
+                )
+                ax_cb.set_yticks([])
 
-                    if font is not None:
-                        for t in ax_cb.get_xticklabels():
-                            t.set_fontname(font)
+                if font is not None:
+                    for t in ax_cb.get_xticklabels():
+                        t.set_fontname(font)
 
-                    label = cb.get("label")
-                    if label:
-                        if label_position == "below":
-                            ax_cb.set_xlabel(
-                                label,
-                                fontsize=fontsize,
-                                color=text_color,
-                                labelpad=2,
-                                fontname=font if font is not None else None,
-                            )
-                        else:
-                            ax_cb.set_title(
-                                label,
-                                fontsize=fontsize,
-                                color=text_color,
-                                pad=2,
-                                fontname=font if font is not None else None,
-                            )
+                label = cb.get("label")
+                if label:
+                    if label_position == "below":
+                        ax_cb.set_xlabel(
+                            label,
+                            fontsize=fontsize,
+                            color=bar_text_color,
+                            labelpad=2,
+                            fontname=font if font is not None else None,
+                        )
+                    else:
+                        ax_cb.set_title(
+                            label,
+                            fontsize=fontsize,
+                            color=bar_text_color,
+                            pad=2,
+                            fontname=font if font is not None else None,
+                        )
         # Matrix axis never owns ticks; always keep clean
         ax.set_xticks([])
         ax.set_yticks([])

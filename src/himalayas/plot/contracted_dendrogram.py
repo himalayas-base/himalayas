@@ -1,24 +1,14 @@
-# ============================================================
-# HiMaLAYAS — Cluster-Level Dendrogram (Contracted Master Linkage)
-# ============================================================
-#
-# GOAL:
-#   Reconstruct a cluster-level hierarchy that closely mimics
-#   the master dendrogram in BOTH ordering and relative heights,
-#   without fragile assumptions.
-#
-# STRATEGY:
-#   - Contract the MASTER linkage matrix at the chosen cluster cut
-#   - Treat clusters as leaves; preserve master topology and leaf order
-#
-# This is simple, stable, and honest.
-# ============================================================
+"""
+himalayas/plot/contracted_dendrogram
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+"""
+
+from typing import Any, Dict, Optional, Sequence, Tuple
 
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.cluster.hierarchy import dendrogram
-from typing import Any, Dict, Optional, Sequence
 
 
 def plot_term_hierarchy_contracted(
@@ -97,7 +87,7 @@ def plot_term_hierarchy_contracted(
     row_labels = results.matrix.labels
 
     # gene -> cluster id
-    gene_to_cluster = {}
+    gene_to_cluster: Dict[Any, int] = {}
     c2g = getattr(getattr(results, "clusters", None), "cluster_to_labels", None) or {}
     for cid, genes in c2g.items():
         for g in genes:
@@ -130,7 +120,7 @@ def plot_term_hierarchy_contracted(
     # ------------------------------------------------------------
     # Build label map
     # ------------------------------------------------------------
-    lab_map = {}
+    lab_map: Dict[int, Tuple[str, float, Optional[float]]] = {}
     for _, r in cluster_labels.iterrows():
         lab_map[int(r["cluster"])] = (
             str(r["label"]),
@@ -231,7 +221,7 @@ def plot_term_hierarchy_contracted(
         leaf_groups.append(cluster_index[cid])
 
     # For each master node id (0..n_master-1 leaves, n_master.. internal), track which contracted leaves it contains
-    node_groups = {}
+    node_groups: Dict[int, set[int]] = {}
     for i, grp in enumerate(leaf_groups):
         node_groups[i] = set() if grp is None else {int(grp)}
 
