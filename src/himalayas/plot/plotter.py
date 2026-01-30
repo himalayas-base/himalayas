@@ -15,6 +15,8 @@ from ..core.results import Results
 from .renderers import (
     AxesRenderer,
     BoundaryRegistry,
+    ClusterLabelsRenderer,
+    ColorbarRenderer,
     DendrogramRenderer,
     GeneBarRenderer,
     MatrixRenderer,
@@ -26,7 +28,8 @@ from .track_layout import TrackLayoutManager
 
 class Plotter:
     """
-    Layered, matrix-first plotter for HiMaLAYAS. Rendering happens only when `show()` is called.
+    Layered, matrix-first plotter for HiMaLAYAS. Rendering happens when `show()` or
+    `save()` is called.
     """
 
     def __init__(self, results: Results) -> None:
@@ -326,6 +329,7 @@ class Plotter:
         Declare the main matrix heatmap layer.
 
         Parameters are stored verbatim and interpreted at render time.
+        Use `gutter_color` to set the matrix panel background (helps mask edge artifacts).
         """
         self._layers.append(("matrix", kwargs))
         return self
@@ -496,6 +500,12 @@ class Plotter:
               - "n"     : cluster size
               - "p"     : cluster p-value (formatted)
             Default: ("label", "n", "p").
+        overrides : dict, optional
+            Optional per-cluster label overrides. Values may be:
+              - str: override label only (stats suppressed by default)
+              - dict with keys {"label", "pval", "hide_stats"}.
+            If a p-value is provided in the override dict, it is shown for that cluster.
+            If no p-value is provided, p-values are suppressed for that cluster.
         Other keyword arguments control typography, spacing, and panel geometry.
         """
         # Reject deprecated sigbar/track-order kwargs
@@ -527,16 +537,14 @@ class Plotter:
         return self
 
     # --------------------------------------------------------
-    # Rendering (intentionally not implemented yet)
+    # Rendering
     # --------------------------------------------------------
 
     # _ordered_cluster_spans removed: Plotter now fully consumes layout from Results
 
-    def render(self) -> None:
+    def _render(self) -> None:
         """
-        Render the accumulated plot layers.
-
-        Rendering is executed in the order layers were declared.
+        Render the accumulated plot layers in declaration order.
         """
         if not self._layers:
             raise RuntimeError("No plot layers declared.")
@@ -569,7 +577,6 @@ class Plotter:
         fig.subplots_adjust(**self._style["subplots_adjust"])
         if self._background is not None:
             fig.patch.set_facecolor(self._background)
-
 
         # Single-ownership boundary registry (matrix-aligned horizontals)
         matrix_kwargs = None
@@ -679,260 +686,23 @@ class Plotter:
                 renderer.render(fig, ax, self.matrix, layout, self._style)
 
             elif layer == "cluster_labels":
-                df = kwargs["df"]
-                if not isinstance(df, pd.DataFrame):
-                    raise TypeError("cluster_labels must be a pandas DataFrame.")
-                if "cluster" not in df.columns or "label" not in df.columns:
-                    raise ValueError(
-                        "cluster_labels DataFrame must contain columns: 'cluster', 'label'."
-                    )
-
-                # Build mapping cluster_id -> (label, pval)
-                overrides = kwargs.get("overrides", None)
-                if overrides is not None and not isinstance(overrides, dict):
-                    raise TypeError("overrides must be a dict mapping cluster_id -> label string")
-
-                label_map = {}
-                for _, row in df.iterrows():
-                    cid = int(row["cluster"])
-                    base_label = str(row["label"])
-                    label = overrides.get(cid, base_label) if overrides else base_label
-                    pval = row.get("pval", None)
-                    label_map[cid] = (label, pval)
-
-                # Use precomputed cluster spans from layout
-                spans = layout.cluster_spans
-                cluster_sizes = layout.cluster_sizes
-
-                label_axes = kwargs.get("axes", self._style["label_axes"])
-                ax_lab = fig.add_axes(label_axes, frameon=False)
-                ax_lab.set_xlim(0, 1)
-                ax_lab.set_ylim(-0.5, n_rows - 0.5)
-                ax_lab.invert_yaxis()  # Match heatmap orientation
-                ax_lab.set_xticks([])
-                ax_lab.set_yticks([])
-                # Draw a clean gutter separating matrix from label panel
-                gutter_w = kwargs.get("label_gutter_width", self._style["label_gutter_width"])
-                gutter_color = kwargs.get("label_gutter_color", self._style["label_gutter_color"])
-                ax_lab.add_patch(
-                    plt.Rectangle(
-                        (0.0, -0.5),
-                        gutter_w,
-                        n_rows,
-                        facecolor=gutter_color,
-                        edgecolor="none",
-                        zorder=0,
-                    )
-                )
-
-                # ------------------------------------------------------------
-                # Explicit label-panel track-rail model
-                # ------------------------------------------------------------
-                # Track default spacings
-                LABEL_TEXT_PAD = kwargs.get(
-                    "label_text_pad", self._style.get("label_bar_pad", 0.01)
-                )
-
-                # (2) Compute track geometry (rail layout)
-                base_x = kwargs.get("label_x", self._style["label_x"])
-                self._track_layout.compute_layout(base_x, gutter_w)
-                tracks = self._track_layout.get_tracks()
-                end_x = self._track_layout.get_end_x()
-                if end_x is None:
-                    end_x = base_x + gutter_w
-                label_text_x = end_x + LABEL_TEXT_PAD
-
-                # Resolve label separator span once (explicit geometry; no None sentinels)
-                sep_xmin = kwargs.get(
-                    "label_sep_xmin",
-                    self._style.get("label_sep_xmin"),
-                )
-                sep_xmax = kwargs.get(
-                    "label_sep_xmax",
-                    self._style.get("label_sep_xmax"),
-                )
-
-                if sep_xmin is None:
-                    sep_xmin = label_text_x
-                if sep_xmax is None:
-                    sep_xmax = 1.0
-
-                sep_xmin = float(np.clip(sep_xmin, 0.0, 1.0))
-                sep_xmax = float(np.clip(sep_xmax, 0.0, 1.0))
-                if sep_xmin > sep_xmax:
-                    sep_xmin, sep_xmax = sep_xmax, sep_xmin
-
-                font = kwargs.get("font", "Helvetica")
-                fontsize = kwargs.get("fontsize", self._style.get("label_fontsize", 9))
-                max_words = kwargs.get("max_words", None)
-                skip_unlabeled = kwargs.get("skip_unlabeled", False)
-                label_fields = kwargs.get("label_fields", self._style["label_fields"])
-                if not isinstance(label_fields, (list, tuple)):
-                    raise TypeError("label_fields must be a list or tuple of strings")
-                allowed_fields = {"label", "n", "p"}
-                if any(f not in allowed_fields for f in label_fields):
-                    raise ValueError(f"label_fields may only contain {allowed_fields}")
-
-                # (3) Render all tracks (row and cluster level)
-                # Row-level tracks: render once per track
-                for track in tracks:
-                    if track["kind"] == "row":
-                        track["renderer"](
-                            ax_lab,
-                            track["x0"],
-                            track["width"],
-                            track["payload"],
-                            self.matrix,
-                            row_order,
-                            self._style,
-                        )
-                # Cluster-level tracks: render once per cluster
-                for track in tracks:
-                    if track["kind"] == "cluster":
-                        track["renderer"](
-                            ax_lab,
-                            track["x0"],
-                            track["width"],
-                            track["payload"],
-                            spans,
-                            label_map,
-                            self._style,
-                            row_order,
-                        )
-
-                # Render bar labels (titles below bars) if requested
-                # IMPORTANT: bar labels must be anchored in axes coordinates (0..1)
-                # and padded in physical units (points) so they stay flush across figsize changes.
                 bar_kwargs = None
                 for l, kw in self._layers:
                     if l == "bar_labels":
                         bar_kwargs = kw  # last one wins
 
-                if bar_kwargs is not None:
-                    bar_pad_pts = bar_kwargs.get("pad", 2)  # interpreted as POINTS
-                    bar_rotation = bar_kwargs.get("rotation", 0)
-
-                    for track in tracks:
-                        title = track.get("payload", {}).get("title", None)
-                        if not title:
-                            continue
-                        x_center = (track.get("x0", 0.0) + track.get("x1", 0.0)) / 2.0
-                        text_kwargs = {
-                            "font": bar_kwargs.get("font", "Helvetica"),
-                            "fontsize": bar_kwargs.get("fontsize", 10),
-                            "color": bar_kwargs.get(
-                                "color", self._style.get("text_color", "black")
-                            ),
-                            "alpha": bar_kwargs.get("alpha", 1.0),
-                        }
-                        ax_lab.annotate(
-                            title,
-                            xy=(x_center, 0.0),
-                            xycoords=ax_lab.transAxes,
-                            xytext=(0, -bar_pad_pts),
-                            textcoords="offset points",
-                            ha="center",
-                            va="top",
-                            **text_kwargs,
-                            rotation=bar_rotation,
-                            clip_on=False,
-                        )
-
-                # (4) Render label text and separators
-                for cid, s, e in spans:
-                    y_center = (s + e) / 2.0
-                    if cid not in label_map:
-                        if skip_unlabeled:
-                            continue
-                        text = kwargs.get("placeholder_text", self._style["placeholder_text"])
-                        text_kwargs = {
-                            "font": font,
-                            "fontsize": fontsize,
-                            "color": kwargs.get(
-                                "color",
-                                kwargs.get("placeholder_color", self._style["placeholder_color"]),
-                            ),
-                            "alpha": kwargs.get("alpha", self._style["placeholder_alpha"]),
-                        }
-                    else:
-                        label, pval = label_map[cid]
-                        # Omit specified words from label (case-insensitive)
-                        omit_words = kwargs.get("omit_words", self._style["label_omit_words"])
-                        if omit_words:
-                            omit = {w.lower() for w in omit_words}
-                            words = [w for w in label.split() if w.lower() not in omit]
-                            label = " ".join(words) if words else label
-                        n_members = cluster_sizes.get(cid, None)
-                        parts = []
-                        for field in label_fields:
-                            if field == "label":
-                                parts.append(label)
-                            elif field == "n" and n_members is not None:
-                                parts.append(f"n={n_members}")
-                            elif field == "p" and pval is not None and not pd.isna(pval):
-                                parts.append(rf"$p$={pval:.2e}")
-                        if not parts:
-                            text = label
-                        else:
-                            if parts[0] == label:
-                                head = label
-                                tail = parts[1:]
-                                text = f"{head} ({', '.join(tail)})" if tail else head
-                            else:
-                                text = ", ".join(parts)
-                        # --------------------------------------------------
-                        # Label text policy (single source of truth)
-                        # --------------------------------------------------
-                        wrap_text = kwargs.get("wrap_text", True)
-                        wrap_width = kwargs.get(
-                            "wrap_width",
-                            self._style.get("label_wrap_width", None),
-                        )
-                        overflow = kwargs.get("overflow", "wrap")  # "wrap" | "ellipsis"
-
-                        # Word-level truncation policy
-                        words = text.split()
-                        if max_words is not None and len(words) > max_words:
-                            if overflow == "ellipsis":
-                                text = " ".join(words[:max_words]) + "…"
-                            else:  # overflow == "wrap"
-                                text = " ".join(words[:max_words])
-
-                        # Layout-level wrapping (purely visual)
-                        if wrap_text and wrap_width is not None:
-                            import textwrap
-
-                            text = "\n".join(textwrap.wrap(text, width=wrap_width))
-                        text_kwargs = {
-                            "font": font,
-                            "fontsize": fontsize,
-                            "color": kwargs.get("color", self._style.get("text_color", "black")),
-                            "alpha": kwargs.get("alpha", 0.9),
-                        }
-                    ax_lab.text(
-                        label_text_x,
-                        y_center,
-                        text,
-                        va="center",
-                        ha="left",
-                        **text_kwargs,
-                        fontweight="normal",
-                        clip_on=False,
-                    )
-                    # Draw label separator if not topmost cluster
-                    if s > 0:
-                        sep_color = kwargs.get("label_sep_color", self._style["label_sep_color"])
-                        sep_lw = kwargs.get("label_sep_lw", self._style["label_sep_lw"])
-                        sep_alpha = kwargs.get("label_sep_alpha", self._style["label_sep_alpha"])
-                        ax_lab.axhline(
-                            s - 0.5,
-                            xmin=sep_xmin,
-                            xmax=sep_xmax,
-                            color=sep_color,
-                            linewidth=sep_lw,
-                            alpha=sep_alpha,
-                            zorder=0,
-                        )
+                renderer_kwargs = dict(kwargs)
+                df = renderer_kwargs.pop("df")
+                renderer = ClusterLabelsRenderer(df, **renderer_kwargs)
+                renderer.render(
+                    fig,
+                    ax,
+                    self.matrix,
+                    layout,
+                    self._style,
+                    self._track_layout,
+                    bar_labels_kwargs=bar_kwargs,
+                )
 
             elif layer == "sigbar_legend":
                 cmap = plt.get_cmap(
@@ -975,112 +745,8 @@ class Plotter:
         # ------------------------------------------------------------
         colorbar_layout = None
         if self._colorbars:
-            colorbar_layout = self._colorbar_layout or {}
-            nrows = colorbar_layout.get("nrows")
-            ncols = colorbar_layout.get("ncols")
-            height = colorbar_layout.get("height", 0.05)
-            hpad = colorbar_layout.get("hpad", 0.01)
-            vpad = colorbar_layout.get("vpad", 0.01)
-            gap = colorbar_layout.get("gap", 0.02)
-            label_position = colorbar_layout.get("label_position", "below")
-
-            border_color = colorbar_layout.get("border_color")
-            if border_color is None:
-                border_color = self._style.get("text_color", "black")
-            border_width = colorbar_layout.get("border_width", 0.8)
-            border_alpha = colorbar_layout.get("border_alpha", 1.0)
-
-            # Typography (explicit, colorbar-scoped)
-            fontsize = colorbar_layout.get("fontsize")
-            if fontsize is None:
-                fontsize = self._style.get("label_fontsize", 9)
-
-            text_color = colorbar_layout.get("color")
-            if text_color is None:
-                text_color = self._style.get("text_color", "black")
-
-            font = colorbar_layout.get("font", None)
-
-            N = len(self._colorbars)
-            if nrows is None and ncols is None:
-                nrows, ncols = 1, N
-            elif nrows is None:
-                nrows = int(np.ceil(N / ncols))
-            elif ncols is None:
-                ncols = int(np.ceil(N / nrows))
-
-            # Matrix axis bbox defines horizontal alignment
-            bbox = ax.get_position()
-            strip_y0 = bbox.y0 - height - gap
-            strip_x0 = bbox.x0
-            strip_w = bbox.width
-            strip_h = height
-
-            cell_w = (strip_w - hpad * (ncols - 1)) / ncols
-            cell_h = (strip_h - vpad * (nrows - 1)) / nrows
-
-            from matplotlib.colorbar import ColorbarBase
-
-            for i, cb in enumerate(self._colorbars):
-                r = i // ncols
-                c = i % ncols
-
-                x0 = strip_x0 + c * (cell_w + hpad)
-                y0 = strip_y0 + (nrows - 1 - r) * (cell_h + vpad)
-
-                ax_cb = fig.add_axes([x0, y0, cell_w, cell_h], frameon=True)
-                bar_text_color = cb.get("color")
-                if bar_text_color is None:
-                    bar_text_color = text_color
-
-                    cbar = ColorbarBase(
-                        ax_cb,
-                        cmap=cb["cmap"],
-                        norm=cb["norm"],
-                        orientation="horizontal",
-                        ticks=cb.get("ticks", None),
-                    )
-                    outline = getattr(cbar, "outline", None)
-                    if outline is not None:
-                        outline.set_edgecolor(border_color)
-                        outline.set_linewidth(border_width)
-                        outline.set_alpha(border_alpha)
-                    else:
-                        for spine in ax_cb.spines.values():
-                            spine.set_visible(True)
-                            spine.set_linewidth(border_width)
-                            spine.set_edgecolor(border_color)
-                            spine.set_alpha(border_alpha)
-
-                ax_cb.tick_params(
-                    axis="x",
-                    labelsize=fontsize,
-                    colors=bar_text_color,
-                )
-                ax_cb.set_yticks([])
-
-                if font is not None:
-                    for t in ax_cb.get_xticklabels():
-                        t.set_fontname(font)
-
-                label = cb.get("label")
-                if label:
-                    if label_position == "below":
-                        ax_cb.set_xlabel(
-                            label,
-                            fontsize=fontsize,
-                            color=bar_text_color,
-                            labelpad=2,
-                            fontname=font if font is not None else None,
-                        )
-                    else:
-                        ax_cb.set_title(
-                            label,
-                            fontsize=fontsize,
-                            color=bar_text_color,
-                            pad=2,
-                            fontname=font if font is not None else None,
-                        )
+            renderer = ColorbarRenderer(self._colorbars, self._colorbar_layout)
+            colorbar_layout = renderer.render(fig, ax, self._style)
         # Matrix axis never owns ticks; always keep clean
         ax.set_xticks([])
         ax.set_yticks([])
@@ -1089,12 +755,20 @@ class Plotter:
         self.colorbar_layout_ = colorbar_layout
         self._fig = fig
 
+    def _figure_is_open(self) -> bool:
+        if self._fig is None:
+            return False
+        try:
+            return self._fig.number in plt.get_fignums()
+        except Exception:
+            return False
+
     def save(self, path: str, **kwargs) -> None:
         """
         Save the last rendered figure with correct background handling.
         """
-        if self._fig is None:
-            raise RuntimeError("Nothing to save — call render() first.")
+        if self._fig is None or not self._figure_is_open():
+            self._render()
 
         self._fig.savefig(
             path,
@@ -1106,7 +780,7 @@ class Plotter:
         """
         Show the last rendered figure with correct background handling.
         """
-        if self._fig is None:
-            raise RuntimeError("Nothing to show — call render() first.")
+        if self._fig is None or not self._figure_is_open():
+            self._render()
 
         plt.show()
