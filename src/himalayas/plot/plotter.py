@@ -11,10 +11,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from matplotlib.collections import LineCollection
-from matplotlib.colors import TwoSlopeNorm, to_rgba
+from matplotlib.colors import to_rgba
 from scipy.cluster.hierarchy import dendrogram
 
 from ..core.results import Results
+from .renderers import BoundaryRegistry, MatrixRenderer
+from .style import StyleConfig
+from .track_layout import TrackLayoutManager
 
 
 class Plotter:
@@ -48,93 +51,14 @@ class Plotter:
         self._colorbars = []
         self._colorbar_layout = None
 
-        # Ordered list of declared label panel tracks (track-rail model)
-        # Each entry: {
-        #   "name": str,
-        #   "kind": "row" or "cluster",
-        #   "renderer": callable,
-        #   "left_pad": float,
-        #   "width": float,
-        #   "right_pad": float,
-        #   "enabled": bool,
-        #   "payload": dict,
-        # }
-        self._declared_label_tracks = []
-        self._active_label_tracks = []
-
-        # Layout state: user-defined label track order
-        self._label_track_order = None
+        # Label panel track layout manager
+        self._track_layout = TrackLayoutManager()
 
         # --------------------------------------------------------
         # Default styling/layout (user-overridable via layer kwargs)
         # --------------------------------------------------------
-        self._style = {
-            # Figure layout
-            "figsize": (9, 7),
-            "subplots_adjust": {"left": 0.15, "right": 0.70, "bottom": 0.05, "top": 0.95},
-            # Dendrogram axis box [x0, y0, w, h]
-            "dendro_axes": [0.06, 0.05, 0.09, 0.90],
-            "dendro_color": "#888888",
-            "dendro_lw": 1.0,
-            # Label panel axis box [x0, y0, w, h]
-            "label_axes": [0.70, 0.05, 0.29, 0.90],
-            "label_x": 0.02,
-            # Gutter between matrix and label panel
-            "label_gutter_width": 0.01,
-            "label_gutter_color": "white",
-            # Padding between matrix and ylabel axis (fraction of figure width)
-            "ylabel_pad": 0.015,
-            # Gene-level annotation bar (row-level, purely visual)
-            # Placed between dendrogram and matrix by default.
-            "gene_bar_width": 0.012,
-            "gene_bar_gap": 0.006,
-            "gene_bar_missing_color": "#eeeeee",
-            # Bars rendered inside the label panel (to the left of text)
-            # (label_bar_default_width, label_bar_default_gap removed)
-            # Default settings for cluster p-value bars (e.g., sigbar)
-            # NOTE: scaling is controlled by an explicit `norm` passed to plot_cluster_bar.
-            # `sigbar_min_logp` / `sigbar_max_logp` are legacy defaults used only for the legend.
-            "sigbar_width": 0.015,
-            "sigbar_cmap": "YlOrBr",
-            "sigbar_min_logp": 2.0,
-            "sigbar_max_logp": 10.0,
-            "sigbar_alpha": 0.9,
-            "show_sigbar": True,
-            # (sigbar_gap removed)
-            # Label panel bar/text spacing
-            "label_bar_pad": 0.01,
-            # Cluster boundary lines
-            "boundary_color": "black",
-            "boundary_lw": 0.5,
-            "boundary_alpha": 0.6,
-            "dendro_boundary_color": "white",
-            "dendro_boundary_lw": 0.5,
-            "dendro_boundary_alpha": 0.3,
-            # Placeholder for unlabeled clusters
-            "placeholder_text": "—",
-            "placeholder_color": "#b22222",
-            "placeholder_alpha": 0.6,
-            # Default text color (used unless overridden via kwargs)
-            "text_color": "black",
-            "title_fontsize": 14,
-            "title_pad": 15,
-            "label_fontsize": 9,
-            # Separator lines in label panel
-            "label_sep_color": "gray",
-            "label_sep_lw": 0.5,
-            "label_sep_alpha": 0.3,
-            # Optional override for label separator segment span (axes coords 0..1)
-            # If None, separators start after gutter+sigbar+pad and extend to 1.0
-            "label_sep_xmin": None,
-            "label_sep_xmax": None,
-            # Words to omit from displayed cluster labels
-            "label_omit_words": None,
-            # Which fields to show in cluster labels, in order
-            # Allowed values: "label", "n", "p"
-            "label_fields": ("label", "n", "p"),
-            # Optional label wrapping (characters per line); None = disabled
-            "label_wrap_width": None,
-        }
+        self.style = StyleConfig()
+        self._style = self.style
 
         # Figure-level configuration (explicit, opt-in)
         self._background = None
@@ -277,17 +201,7 @@ class Plotter:
         Set the order of label-panel tracks in the label panel.
         Pass None to use default order. Otherwise, must be a list/tuple of unique strings.
         """
-        if order is None:
-            self._label_track_order = None
-            return self
-        if not isinstance(order, (list, tuple)):
-            raise TypeError("label_track_order must be None or a list/tuple of unique strings")
-        names = list(order)
-        if any(not isinstance(n, str) for n in names):
-            raise TypeError("label_track_order must be a list/tuple of unique strings")
-        if len(set(names)) != len(names):
-            raise ValueError("label_track_order contains duplicate track names")
-        self._label_track_order = tuple(names)
+        self._track_layout.set_order(order)
         return self
 
     def plot_cluster_bar(self, name: str, values: object, **kwargs) -> Plotter:
@@ -399,24 +313,23 @@ class Plotter:
                     )
                 )
 
-        track_spec = {
-            "name": name,
-            "kind": "cluster",
-            "renderer": _renderer_cluster_bar,
-            "left_pad": left_pad,
-            "width": width,
-            "right_pad": right_pad,
-            "enabled": enabled,
-            "payload": {
-                "value_map": value_map,
-                "cmap": cmap,
-                "norm": norm,
-                "alpha": alpha,
-                "title": title,
-            },
-        }
         if enabled:
-            self._declared_label_tracks.append(track_spec)
+            self._track_layout.register_track(
+                name=name,
+                kind="cluster",
+                renderer=_renderer_cluster_bar,
+                left_pad=left_pad,
+                width=width,
+                right_pad=right_pad,
+                enabled=enabled,
+                payload={
+                    "value_map": value_map,
+                    "cmap": cmap,
+                    "norm": norm,
+                    "alpha": alpha,
+                    "title": title,
+                },
+            )
         return self
 
     def plot_sigbar_legend(self, **kwargs) -> Plotter:
@@ -603,18 +516,18 @@ class Plotter:
                     )
 
             # Compose track spec
-            track_spec = {
-                "name": kwargs.get("name", "gene_bar"),
-                "kind": "row",
-                "renderer": _renderer_row_bar,
-                "left_pad": left_pad,
-                "width": width,
-                "right_pad": right_pad if right_pad is not None else 0.0,
-                "enabled": kwargs.get("enabled", True),
-                "payload": {**kwargs, "values": values, "title": kwargs.get("title", None)},
-            }
-            if track_spec["enabled"]:
-                self._declared_label_tracks.append(track_spec)
+            enabled = kwargs.get("enabled", True)
+            if enabled:
+                self._track_layout.register_track(
+                    name=kwargs.get("name", "gene_bar"),
+                    kind="row",
+                    renderer=_renderer_row_bar,
+                    left_pad=left_pad,
+                    width=width,
+                    right_pad=right_pad if right_pad is not None else 0.0,
+                    enabled=enabled,
+                    payload={**kwargs, "values": values, "title": kwargs.get("title", None)},
+                )
             return self
 
         # Default: render as its own bar axis between dendrogram and matrix
@@ -703,7 +616,7 @@ class Plotter:
 
     # _ordered_cluster_spans removed: Plotter now fully consumes layout from Results
 
-    def show(self) -> None:
+    def render(self) -> None:
         """
         Render the accumulated plot layers.
 
@@ -729,18 +642,11 @@ class Plotter:
         if len(row_order) != self.matrix.df.shape[0]:
             raise ValueError("Dendrogram leaf order does not match matrix dimensions.")
 
-        # Start from row-reordered data
-        data = self.matrix.df.iloc[row_order, :]
-
-        # Apply column order if provided (layout-only, visual)
         if col_order is not None:
             if len(col_order) != self.matrix.df.shape[1]:
                 raise ValueError("Column order does not match matrix dimensions.")
-            data = data.iloc[:, col_order]
 
-        # Work with raw numpy array for plotting
-        data = data.values
-        n_rows, n_cols = data.shape
+        n_rows = self.matrix.df.shape[0]
 
         # Create figure and main axis
         fig, ax = plt.subplots(figsize=self._style["figsize"])
@@ -762,17 +668,7 @@ class Plotter:
             elif _layer == "cluster_labels":
                 cluster_boundary_kwargs = _kwargs
 
-        boundary_style = {}
-
-        def _register_boundary(y: float, *, lw: float, color: str, alpha: float) -> None:
-            y = float(y)
-            cur = boundary_style.get(y)
-            if cur is None:
-                boundary_style[y] = (float(lw), color, float(alpha))
-                return
-            cur_lw, _cur_color, _cur_alpha = cur
-            if float(lw) > float(cur_lw):
-                boundary_style[y] = (float(lw), color, float(alpha))
+        boundary_registry = BoundaryRegistry()
 
         # Minor row gridlines (internal only; suppress axis extremes)
         if matrix_kwargs is not None and matrix_kwargs.get("show_minor_rows", True):
@@ -783,7 +679,7 @@ class Plotter:
                 b = y - 0.5
                 if b <= -0.5 or b >= n_rows - 0.5:
                     continue
-                _register_boundary(b, lw=lw, color="black", alpha=alpha)
+                boundary_registry.register(b, lw=lw, color="black", alpha=alpha)
 
         # Cluster boundaries (suppress axis extremes; cluster lines override minor lines)
         if cluster_boundary_kwargs is not None:
@@ -794,7 +690,7 @@ class Plotter:
                 b = s - 0.5
                 if b <= -0.5 or b >= n_rows - 0.5:
                     continue
-                _register_boundary(b, lw=lw, color=color, alpha=alpha)
+                boundary_registry.register(b, lw=lw, color=color, alpha=alpha)
 
         for layer, kwargs in self._layers:
             if layer == "gene_bar":
@@ -884,73 +780,19 @@ class Plotter:
                 if figsize is not None:
                     fig.set_size_inches(figsize[0], figsize[1], forward=True)
 
-                # Allow users to override subplot margins cleanly
                 subplots_adjust = kwargs.get("subplots_adjust", None)
                 if subplots_adjust is not None:
                     fig.subplots_adjust(**subplots_adjust)
 
-                cmap = kwargs.get("cmap", "viridis")
-                extent = (-0.5, n_cols - 0.5, n_rows - 0.5, -0.5)
-                center = kwargs.get("center", None)
-                vmin_kw = kwargs.get("vmin", None)
-                vmax_kw = kwargs.get("vmax", None)
-
-                if center is not None:
-                    vmin = np.nanmin(data) if vmin_kw is None else vmin_kw
-                    vmax = np.nanmax(data) if vmax_kw is None else vmax_kw
-                    norm = TwoSlopeNorm(vmin=vmin, vcenter=center, vmax=vmax)
-                    imshow_vmin = None
-                    imshow_vmax = None
-                else:
-                    norm = None
-                    imshow_vmin = vmin_kw
-                    imshow_vmax = vmax_kw
-
-                ax.imshow(
-                    data,
-                    cmap=cmap,
-                    norm=norm,
-                    vmin=imshow_vmin,
-                    vmax=imshow_vmax,
-                    aspect="auto",
-                    interpolation="nearest",
-                    origin="upper",
-                    extent=extent,
+                renderer = MatrixRenderer(**kwargs)
+                renderer.render(
+                    fig,
+                    ax,
+                    self.matrix,
+                    layout,
+                    self._style,
+                    boundary_registry=boundary_registry,
                 )
-                ax.set_xlim(-0.5, n_cols - 0.5)
-                ax.set_ylim(n_rows - 0.5, -0.5)
-
-                # ------------------------------------------------------------
-                # Outer matrix frame (visual scaffold only)
-                # ------------------------------------------------------------
-                outer_lw = kwargs.get("outer_lw", 1.2)
-                outer_color = kwargs.get("outer_color", "black")
-                for spine in ax.spines.values():
-                    spine.set_visible(True)
-                    spine.set_linewidth(outer_lw)
-                    spine.set_color(outer_color)
-
-                # ------------------------------------------------------------
-                # Matrix-aligned boundaries (single ownership, deduplicated)
-                # ------------------------------------------------------------
-                if boundary_style:
-                    x0, x1 = -0.5, n_cols - 0.5
-                    ys = sorted(boundary_style.keys())
-                    segments = [((x0, y), (x1, y)) for y in ys]
-                    lws = []
-                    cols = []
-                    for y in ys:
-                        lw, c, a = boundary_style[y]
-                        lws.append(lw)
-                        cols.append(to_rgba(c, a))
-                    ax.add_collection(
-                        LineCollection(
-                            segments,
-                            linewidths=lws,
-                            colors=cols,
-                            zorder=2,
-                        )
-                    )
 
             # Note: orientation="left" already handles axis direction.
             # Do NOT manually reverse x-limits or the dendrogram will be mirrored.
@@ -1244,60 +1086,14 @@ class Plotter:
                     "label_text_pad", self._style.get("label_bar_pad", 0.01)
                 )
 
-                # --- Track ordering API (label_track_order) ---
-                tracks = []
-                for t in self._declared_label_tracks:
-                    if t.get("enabled", True):
-                        tracks.append(dict(t))
-                        tracks[-1]["payload"] = dict(tracks[-1].get("payload", {}))
-
-                label_track_order = self._label_track_order
-                if label_track_order is not None:
-                    # Validate type: must be tuple or list of str
-                    if not isinstance(label_track_order, (list, tuple)):
-                        raise TypeError("label_track_order must be a list or tuple of strings")
-                    names = list(label_track_order)
-                    if any(not isinstance(n, str) for n in names):
-                        raise TypeError("label_track_order must be a list or tuple of strings")
-
-                    # Ensure active track names are unique (ordering by name must be unambiguous)
-                    active_names = [t.get("name") for t in tracks]
-                    if any(n is None for n in active_names):
-                        raise ValueError("All label-panel tracks must have a non-empty 'name'")
-                    if len(set(active_names)) != len(active_names):
-                        raise ValueError(
-                            f"Active label-panel track names must be unique. Got: {active_names}"
-                        )
-
-                    # Check for duplicates in requested ordering
-                    if len(set(names)) != len(names):
-                        raise ValueError("label_track_order contains duplicate track names")
-
-                    # Unknown names are an error (explicit is better than silent)
-                    available = set(active_names)
-                    unknown = [n for n in names if n not in available]
-                    if unknown:
-                        raise ValueError(
-                            f"Unknown track(s) in label_track_order: {unknown}. Available tracks: {active_names}"
-                        )
-
-                    # Reorder: tracks in user order, then any omitted in original order
-                    name_to_track = {t["name"]: t for t in tracks}
-                    ordered = [name_to_track[n] for n in names]
-                    omitted = [t for t in tracks if t["name"] not in names]
-                    tracks = ordered + omitted
-                # --- End track ordering API ---
-                self._active_label_tracks = tracks
-
                 # (2) Compute track geometry (rail layout)
                 base_x = kwargs.get("label_x", self._style["label_x"])
-                x_cursor = base_x + gutter_w
-                for track in self._active_label_tracks:
-                    x_cursor += track["left_pad"]
-                    track["x0"] = x_cursor
-                    track["x1"] = x_cursor + track["width"]
-                    x_cursor = track["x1"] + track["right_pad"]
-                label_text_x = x_cursor + LABEL_TEXT_PAD
+                self._track_layout.compute_layout(base_x, gutter_w)
+                tracks = self._track_layout.get_tracks()
+                end_x = self._track_layout.get_end_x()
+                if end_x is None:
+                    end_x = base_x + gutter_w
+                label_text_x = end_x + LABEL_TEXT_PAD
 
                 # Resolve label separator span once (explicit geometry; no None sentinels)
                 sep_xmin = kwargs.get(
@@ -1332,7 +1128,7 @@ class Plotter:
 
                 # (3) Render all tracks (row and cluster level)
                 # Row-level tracks: render once per track
-                for track in self._active_label_tracks:
+                for track in tracks:
                     if track["kind"] == "row":
                         track["renderer"](
                             ax_lab,
@@ -1344,7 +1140,7 @@ class Plotter:
                             self._style,
                         )
                 # Cluster-level tracks: render once per cluster
-                for track in self._active_label_tracks:
+                for track in tracks:
                     if track["kind"] == "cluster":
                         track["renderer"](
                             ax_lab,
@@ -1369,7 +1165,7 @@ class Plotter:
                     bar_pad_pts = bar_kwargs.get("pad", 2)  # interpreted as POINTS
                     bar_rotation = bar_kwargs.get("rotation", 0)
 
-                    for track in self._active_label_tracks:
+                    for track in tracks:
                         title = track.get("payload", {}).get("title", None)
                         if not title:
                             continue
@@ -1645,17 +1441,25 @@ class Plotter:
         self.layout_ = layout
         self.colorbar_layout_ = colorbar_layout
         self._fig = fig
-        plt.show()
 
     def save(self, path: str, **kwargs) -> None:
         """
         Save the last rendered figure with correct background handling.
         """
         if self._fig is None:
-            raise RuntimeError("Nothing to save — call show() first.")
+            raise RuntimeError("Nothing to save — call render() first.")
 
         self._fig.savefig(
             path,
             facecolor=self._fig.get_facecolor(),
             **kwargs,
         )
+
+    def show(self) -> None:
+        """
+        Show the last rendered figure with correct background handling.
+        """
+        if self._fig is None:
+            raise RuntimeError("Nothing to show — call render() first.")
+
+        plt.show()
