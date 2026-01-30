@@ -12,7 +12,14 @@ import numpy as np
 import pandas as pd
 
 from ..core.results import Results
-from .renderers import AxesRenderer, BoundaryRegistry, DendrogramRenderer, MatrixRenderer
+from .renderers import (
+    AxesRenderer,
+    BoundaryRegistry,
+    DendrogramRenderer,
+    GeneBarRenderer,
+    MatrixRenderer,
+)
+from .renderers.gene_bar import render_gene_bar_track
 from .style import StyleConfig
 from .track_layout import TrackLayoutManager
 
@@ -425,72 +432,12 @@ class Plotter:
             width = kwargs.get("gene_bar_width", self._style.get("gene_bar_width", 0.015))
             right_pad = kwargs.get("gene_bar_right_pad", 0.0)
 
-            # Compose renderer
-            def _renderer_row_bar(ax, x0, width, payload, matrix, row_order, style) -> None:
-                values = payload["values"]
-                mode = payload.get("mode", "categorical")
-                missing_color = payload.get("missing_color", style["gene_bar_missing_color"])
-                row_ids = matrix.df.index.to_numpy()[row_order]
-                if mode == "categorical":
-                    colors = payload.get("colors", None)
-                    if colors is None or not isinstance(colors, dict):
-                        raise TypeError(
-                            "categorical label_panel gene bar requires `colors` as a dict"
-                        )
-                    for i, gid in enumerate(row_ids):
-                        cat = values.get(gid, None)
-                        c = colors.get(cat, missing_color)
-                        ax.add_patch(
-                            plt.Rectangle(
-                                (x0, i - 0.5), width, 1.0, facecolor=c, edgecolor="none", zorder=2
-                            )
-                        )
-                elif mode == "continuous":
-                    cmap = plt.get_cmap(payload.get("cmap", "viridis"))
-                    vals = np.array([values.get(gid, np.nan) for gid in row_ids], dtype=float)
-                    finite = np.isfinite(vals)
-                    if not np.any(finite):
-                        for i in range(len(row_ids)):
-                            ax.add_patch(
-                                plt.Rectangle(
-                                    (x0, i - 0.5),
-                                    width,
-                                    1.0,
-                                    facecolor=missing_color,
-                                    edgecolor="none",
-                                    zorder=2,
-                                )
-                            )
-                    else:
-                        vmin = payload.get("vmin", float(np.nanmin(vals[finite])))
-                        vmax = payload.get("vmax", float(np.nanmax(vals[finite])))
-                        if vmin == vmax:
-                            vmax = vmin + 1e-12
-                        norm = plt.Normalize(vmin=vmin, vmax=vmax)
-                        for i, v in enumerate(vals):
-                            c = missing_color if not np.isfinite(v) else cmap(norm(v))
-                            ax.add_patch(
-                                plt.Rectangle(
-                                    (x0, i - 0.5),
-                                    width,
-                                    1.0,
-                                    facecolor=c,
-                                    edgecolor="none",
-                                    zorder=2,
-                                )
-                            )
-                else:
-                    raise ValueError(
-                        "label_panel gene bar mode must be 'categorical' or 'continuous'"
-                    )
-
-            # Compose track spec
             enabled = kwargs.get("enabled", True)
             if enabled:
                 self._track_layout.register_track(
                     name=kwargs.get("name", "gene_bar"),
                     kind="row",
-                    renderer=_renderer_row_bar,
+                    renderer=render_gene_bar_track,
                     left_pad=left_pad,
                     width=width,
                     right_pad=right_pad if right_pad is not None else 0.0,
@@ -679,83 +626,8 @@ class Plotter:
                 if kwargs.get("placement", "between_dendro_matrix") == "label_panel":
                     # Registered in plot_gene_bar; nothing to render here.
                     continue
-                values = kwargs.get("values")
-                if not isinstance(values, dict):
-                    raise TypeError(
-                        "plot_gene_bar expects `values` as a dict mapping row IDs to values"
-                    )
-
-                mode = kwargs.get("mode", "categorical")
-                missing_color = kwargs.get("missing_color", self._style["gene_bar_missing_color"])
-
-                # Auto-place between dendrogram and matrix
-                dendro_axes = self._style["dendro_axes"]
-                gap = kwargs.get("gene_bar_gap", self._style["gene_bar_gap"])
-                bar_w = kwargs.get("gene_bar_width", self._style["gene_bar_width"])
-
-                # Default vertical span matches dendrogram span (which matches matrix span)
-                x0 = dendro_axes[0] + dendro_axes[2] + gap
-                bar_axes = kwargs.get("axes", [x0, dendro_axes[1], bar_w, dendro_axes[3]])
-
-                ax_bar = fig.add_axes(bar_axes, frameon=False)
-                ax_bar.set_xlim(0, 1)
-                ax_bar.set_ylim(-0.5, n_rows - 0.5)
-                ax_bar.invert_yaxis()
-                ax_bar.set_xticks([])
-                ax_bar.set_yticks([])
-
-                # Authoritative row IDs in plotted order
-                row_ids = self.matrix.df.index.to_numpy()[row_order]
-
-                if mode == "categorical":
-                    colors = kwargs.get("colors", None)
-                    if colors is None or not isinstance(colors, dict):
-                        raise TypeError(
-                            "categorical gene_bar requires `colors` as a dict mapping category -> color"
-                        )
-
-                    for i, gid in enumerate(row_ids):
-                        cat = values.get(gid, None)
-                        c = colors.get(cat, missing_color)
-                        ax_bar.add_patch(
-                            plt.Rectangle((0.0, i - 0.5), 1.0, 1.0, facecolor=c, edgecolor="none")
-                        )
-
-                elif mode == "continuous":
-                    cmap = plt.get_cmap(kwargs.get("cmap", "viridis"))
-                    vals = np.array([values.get(gid, np.nan) for gid in row_ids], dtype=float)
-
-                    finite = np.isfinite(vals)
-                    if not np.any(finite):
-                        # All missing: draw a uniform bar
-                        for i in range(len(row_ids)):
-                            ax_bar.add_patch(
-                                plt.Rectangle(
-                                    (0.0, i - 0.5),
-                                    1.0,
-                                    1.0,
-                                    facecolor=missing_color,
-                                    edgecolor="none",
-                                )
-                            )
-                    else:
-                        vmin = kwargs.get("vmin", float(np.nanmin(vals[finite])))
-                        vmax = kwargs.get("vmax", float(np.nanmax(vals[finite])))
-                        if vmin == vmax:
-                            vmax = vmin + 1e-12
-                        norm = plt.Normalize(vmin=vmin, vmax=vmax)
-
-                        for i, v in enumerate(vals):
-                            c = missing_color if not np.isfinite(v) else cmap(norm(v))
-                            ax_bar.add_patch(
-                                plt.Rectangle(
-                                    (0.0, i - 0.5), 1.0, 1.0, facecolor=c, edgecolor="none"
-                                )
-                            )
-
-                else:
-                    raise ValueError("gene_bar mode must be 'categorical' or 'continuous'")
-
+                renderer = GeneBarRenderer(**kwargs)
+                renderer.render(fig, ax, self.matrix, layout, self._style)
                 continue
             if layer == "matrix":
                 figsize = kwargs.get("figsize", None)
