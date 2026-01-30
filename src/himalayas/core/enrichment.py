@@ -107,10 +107,10 @@ def _encode_terms(
     """
     term_items: List[Tuple[str, np.ndarray, int]] = []  # (term, idx_array, K)
     for term, term_labels in annotations.term_to_labels.items():
-        # term_labels already overlaps matrix labels by construction
+        # Term_labels already overlaps matrix labels by construction
         idx = np.fromiter((label_to_idx[l] for l in term_labels), dtype=np.int32)
         idx.sort()
-        # de-dup defensively (should already be unique)
+        # De-dup defensively (should already be unique)
         if idx.size > 1:
             idx = np.unique(idx)
         K = int(idx.size)
@@ -235,7 +235,7 @@ def run_cluster_hypergeom(
         df = df.sort_values(["pval", "cluster", "term"], kind="mergesort").reset_index(drop=True)
 
         # Reduce memory footprint (safe downcasts for typical biology sizes)
-        # Use int32 universally if you anticipate >32767 labels/terms.
+        # Use int32 universally if you anticipate >32767 labels/terms
         df = df.astype(
             {
                 "cluster": "int32",

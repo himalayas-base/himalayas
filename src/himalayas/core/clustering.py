@@ -237,12 +237,8 @@ def _enforce_min_cluster_size(
     cluster_ids: np.ndarray,
     min_cluster_size: int,
 ) -> np.ndarray:
-    """Post-processes a dendrogram cut to enforce a minimum cluster size.
-    Strategy:
-    1. Cut the dendrogram using fcluster (already done).
-    2. For each cluster, find the subtree root spanning its leaves (LCA).
-    3. If too small, climb upward until the subtree meets min_cluster_size.
-    4. Resolve overlaps by keeping only the highest selected subtrees.
+    """
+    Enforces a minimum cluster size by merging small clusters upward along the dendrogram.
 
     Args:
         Z (np.ndarray): Linkage matrix.
@@ -251,7 +247,7 @@ def _enforce_min_cluster_size(
         min_cluster_size (int): Minimum desired cluster size.
 
     Returns:
-        np.ndarray: Adjusted cluster IDs satisfying minimum size.
+        np.ndarray: Adjusted cluster IDs satisfying the minimum size constraint.
 
     Raises:
         ValueError: If min_cluster_size exceeds the number of leaves.
@@ -271,17 +267,17 @@ def _enforce_min_cluster_size(
     # Build tree structure
     left, right, parent = _build_tree_arrays(Z, n)
     sizes = _compute_subtree_sizes(left, right, n)
-    # Deterministic ordering uses the dendrogram leaf order.
+    # Deterministic ordering uses the dendrogram leaf order
     leaf_order = leaves_list(Z)
-    # Group leaves by initial cluster IDs.
+    # Group leaves by initial cluster IDs
     groups = _group_leaves_by_cluster(cluster_ids)
 
-    # Map each initial cluster to target subtree node.
+    # Map each initial cluster to target subtree node
     target_for_cluster: Dict[int, int] = {}
     for cid, leaves in groups.items():
         lca = _lca_many(leaves, parent)
         node = int(lca)
-        # Climb until minimum size satisfied.
+        # Climb until minimum size satisfied
         while sizes[node] < int(min_cluster_size):
             p = int(parent[node])
             if p == -1:
@@ -290,9 +286,9 @@ def _enforce_min_cluster_size(
 
         target_for_cluster[int(cid)] = int(node)
 
-    # Collect unique target nodes.
+    # Collect unique target nodes
     target_nodes: Set[int] = set(target_for_cluster.values())
-    # Prune overlaps: if a node has an ancestor also selected, drop the node.
+    # Prune overlaps: if a node has an ancestor also selected, drop the node
     keep: Set[int] = set()
     for node in target_nodes:
         cur = int(node)
@@ -308,11 +304,11 @@ def _enforce_min_cluster_size(
         if not covered:
             keep.add(cur)
 
-    # Assign leaves by kept nodes.
+    # Assign leaves by kept nodes
     assigned = np.full(n, -1, dtype=np.int32)
     leaf_cache: Dict[int, np.ndarray] = {}
 
-    # Deterministic: assign kept nodes by first appearance in dendrogram order.
+    # Deterministic: assign kept nodes by first appearance in dendrogram order
     keep_list = list(keep)
     keep_first_pos: Dict[int, int] = {}
     pos_map = {int(leaf): int(pos) for pos, leaf in enumerate(leaf_order.tolist())}
@@ -329,7 +325,7 @@ def _enforce_min_cluster_size(
     if np.any(assigned < 0):
         raise RuntimeError("Minimum cluster size enforcement failed to assign all leaves")
 
-    # Relabel to 1..K in dendrogram order for stable downstream presentation.
+    # Relabel to 1..K in dendrogram order for stable downstream presentation
     return _relabel_by_dendrogram_order(assigned, leaf_order)
 
 
@@ -373,7 +369,7 @@ class Clusters:
             raise ValueError("labels and cluster_ids length mismatch")
 
         # Optional post-process: enforce a minimum cluster size by merging upward
-        # along the dendrogram (nearest neighbor defined by lowest merge height).
+        # Along the dendrogram (nearest neighbor defined by lowest merge height)
         if min_cluster_size > 1:
             self.cluster_ids = _enforce_min_cluster_size(
                 self.linkage_matrix,

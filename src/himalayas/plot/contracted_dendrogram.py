@@ -3,12 +3,166 @@ himalayas/plot/contracted_dendrogram
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 """
 
+from __future__ import annotations
+
 from typing import Any, Dict, Optional, Sequence, Tuple
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-from scipy.cluster.hierarchy import dendrogram
+from scipy.cluster.hierarchy import dendrogram, leaves_list
+
+
+# ============================================================================
+# PRIVATE HELPERS
+# ============================================================================
+
+
+def _contract_linkage_to_clusters(
+    Z_master: np.ndarray,
+    gene_to_cluster: dict[Any, int],
+    cluster_ids: list[int],
+) -> np.ndarray:
+    """
+    Contract master linkage matrix to cluster-level dendrogram.
+
+    Preserves master dendrogram heights and leaf order by treating each
+    cluster as a single leaf in the contracted tree.
+    """
+    cluster_index = {cid: i for i, cid in enumerate(cluster_ids)}
+
+    n_master = Z_master.shape[0] + 1
+    leaf_groups: list[Optional[int]] = []
+    for i in range(n_master):
+        cid = gene_to_cluster.get(i, None)
+        if cid is None or cid not in cluster_index:
+            leaf_groups.append(None)
+            continue
+        leaf_groups.append(cluster_index[cid])
+
+    node_groups: Dict[int, set[int]] = {}
+    for i, grp in enumerate(leaf_groups):
+        node_groups[i] = set() if grp is None else {int(grp)}
+
+    Zc_rows: list[list[float]] = []
+    rep_to_id = {frozenset({i}): i for i in range(len(cluster_ids))}
+    next_id = len(cluster_ids)
+
+    for t in range(Z_master.shape[0]):
+        a = int(Z_master[t, 0])
+        b = int(Z_master[t, 1])
+        h = float(Z_master[t, 2])
+
+        Ga = node_groups.get(a, set())
+        Gb = node_groups.get(b, set())
+        G = Ga | Gb
+        node_groups[n_master + t] = G
+
+        if len(G) <= 1 or Ga == Gb:
+            continue
+
+        ra = frozenset(Ga)
+        rb = frozenset(Gb)
+        rg = frozenset(G)
+
+        if ra not in rep_to_id:
+            rep_to_id[ra] = next_id
+            next_id += 1
+        if rb not in rep_to_id:
+            rep_to_id[rb] = next_id
+            next_id += 1
+
+        ida = rep_to_id[ra]
+        idb = rep_to_id[rb]
+
+        if rg in rep_to_id:
+            continue
+
+        rep_to_id[rg] = next_id
+        Zc_rows.append([ida, idb, h, float(len(G))])
+        next_id += 1
+
+    expected = len(cluster_ids) - 1
+    if len(Zc_rows) != expected:
+        raise ValueError(
+            "Contracted linkage is incomplete (expected "
+            f"{expected} merges, got {len(Zc_rows)}). "
+            "This usually means clusters are not all connected under the provided "
+            "master linkage."
+        )
+
+    return np.asarray(Zc_rows, dtype=float)
+
+
+def _format_cluster_label(
+    raw_label: str,
+    *,
+    omit_words: Optional[list[str]] = None,
+    max_words: Optional[int] = None,
+    overflow: str = "ellipsis",
+    wrap_text: bool = False,
+    wrap_width: Optional[int] = None,
+) -> str:
+    """
+    Apply text policy to cluster label.
+
+    Order: omit words -> truncate -> wrap.
+    """
+    label = str(raw_label)
+
+    if omit_words:
+        omit = {w.lower() for w in omit_words}
+        words = [w for w in label.split() if w.lower() not in omit]
+        label = " ".join(words) if words else label
+
+    if max_words is not None:
+        words = label.split()
+        if len(words) > max_words:
+            if overflow == "ellipsis" and max_words > 0:
+                label = " ".join(words[: max_words - 1]) + " …"
+            else:
+                label = " ".join(words[:max_words])
+
+    if wrap_text and wrap_width is not None and wrap_width > 0:
+        wrapped_lines = []
+        line = ""
+        for word in label.split():
+            if len(line) + len(word) + (1 if line else 0) <= wrap_width:
+                line = f"{line} {word}".strip()
+            else:
+                if line:
+                    wrapped_lines.append(line)
+                line = word
+        if line:
+            wrapped_lines.append(line)
+        label = "\n".join(wrapped_lines)
+
+    return label
+
+
+def _get_cluster_size(
+    cluster_id: int,
+    *,
+    label_map: dict[int, tuple],
+    cluster_sizes: Optional[dict[int, int]],
+    cluster_to_labels: dict[int, list],
+) -> Optional[int]:
+    """Resolve cluster size from available sources."""
+    if cluster_id in label_map:
+        n0 = label_map[cluster_id][2]
+        if n0 is not None and np.isfinite(n0):
+            return int(n0)
+    if cluster_sizes is not None and cluster_id in cluster_sizes:
+        return int(cluster_sizes[cluster_id])
+    genes = cluster_to_labels.get(cluster_id, None)
+    if genes is not None:
+        return int(len(genes))
+    return None
+
+
+# ============================================================================
+# PUBLIC API
+# ============================================================================
 
 
 def plot_term_hierarchy_contracted(
@@ -43,353 +197,143 @@ def plot_term_hierarchy_contracted(
 
     Leaf order and branch heights are preserved from the master dendrogram
     by contracting the master linkage matrix at the cluster level.
-
-    This intentionally trades exact topology for stability
-    and interpretability.
-
-    Label verbosity is controlled at plot time via `label_fields`.
     """
-
-    # ------------------------------------------------------------
-    # Validate inputs
-    # ------------------------------------------------------------
+    # === VALIDATION ===
     if not hasattr(results, "cluster_layout"):
         raise AttributeError("results must expose cluster_layout()")
-
     required = {"cluster", "label", "pval"}
     if not required.issubset(cluster_labels.columns):
         raise ValueError(f"cluster_labels must contain {required}")
-
     allowed = {"label", "n", "p"}
     if not set(label_fields).issubset(allowed):
         raise ValueError(f"label_fields must be a subset of {allowed}")
-
     if label_overrides is not None and not isinstance(label_overrides, dict):
         raise TypeError("label_overrides must be a dict mapping cluster_id -> label string")
-
-    layout = results.cluster_layout()
-    spans = list(layout.cluster_spans)
-    if not spans:
+    if not list(results.cluster_layout().cluster_spans):
         raise ValueError("No clusters found")
-
-    # ------------------------------------------------------------
-    # Master linkage matrix (authoritative ordering + heights)
-    # ------------------------------------------------------------
-    Z_master = getattr(getattr(results, "clusters", None), "linkage_matrix", None)
+    clusters = getattr(results, "clusters", None)
+    Z_master = getattr(clusters, "linkage_matrix", None) if clusters is not None else None
     if Z_master is None:
         raise AttributeError(
-            "results.clusters.linkage_matrix is required to preserve the master dendrogram order/heights"
+            "results.clusters.linkage_matrix is required to preserve the master dendrogram "
+            "order/heights"
         )
-
-    # ------------------------------------------------------------
-    # Build a leaf->cluster assignment using the *existing* clusters
-    # ------------------------------------------------------------
+    # === DATA PREP ===
     row_labels = results.matrix.labels
-
-    # gene -> cluster id
-    gene_to_cluster: Dict[Any, int] = {}
-    c2g = getattr(getattr(results, "clusters", None), "cluster_to_labels", None) or {}
-    for cid, genes in c2g.items():
-        for g in genes:
-            gene_to_cluster[g] = int(cid)
-
-    # leaves_list gives the master dendrogram leaf order by row index
-    from scipy.cluster.hierarchy import leaves_list
-
-    master_leaf_order = leaves_list(Z_master)
-
-    # ordered unique cluster ids as they appear in the master leaf order
-    ordered_cluster_ids = []
-    seen = set()
-    for i in master_leaf_order:
-        g = row_labels[int(i)]
-        cid = gene_to_cluster.get(g, None)
-        if cid is None:
+    c2g = getattr(clusters, "cluster_to_labels", None) or {}
+    gene_to_cluster = {g: int(cid) for cid, genes in c2g.items() for g in genes}
+    ordered_cluster_ids, seen = [], set()
+    for i in leaves_list(Z_master):
+        cid = gene_to_cluster.get(row_labels[int(i)], None)
+        if cid is None or cid in seen:
             continue
-        if cid not in seen:
-            ordered_cluster_ids.append(cid)
-            seen.add(cid)
-
+        ordered_cluster_ids.append(cid)
+        seen.add(cid)
     if not ordered_cluster_ids:
         raise ValueError("No cluster ids could be mapped from master leaf order")
-
     cluster_ids = ordered_cluster_ids
     k = len(cluster_ids)
     y = np.arange(k) * 10.0 + 5.0
-
-    # ------------------------------------------------------------
-    # Build label map
-    # ------------------------------------------------------------
-    lab_map: Dict[int, Tuple[str, float, Optional[float]]] = {}
-    for _, r in cluster_labels.iterrows():
-        lab_map[int(r["cluster"])] = (
-            str(r["label"]),
-            float(r["pval"]),
-            r.get("n", None),
-        )
-
-    # ------------------------------------------------------------
-    # Cluster size fallback
-    # ------------------------------------------------------------
-    # Prefer an explicit 'n' column in cluster_labels if present, otherwise
-    # fall back to results.clusters.cluster_sizes or len(cluster_to_labels[cid]).
-    cluster_sizes = None
-    if (
-        hasattr(results, "clusters")
-        and getattr(results.clusters, "cluster_sizes", None) is not None
-    ):
-        cluster_sizes = dict(results.clusters.cluster_sizes)
-
-    def get_cluster_size(cid: int) -> Optional[int]:
-        # 1) explicit in label map
-        if cid in lab_map:
-            n0 = lab_map[cid][2]
-            if n0 is not None and np.isfinite(n0):
-                return int(n0)
-        # 2) results.clusters.cluster_sizes
-        if cluster_sizes is not None and cid in cluster_sizes:
-            return int(cluster_sizes[cid])
-        # 3) len(cluster_to_labels)
-        genes = c2g.get(cid, None)
-        if genes is not None:
-            return int(len(genes))
-        return None
-
+    lab_map: Dict[int, Tuple[str, float, Optional[float]]] = {
+        int(r["cluster"]): (str(r["label"]), float(r["pval"]), r.get("n", None))
+        for _, r in cluster_labels.iterrows()
+    }
+    cluster_sizes = getattr(clusters, "cluster_sizes", None) if clusters is not None else None
+    cluster_sizes = dict(cluster_sizes) if cluster_sizes is not None else None
+    label_overrides = label_overrides or {}
     labels, pvals = [], []
     for cid in cluster_ids:
         if cid not in lab_map:
             labels.append("—")
             pvals.append(np.nan)
             continue
-
         lab, p, _ = lab_map[cid]
-
-        if label_overrides is not None and cid in label_overrides:
+        if cid in label_overrides:
             lab = str(label_overrides[cid])
-
-        if omit_words:
-            omit = {w.lower() for w in omit_words}
-            words = [w for w in lab.split() if w.lower() not in omit]
-            lab = " ".join(words) if words else lab
-
-        # Centralized Plotter-style text policy: word truncation then visual wrapping
-        if max_words is not None:
-            words = lab.split()
-            if len(words) > max_words:
-                if overflow == "ellipsis" and max_words > 0:
-                    lab = " ".join(words[: max_words - 1]) + " …"
-                else:
-                    lab = " ".join(words[:max_words])
-
-        if wrap_text and wrap_width is not None and wrap_width > 0:
-            # Wrap by inserting newlines at appropriate spaces without breaking words
-            wrapped_lines = []
-            line = ""
-            for word in lab.split():
-                if len(line) + len(word) + (1 if line else 0) <= wrap_width:
-                    line = f"{line} {word}".strip()
-                else:
-                    if line:
-                        wrapped_lines.append(line)
-                    line = word
-            if line:
-                wrapped_lines.append(line)
-            lab = "\n".join(wrapped_lines)
-
-        labels.append(lab)
-        pvals.append(p)
-
-    pvals = np.asarray(pvals, float)
-
-    # ------------------------------------------------------------
-    # Contract the master dendrogram so clusters become leaves
-    # ------------------------------------------------------------
-    cluster_index = {cid: i for i, cid in enumerate(cluster_ids)}
-
-    # Map each master leaf (row index) -> contracted leaf (cluster index)
-    n_master = Z_master.shape[0] + 1
-    leaf_groups = []
-    for i in range(n_master):
-        g = row_labels[int(i)]
-        cid = gene_to_cluster.get(g, None)
-        if cid is None:
-            leaf_groups.append(None)
-            continue
-        if cid not in cluster_index:
-            leaf_groups.append(None)
-            continue
-        leaf_groups.append(cluster_index[cid])
-
-    # For each master node id (0..n_master-1 leaves, n_master.. internal), track which contracted leaves it contains
-    node_groups: Dict[int, set[int]] = {}
-    for i, grp in enumerate(leaf_groups):
-        node_groups[i] = set() if grp is None else {int(grp)}
-
-    # Contracted linkage rows
-    Zc_rows = []
-
-    # Representative set -> contracted node id
-    rep_to_id = {frozenset({i}): i for i in range(k)}
-    next_id = k
-
-    for t in range(Z_master.shape[0]):
-        a = int(Z_master[t, 0])
-        b = int(Z_master[t, 1])
-        h = float(Z_master[t, 2])
-
-        Ga = node_groups.get(a, set())
-        Gb = node_groups.get(b, set())
-        G = Ga | Gb
-
-        # Always propagate membership upward
-        node_groups[n_master + t] = G
-
-        # Ignore merges that don't combine different clusters
-        if len(G) <= 1 or Ga == Gb:
-            continue
-
-        ra = frozenset(Ga)
-        rb = frozenset(Gb)
-        rg = frozenset(G)
-
-        # Defensive: if a representative node was never materialized (rare), materialize it now
-        if ra not in rep_to_id:
-            rep_to_id[ra] = next_id
-            next_id += 1
-        if rb not in rep_to_id:
-            rep_to_id[rb] = next_id
-            next_id += 1
-
-        ida = rep_to_id[ra]
-        idb = rep_to_id[rb]
-
-        # If we've already merged into this union set, skip
-        if rg in rep_to_id:
-            continue
-
-        rep_to_id[rg] = next_id
-        Zc_rows.append([ida, idb, h, float(len(G))])
-        next_id += 1
-
-    if len(Zc_rows) != k - 1:
-        raise ValueError(
-            f"Contracted linkage is incomplete (expected {k-1} merges, got {len(Zc_rows)}). "
-            "This usually means clusters are not all connected under the provided master linkage."
+        labels.append(
+            _format_cluster_label(
+                lab,
+                omit_words=omit_words,
+                max_words=max_words,
+                overflow=overflow,
+                wrap_text=wrap_text,
+                wrap_width=wrap_width,
+            )
         )
-
-    Zc = np.asarray(Zc_rows, dtype=float)
-
-    # ------------------------------------------------------------
-    # Dendrogram from contracted linkage
-    # ------------------------------------------------------------
-    d = dendrogram(
-        Zc,
-        orientation="left",
-        no_labels=True,
-        no_plot=True,
-    )
-
-    # ------------------------------------------------------------
-    # Figure layout
-    # ------------------------------------------------------------
+        pvals.append(p)
+    pvals = np.asarray(pvals, float)
+    n_master = Z_master.shape[0] + 1
+    gene_to_cluster_index = {
+        i: gene_to_cluster[row_labels[int(i)]]
+        for i in range(n_master)
+        if row_labels[int(i)] in gene_to_cluster
+    }
+    # === LINKAGE CONTRACTION ===
+    Zc = _contract_linkage_to_clusters(Z_master, gene_to_cluster_index, cluster_ids)
+    # === DENDROGRAM COMPUTATION ===
+    d = dendrogram(Zc, orientation="left", no_labels=True, no_plot=True)
+    # === FIGURE SETUP ===
     fig = plt.figure(figsize=figsize)
-    if background_color is not None:
-        fig.patch.set_facecolor(background_color)
     ax_den = fig.add_axes([0.05, 0.05, 0.60, 0.90], frameon=False)
-    if background_color is not None:
-        ax_den.set_facecolor(background_color)
     ax_sig = fig.add_axes([0.66, 0.05, sigbar_width, 0.90], frameon=False)
-    if background_color is not None:
-        ax_sig.set_facecolor(background_color)
     txt_x0 = 0.66 + sigbar_width + float(label_left_pad)
     ax_txt = fig.add_axes(
-        [txt_x0, 0.05, 0.33 - sigbar_width - float(label_left_pad), 0.90], frameon=False
+        [txt_x0, 0.05, 0.33 - sigbar_width - float(label_left_pad), 0.90],
+        frameon=False,
     )
+    axes = (ax_den, ax_sig, ax_txt)
     if background_color is not None:
-        ax_txt.set_facecolor(background_color)
-
-    # ------------------------------------------------------------
-    # Map dendrogram's internal leaf y positions -> fixed cluster y positions
-    # ------------------------------------------------------------
-    # Authoritative y positions (already in master-cluster order)
+        fig.patch.set_facecolor(background_color)
+        for ax in axes:
+            ax.set_facecolor(background_color)
+    # === RENDERING: DENDROGRAM ===
     cluster_y = {i: y[i] for i in range(k)}
-
-    def remap_y(yval: float) -> float:
-        # nearest leaf slot (5,15,25,...) -> authoritative y
-        slot = int(round((yval - 5.0) / 10.0))
-        slot = max(0, min(k - 1, slot))
-        leaf_id = d["leaves"][slot]
-        return cluster_y[int(leaf_id)]
-
-    # Determine a compact x-scale (avoid oversized tree)
+    leaf_order = d["leaves"]
     max_h = max(map(max, d["dcoord"]))
     x_pad = max_h * 0.05
-
     for xs, ys in zip(d["dcoord"], d["icoord"]):
-        ax_den.plot(xs, [remap_y(y) for y in ys], color=dendrogram_color, lw=dendrogram_lw)
-
-    # Proper orientation: tree grows leftward toward leaves
-    ax_den.set_xlim(max_h + x_pad, 0.0)
-    ax_den.set_ylim(k * 10, 0)
-
-    ax_den.set_xticks([])
-    ax_den.set_yticks([])
-    for sp in ax_den.spines.values():
-        sp.set_visible(False)
-
-    # ------------------------------------------------------------
-    # Significance bar
-    # ------------------------------------------------------------
+        mapped = []
+        for yval in ys:
+            slot = int(round((yval - 5.0) / 10.0))
+            slot = max(0, min(k - 1, slot))
+            mapped.append(cluster_y[int(leaf_order[slot])])
+        ax_den.plot(xs, mapped, color=dendrogram_color, lw=dendrogram_lw)
+    ax_den.set(xlim=(max_h + x_pad, 0.0), ylim=(k * 10, 0))
+    # === RENDERING: SIGNIFICANCE BAR ===
     cmap = plt.get_cmap(sigbar_cmap)
-
-    def norm_logp(p: float) -> float:
-        if not np.isfinite(p) or p <= 0:
-            return 0.0
-        lp = -np.log10(p)
-        return np.clip((lp - sigbar_min_logp) / (sigbar_max_logp - sigbar_min_logp), 0, 1)
-
-    ax_sig.set_xlim(0, 1)
-    ax_sig.set_ylim(k * 10, 0)
-
-    ax_sig.set_xticks([])
-    ax_sig.set_yticks([])
-    for sp in ax_sig.spines.values():
-        sp.set_visible(False)
-
+    ax_sig.set(xlim=(0, 1), ylim=(k * 10, 0))
+    denom = sigbar_max_logp - sigbar_min_logp
     for i, p in enumerate(pvals):
+        if not np.isfinite(p) or p <= 0:
+            val = 0.0
+        else:
+            lp = -np.log10(p)
+            val = np.clip((lp - sigbar_min_logp) / denom, 0, 1)
         ax_sig.add_patch(
             plt.Rectangle(
                 (0, y[i] - 4),
                 1,
                 8.0,
-                facecolor=cmap(norm_logp(p)),
+                facecolor=cmap(val),
                 edgecolor="none",
                 alpha=sigbar_alpha,
             )
         )
-
-    # ------------------------------------------------------------
-    # Text panel
-    # ------------------------------------------------------------
-    ax_txt.set_xlim(0, 1)
-    ax_txt.set_ylim(k * 10, 0)
-
-    ax_txt.set_xticks([])
-    ax_txt.set_yticks([])
-    for sp in ax_txt.spines.values():
-        sp.set_visible(False)
-
+    # === RENDERING: LABELS ===
+    ax_txt.set(xlim=(0, 1), ylim=(k * 10, 0))
     for cid, yi, lab, p in zip(cluster_ids, y, labels, pvals):
         parts = []
-
         if "label" in label_fields:
             parts.append(lab)
-
         if "n" in label_fields:
-            n = get_cluster_size(int(cid))
+            n = _get_cluster_size(
+                int(cid),
+                label_map=lab_map,
+                cluster_sizes=cluster_sizes,
+                cluster_to_labels=c2g,
+            )
             if n is not None:
                 parts.append(f"n={n}")
-
         if "p" in label_fields and np.isfinite(p):
             ptxt = f"p={p:.1e}" if p < 1e-3 else f"p={p:.3f}"
             parts.append(ptxt)
@@ -401,8 +345,6 @@ def plot_term_hierarchy_contracted(
         else:
             label_head = parts[0]
             stat_tail = "(" + ", ".join(parts[1:]) + ")"
-
-            # Try to append stat_tail to the last line if it fits; otherwise put it on its own line.
             if wrap_text and wrap_width is not None and wrap_width > 0:
                 lines = label_head.split("\n") if label_head else [""]
                 if len(lines[-1]) + 1 + len(stat_tail) <= wrap_width:
@@ -411,7 +353,6 @@ def plot_term_hierarchy_contracted(
                 else:
                     txt = (label_head + "\n" + stat_tail) if label_head else stat_tail
             else:
-                # No wrapping policy active: keep stats inline
                 txt = f"{label_head} {stat_tail}"
 
         ax_txt.text(
@@ -426,5 +367,8 @@ def plot_term_hierarchy_contracted(
             alpha=label_alpha,
             fontweight=label_fontweight,
         )
-
+    for ax in axes:
+        ax.set(xticks=[], yticks=[])
+        for sp in ax.spines.values():
+            sp.set_visible(False)
     plt.show()
