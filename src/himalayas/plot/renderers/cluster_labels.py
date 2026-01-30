@@ -1,8 +1,11 @@
-"""Cluster label panel renderer."""
+"""
+himalayas/plot/renderers/cluster_labels
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+"""
 
 from __future__ import annotations
 
-from typing import Any, Optional, Dict, List, Tuple
+from typing import Any, Optional, Dict
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -13,10 +16,18 @@ from ..track_layout import TrackLayoutManager
 
 def _parse_label_overrides(overrides):
     """
+    Normalizes and validate per-cluster label overrides. Accepts string or dict overrides and
+    enforces allowed keys and precedence rules.
+
     Args:
         overrides (Dict[int, Any] | None): Mapping cluster_id -> label string or override dict.
+
     Returns:
         Dict[int, Dict[str, Any]]: Normalized override map keyed by cluster id.
+
+    Raises:
+        TypeError: If overrides or entries have invalid types.
+        ValueError: If unknown keys are provided.
     """
     if overrides is None:
         return {}
@@ -24,6 +35,7 @@ def _parse_label_overrides(overrides):
     if not isinstance(overrides, dict):
         raise TypeError("overrides must be a dict mapping cluster_id -> label or dict")
 
+    # Normalize string and dict overrides into a single map
     override_map = {}
     for key, value in overrides.items():
         cid = int(key)
@@ -31,6 +43,7 @@ def _parse_label_overrides(overrides):
             override_map[cid] = {"label": value}
             continue
         if isinstance(value, dict):
+            # Validate allowed keys and required label
             allowed = {"label", "pval", "hide_stats"}
             unknown = set(value.keys()) - allowed
             if unknown:
@@ -55,12 +68,20 @@ def _parse_label_overrides(overrides):
 
 def _build_label_map(df, override_map):
     """
+    Resolves final label and p-value per cluster. Combines base labels from the DataFrame
+    with any validated overrides.
+
     Args:
-        df (pd.DataFrame): ...
-        override_map (Dict[int, Dict[str, Any]]): ...
+        df (pd.DataFrame): Cluster label table with 'cluster', 'label', and optional 'pval'.
+        override_map (Dict[int, Dict[str, Any]]): Normalized overrides keyed by cluster id.
+
     Returns:
-        Dict[int, Tuple[str, Optional[float]]]: ...
+        Dict[int, Tuple[str, Optional[float]]]: Mapping cluster id to (label, pval).
+
+    Raises:
+        ValueError: If overrides reference unknown cluster ids.
     """
+    # Build base label map, then apply overrides
     label_map = {}
     for _, row in df.iterrows():
         cid = int(row["cluster"])
@@ -74,6 +95,7 @@ def _build_label_map(df, override_map):
             pval = row.get("pval", None)
         label_map[cid] = (label, pval)
 
+    # Reject overrides that do not match any cluster id
     if override_map:
         unknown = set(override_map) - set(label_map)
         if unknown:
@@ -86,13 +108,18 @@ def _build_label_map(df, override_map):
 
 def _setup_label_axis(fig, matrix, style, track_layout, kwargs):
     """
-    Set up the label axis for cluster labels.
+    Creates and configure the label axis and compute track layout. Initializes the label panel,
+    draws the gutter, and resolves track x-positions.
 
     Args:
-        ...
+        fig (plt.Figure): Target figure.
+        matrix (Any): Matrix object providing row count.
+        style (Any): Style configuration.
+        track_layout (TrackLayoutManager): Track layout manager.
         kwargs (Dict[str, Any]): Renderer keyword arguments.
+
     Returns:
-        Tuple[plt.Axes, float, List[Dict[str, Any]]]: ...
+        Tuple[plt.Axes, float, List[Dict[str, Any]]]: (label axis, text x-position, resolved tracks).
     """
     n_rows = matrix.df.shape[0]
 
@@ -133,7 +160,6 @@ def _setup_label_axis(fig, matrix, style, track_layout, kwargs):
 
 
 def _format_cluster_label(
-    cid,
     label,
     pval,
     n_members,
@@ -143,14 +169,22 @@ def _format_cluster_label(
     style,
 ):
     """
+    Formats the cluster label text for display. Applies overrides, selects fields, formats
+    stats, and performs truncation/wrapping.
+
     Args:
-        ...
-        override (Dict[str, Any] | None): ...
-        label_fields (Tuple[str, ...]): ...
-        kwargs (Dict[str, Any]): ...
+        label (str): Base or overridden label.
+        pval (float | None): P-value to display, if any.
+        n_members (int | None): Cluster size.
+        override (Dict[str, Any] | None): Override entry for the cluster.
+        label_fields (Tuple[str, ...]): Fields to display.
+        kwargs (Dict[str, Any]): Renderer keyword arguments.
+        style (Any): Style configuration.
+
     Returns:
-        str: ...
+        str: Final formatted label text.
     """
+    # Resolve fields based on overrides
     if override:
         if override.get("hide_stats", False):
             effective_fields = ("label",)
@@ -161,6 +195,7 @@ def _format_cluster_label(
     else:
         effective_fields = label_fields
 
+    # Assemble label parts for requested fields
     parts = []
     for field in effective_fields:
         if field == "label":
@@ -170,6 +205,7 @@ def _format_cluster_label(
         elif field == "p" and pval is not None and not pd.isna(pval):
             parts.append(rf"$p$={pval:.2e}")
 
+    # Join parts into display text
     if not parts:
         text = label
     else:
@@ -180,6 +216,7 @@ def _format_cluster_label(
         else:
             text = ", ".join(parts)
 
+    # Apply truncation and wrapping options
     max_words = kwargs.get("max_words", None)
     wrap_text = kwargs.get("wrap_text", True)
     wrap_width = kwargs.get("wrap_width", style.get("label_wrap_width", None))
@@ -210,7 +247,6 @@ class ClusterLabelsRenderer:
     def render(
         self,
         fig: plt.Figure,
-        ax: plt.Axes,
         matrix: Any,
         layout: Any,
         style: Any,
@@ -218,52 +254,62 @@ class ClusterLabelsRenderer:
         bar_labels_kwargs: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
+        Renders the cluster label panel with tracks and annotations. Coordinates override
+        handling, layout, track rendering, and label drawing.
+
         Args:
-            ...
-            bar_labels_kwargs (Dict[str, Any] | None): ...
+            fig (plt.Figure): Target figure.
+            ax (plt.Axes): Matrix axis (for alignment).
+            matrix (Any): Matrix object.
+            layout (Any): Layout with cluster spans and sizes.
+            style (Any): Style configuration.
+            track_layout (TrackLayoutManager): Track layout manager.
+            bar_labels_kwargs (Dict[str, Any] | None): Optional bar title configuration.
         """
         df = self.df
         kwargs = self.kwargs
 
+        # Validate cluster_labels DataFrame
         if not isinstance(df, pd.DataFrame):
             raise TypeError("cluster_labels must be a pandas DataFrame.")
         if "cluster" not in df.columns or "label" not in df.columns:
             raise ValueError("cluster_labels DataFrame must contain columns: 'cluster', 'label'.")
 
+        # Parse overrides and build label map
         overrides = kwargs.get("overrides", None)
         override_map = _parse_label_overrides(overrides)
-
         label_map = _build_label_map(df, override_map)
-
+        # Resolve spans, sizes, and label axis layout
         spans = layout.cluster_spans
         cluster_sizes = layout.cluster_sizes
-
         ax_lab, label_text_x, tracks = _setup_label_axis(fig, matrix, style, track_layout, kwargs)
 
+        # Resolve separator line positions
         sep_xmin = kwargs.get("label_sep_xmin", style.get("label_sep_xmin"))
         sep_xmax = kwargs.get("label_sep_xmax", style.get("label_sep_xmax"))
-
         if sep_xmin is None:
             sep_xmin = label_text_x
         if sep_xmax is None:
             sep_xmax = 1.0
-
         sep_xmin = float(np.clip(sep_xmin, 0.0, 1.0))
         sep_xmax = float(np.clip(sep_xmax, 0.0, 1.0))
         if sep_xmin > sep_xmax:
             sep_xmin, sep_xmax = sep_xmax, sep_xmin
 
+        # Resolve text style options
         font = kwargs.get("font", "Helvetica")
         fontsize = kwargs.get("fontsize", style.get("label_fontsize", 9))
-        max_words = kwargs.get("max_words", None)
         skip_unlabeled = kwargs.get("skip_unlabeled", False)
         label_fields = kwargs.get("label_fields", style["label_fields"])
+
+        # Validate label_fields
         if not isinstance(label_fields, (list, tuple)):
             raise TypeError("label_fields must be a list or tuple of strings")
         allowed_fields = {"label", "n", "p"}
         if any(f not in allowed_fields for f in label_fields):
             raise ValueError(f"label_fields may only contain {allowed_fields}")
 
+        # Render track content: data tracks and cluster-level tracks
         row_order = layout.leaf_order
         for track in tracks:
             if track["kind"] == "row":
@@ -289,10 +335,11 @@ class ClusterLabelsRenderer:
                     row_order,
                 )
 
+        # Render optional bar titles
         if bar_labels_kwargs is not None:
             bar_pad_pts = bar_labels_kwargs.get("pad", 2)
             bar_rotation = bar_labels_kwargs.get("rotation", 0)
-
+            #  Draw titles aligned with track centers
             for track in tracks:
                 title = track.get("payload", {}).get("title", None)
                 if not title:
@@ -320,8 +367,10 @@ class ClusterLabelsRenderer:
                     clip_on=False,
                 )
 
+        # Render cluster labels and separators
         for cid, s, e in spans:
             y_center = (s + e) / 2.0
+            # Resolve custom or default label text
             if cid not in label_map:
                 if skip_unlabeled:
                     continue
@@ -339,7 +388,6 @@ class ClusterLabelsRenderer:
                 label, pval = label_map[cid]
                 n_members = cluster_sizes.get(cid, None)
                 text = _format_cluster_label(
-                    cid,
                     label,
                     pval,
                     n_members,
@@ -355,6 +403,7 @@ class ClusterLabelsRenderer:
                     "alpha": kwargs.get("alpha", 0.9),
                 }
 
+            # Draw cluster label text
             ax_lab.text(
                 label_text_x,
                 y_center,
@@ -365,7 +414,7 @@ class ClusterLabelsRenderer:
                 fontweight="normal",
                 clip_on=False,
             )
-
+            # Draw separator line below cluster
             if s > 0:
                 sep_color = kwargs.get("label_sep_color", style["label_sep_color"])
                 sep_lw = kwargs.get("label_sep_lw", style["label_sep_lw"])
