@@ -5,18 +5,45 @@ himalayas/core/results
 
 from __future__ import annotations
 
-from typing import List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 
+from .clustering import Clusters
+from .layout import ClusterLayout
 from .matrix import Matrix
 
 
 class Results:
-    """ """
+    """
+    Immutable container for analysis results (e.g., enrichment).
+    """
 
-    def __init__(self, df, method, *, matrix=None, clusters=None, layout=None, parent=None) -> None:
+    def __init__(
+        self,
+        df: pd.DataFrame,
+        method: str,
+        *,
+        matrix: Optional[Matrix] = None,
+        clusters: Optional[Clusters] = None,
+        layout: Optional[ClusterLayout] = None,
+        parent: Optional[Results] = None,
+    ) -> None:
+        """
+        Initializes Results.
+
+        Args:
+            df (pd.DataFrame): DataFrame holding results contents.
+            method (str): Method used to generate results (e.g., "enrichment").
+            matrix (Matrix, optional): Matrix associated with results. Required for subset() and
+                plotting. Defaults to None.
+            clusters (Clusters, optional): Clusters associated with results. Required for subset().
+                Defaults to None.
+            layout (ClusterLayout, optional): ClusterLayout associated with results. Required for
+                cluster_layout() and plotting. Defaults to None.
+            parent (Results, optional): Parent Results for provenance. Defaults to None.
+        """
         self.df = df
         self.method = method
         self.matrix = matrix
@@ -24,11 +51,21 @@ class Results:
         self.parent = parent
         self._layout = layout
         # Analysis parameters / provenance
-        self.params = {}
+        self.params: Dict[str, Any] = {}
         if clusters is not None:
             self.params["linkage_threshold"] = clusters.threshold
 
     def filter(self, expr, **kwargs) -> Results:
+        """
+        Return a Results object filtered by a DataFrame query expression.
+
+        Args:
+            expr (str): DataFrame query expression.
+            **kwargs: Additional keyword arguments for pd.DataFrame.query.
+
+        Returns:
+            Results: New Results object with filtered DataFrame.
+        """
         filtered_df = self.df.query(expr, **kwargs)
         return Results(
             filtered_df,
@@ -41,7 +78,6 @@ class Results:
 
     def subset(
         self,
-        *,
         cluster: int,
     ) -> Results:
         """
@@ -83,10 +119,6 @@ class Results:
             layout=None,
             parent=self,
         )
-
-    def cluster_view(self, cid: int) -> Results:
-        """Alias for subset(cluster=cid)."""
-        return self.subset(cluster=cid)
 
     @staticmethod
     def _bh_fdr(pvals: np.ndarray) -> np.ndarray:

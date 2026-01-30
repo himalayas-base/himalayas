@@ -86,11 +86,12 @@ def summarize_terms(
 
 def summarize_clusters(
     df: pd.DataFrame,
-    term_col: str = "term_name",
+    term_col: str = "term",
     cluster_col: str = "cluster",
     weight_col: str = "pval",
     *,
     label_mode: str = "compressed",
+    label_col: Optional[str] = "term_name",
 ) -> pd.DataFrame:
     """
     Return a DataFrame mapping cluster to short textual label, suitable for plotting.
@@ -100,15 +101,19 @@ def summarize_clusters(
     df : pandas.DataFrame
         Enrichment results containing term and cluster columns.
     term_col : str
-        Column containing human-readable term names.
+        Column containing stable term identifiers (e.g., GO IDs).
     cluster_col : str
         Column containing cluster IDs.
     weight_col : str
-        Column containing p-values (used for both best p-value and weighting).
+        Column containing p-values. Required for label_mode="top_term"; optional for
+        "compressed" (if missing, weights default to 1.0).
     label_mode : {"compressed", "top_term"}
         - "compressed": keyword compression across all terms in a cluster,
           weighted by -log10(p).
         - "top_term": Use the single most enriched term (minimum p-value) as the label.
+    label_col : str or None
+        Optional column containing human-readable term names for display. If present, it is
+        used for labels; otherwise the term IDs from term_col are used.
 
     Returns
     -------
@@ -122,6 +127,13 @@ def summarize_clusters(
 
     if label_mode not in {"compressed", "top_term"}:
         raise ValueError("label_mode must be one of {'compressed', 'top_term'}")
+
+    label_col_present = (
+        label_col is not None and isinstance(label_col, str) and label_col in df.columns
+    )
+    if label_col is not None and not label_col_present and label_col != "term_name":
+        raise KeyError(f"Missing column: {label_col}")
+    label_source = label_col if label_col_present else term_col
 
     df = df.copy()
 
@@ -144,11 +156,19 @@ def summarize_clusters(
             # Deterministic: choose the single smallest p-value row.
             best_idx = sub[weight_col].astype(float).idxmin()
             best_row = df.loc[best_idx]
-            label = str(best_row[term_col])
+            label_val = best_row[label_source]
+            if label_source != term_col and (label_val is None or pd.isna(label_val)):
+                label_val = best_row[term_col]
+            label = str(label_val)
             best_pval = float(best_row[weight_col])
         else:
+            if label_source != term_col:
+                labels = sub[label_source].where(pd.notna(sub[label_source]), sub[term_col])
+                labels = labels.tolist()
+            else:
+                labels = sub[term_col].tolist()
             label = summarize_terms(
-                sub[term_col].tolist(),
+                labels,
                 sub["_weight"].tolist(),
             )
             best_pval = sub[weight_col].min() if weight_col in sub.columns else None

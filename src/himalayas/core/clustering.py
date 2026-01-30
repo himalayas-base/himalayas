@@ -524,7 +524,7 @@ class Clusters:
 
         if strict:
             # Verify each cluster appears in a single span
-            seen = {}
+            seen: Dict[int, Tuple[int, int]] = {}
             for cid, s, e in spans:
                 if cid in seen:
                     raise ValueError(
