@@ -27,6 +27,7 @@ class MatrixRenderer:
         minor_row_alpha: float = 0.15,
         outer_lw: float = 1.2,
         outer_color: str = "black",
+        gutter_color: Optional[str] = None,
         figsize: Optional[tuple[float, float]] = None,
         subplots_adjust: Optional[dict[str, float]] = None,
         **kwargs: Any,
@@ -41,6 +42,7 @@ class MatrixRenderer:
         self.minor_row_alpha = minor_row_alpha
         self.outer_lw = outer_lw
         self.outer_color = outer_color
+        self.gutter_color = gutter_color
         self.figsize = figsize
         self.subplots_adjust = subplots_adjust
         self._extra = dict(kwargs)
@@ -73,6 +75,14 @@ class MatrixRenderer:
         data = data.values
         n_rows, n_cols = data.shape
 
+        gutter_color = (
+            self.gutter_color
+            if self.gutter_color is not None
+            else style.get("matrix_gutter_color", None)
+        )
+        if gutter_color is not None:
+            ax.set_facecolor(gutter_color)
+
         if self.center is not None:
             vmin = np.nanmin(data) if self.vmin is None else self.vmin
             vmax = np.nanmax(data) if self.vmax is None else self.vmax
@@ -99,10 +109,14 @@ class MatrixRenderer:
         ax.set_xlim(-0.5, n_cols - 0.5)
         ax.set_ylim(n_rows - 0.5, -0.5)
 
-        for spine in ax.spines.values():
-            spine.set_visible(True)
-            spine.set_linewidth(self.outer_lw)
-            spine.set_color(self.outer_color)
+        if self.outer_lw is not None and self.outer_lw <= 0:
+            for spine in ax.spines.values():
+                spine.set_visible(False)
+        else:
+            for spine in ax.spines.values():
+                spine.set_visible(True)
+                spine.set_linewidth(self.outer_lw)
+                spine.set_color(self.outer_color)
 
         boundary_registry = kwargs.get("boundary_registry")
         if isinstance(boundary_registry, BoundaryRegistry):

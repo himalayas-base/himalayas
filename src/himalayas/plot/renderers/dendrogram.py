@@ -48,9 +48,7 @@ class DendrogramRenderer:
         if linkage_matrix is None:
             results = kwargs.get("results")
             if results is None or not hasattr(results, "clusters"):
-                raise ValueError(
-                    "Dendrogram rendering requires `results` or `linkage_matrix`."
-                )
+                raise ValueError("Dendrogram rendering requires `results` or `linkage_matrix`.")
             linkage_matrix = results.clusters.linkage_matrix
 
         dendro = dendrogram(

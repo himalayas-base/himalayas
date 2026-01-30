@@ -48,9 +48,7 @@ class GeneBarRenderer:
         **kwargs: Any,
     ) -> None:
         if not isinstance(self.values, dict):
-            raise TypeError(
-                "plot_gene_bar expects `values` as a dict mapping row IDs to values"
-            )
+            raise TypeError("plot_gene_bar expects `values` as a dict mapping row IDs to values")
 
         mode = self.mode
         missing_color = (
@@ -60,22 +58,12 @@ class GeneBarRenderer:
         )
 
         dendro_axes = style["dendro_axes"]
-        gap = (
-            self.gene_bar_gap
-            if self.gene_bar_gap is not None
-            else style["gene_bar_gap"]
-        )
-        bar_w = (
-            self.gene_bar_width
-            if self.gene_bar_width is not None
-            else style["gene_bar_width"]
-        )
+        gap = self.gene_bar_gap if self.gene_bar_gap is not None else style["gene_bar_gap"]
+        bar_w = self.gene_bar_width if self.gene_bar_width is not None else style["gene_bar_width"]
 
         x0 = dendro_axes[0] + dendro_axes[2] + gap
         bar_axes = (
-            self.axes
-            if self.axes is not None
-            else [x0, dendro_axes[1], bar_w, dendro_axes[3]]
+            self.axes if self.axes is not None else [x0, dendro_axes[1], bar_w, dendro_axes[3]]
         )
 
         ax_bar = fig.add_axes(bar_axes, frameon=False)
@@ -126,16 +114,8 @@ class GeneBarRenderer:
                         )
                     )
             else:
-                vmin = (
-                    self.vmin
-                    if self.vmin is not None
-                    else float(np.nanmin(vals[finite]))
-                )
-                vmax = (
-                    self.vmax
-                    if self.vmax is not None
-                    else float(np.nanmax(vals[finite]))
-                )
+                vmin = self.vmin if self.vmin is not None else float(np.nanmin(vals[finite]))
+                vmax = self.vmax if self.vmax is not None else float(np.nanmax(vals[finite]))
                 if vmin == vmax:
                     vmax = vmin + 1e-12
                 norm = plt.Normalize(vmin=vmin, vmax=vmax)
@@ -230,6 +210,4 @@ def render_gene_bar_track(
                     )
                 )
     else:
-        raise ValueError(
-            "label_panel gene bar mode must be 'categorical' or 'continuous'"
-        )
+        raise ValueError("label_panel gene bar mode must be 'categorical' or 'continuous'")
