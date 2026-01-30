@@ -10,12 +10,9 @@ from typing import Any, Mapping, Optional, Sequence
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from matplotlib.collections import LineCollection
-from matplotlib.colors import to_rgba
-from scipy.cluster.hierarchy import dendrogram
 
 from ..core.results import Results
-from .renderers import BoundaryRegistry, MatrixRenderer
+from .renderers import BoundaryRegistry, DendrogramRenderer, MatrixRenderer
 from .style import StyleConfig
 from .track_layout import TrackLayoutManager
 
@@ -654,10 +651,6 @@ class Plotter:
         if self._background is not None:
             fig.patch.set_facecolor(self._background)
 
-        # Created if dendrogram layer is rendered
-        ax_dend = None
-        # Precompute dendrogram geometry for rendering only (for dendrogram panel)
-        dendro = None
 
         # Single-ownership boundary registry (matrix-aligned horizontals)
         matrix_kwargs = None
@@ -691,6 +684,23 @@ class Plotter:
                 if b <= -0.5 or b >= n_rows - 0.5:
                     continue
                 boundary_registry.register(b, lw=lw, color=color, alpha=alpha)
+
+        dendro_boundary_style = None
+        if cluster_boundary_kwargs is not None:
+            dendro_boundary_style = {
+                "color": cluster_boundary_kwargs.get(
+                    "dendro_boundary_color",
+                    self._style["dendro_boundary_color"],
+                ),
+                "lw": cluster_boundary_kwargs.get(
+                    "dendro_boundary_lw",
+                    self._style["dendro_boundary_lw"],
+                ),
+                "alpha": cluster_boundary_kwargs.get(
+                    "dendro_boundary_alpha",
+                    self._style["dendro_boundary_alpha"],
+                ),
+            }
 
         for layer, kwargs in self._layers:
             if layer == "gene_bar":
@@ -943,55 +953,16 @@ class Plotter:
                     tick.set_visible(vis)
 
             elif layer == "dendrogram":
-                # User-overridable dendrogram panel geometry/styling
-                dendro_axes = kwargs.get("axes", self._style["dendro_axes"])
-                dendro_color = kwargs.get("color", self._style["dendro_color"])
-                dendro_lw = kwargs.get("linewidth", self._style["dendro_lw"])
-                # Data-space padding to prevent edge clipping (render-only)
-                DATA_PAD = kwargs.get("data_pad", 0.25)
-
-                ax_dend = fig.add_axes(dendro_axes, frameon=False)
-
-                # Only call dendrogram for geometry (do not use for order)
-                if dendro is None:
-                    dendro = dendrogram(
-                        self.results.clusters.linkage_matrix,
-                        orientation="left",
-                        no_labels=True,
-                        color_threshold=-1,
-                        above_threshold_color="#888888",
-                        distance_sort=False,
-                        no_plot=True,
-                    )
-
-                # SciPy dendrogram uses y positions spaced by 10 units:
-                # leaves are centered at 5, 15, 25, ...
-                dendro_y_min = min(min(y) for y in dendro["icoord"])
-                dendro_y_max = max(max(y) for y in dendro["icoord"])
-
-                # Target matrix row coordinate space: [-0.5, n-0.5]
-                target_y_min = -0.5
-                target_y_max = n_rows - 0.5
-
-                # Linear mapping from dendrogram y-space -> matrix row space
-                scale = (target_y_max - target_y_min) / (dendro_y_max - dendro_y_min)
-                offset = target_y_min - scale * dendro_y_min
-
-                # Draw the PRECOMPUTED dendrogram geometry with mapped coordinates
-                for icoord, dcoord in zip(dendro["icoord"], dendro["dcoord"]):
-                    icoord_mapped = [scale * y + offset for y in icoord]
-                    ax_dend.plot(dcoord, icoord_mapped, color=dendro_color, linewidth=dendro_lw)
-
-                ax_dend.set_ylim(target_y_min - DATA_PAD, target_y_max + DATA_PAD)
-                ax_dend.invert_yaxis()  # match imshow row orientation
-                ax_dend.invert_xaxis()  # left-oriented dendrogram
-
-                ax_dend.set_xticks([])
-                ax_dend.set_yticks([])
-                ax_dend.spines["top"].set_visible(False)
-                ax_dend.spines["right"].set_visible(False)
-                ax_dend.spines["bottom"].set_visible(False)
-                ax_dend.spines["left"].set_visible(False)
+                renderer = DendrogramRenderer(**kwargs)
+                renderer.render(
+                    fig,
+                    ax,
+                    self.matrix,
+                    layout,
+                    self._style,
+                    results=self.results,
+                    boundary_style=dendro_boundary_style,
+                )
 
             elif layer == "title":
                 ax.set_title(
@@ -1026,36 +997,6 @@ class Plotter:
                 # Use precomputed cluster spans from layout
                 spans = layout.cluster_spans
                 cluster_sizes = layout.cluster_sizes
-
-                dendro_boundary_color = kwargs.get(
-                    "dendro_boundary_color", self._style["dendro_boundary_color"]
-                )
-                dendro_boundary_lw = kwargs.get(
-                    "dendro_boundary_lw", self._style["dendro_boundary_lw"]
-                )
-
-                dendro_boundary_alpha = kwargs.get(
-                    "dendro_boundary_alpha", self._style["dendro_boundary_alpha"]
-                )
-                # NOTE: Dendrogram boundaries are panel-local and intentionally separate from matrix boundary ownership
-                if ax_dend is not None:
-                    ys = [
-                        s - 0.5
-                        for _cid, s, _e in spans
-                        if (s - 0.5) > -0.5 and (s - 0.5) < n_rows - 0.5
-                    ]
-                    if ys:
-                        x0, x1 = ax_dend.get_xlim()
-                        segs = [((x0, y), (x1, y)) for y in ys]
-                        ax_dend.add_collection(
-                            LineCollection(
-                                segs,
-                                linewidths=[dendro_boundary_lw] * len(segs),
-                                colors=[to_rgba(dendro_boundary_color, dendro_boundary_alpha)]
-                                * len(segs),
-                                zorder=3,
-                            )
-                        )
 
                 label_axes = kwargs.get("axes", self._style["label_axes"])
                 ax_lab = fig.add_axes(label_axes, frameon=False)
