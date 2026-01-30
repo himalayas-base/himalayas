@@ -259,13 +259,10 @@ class Plotter:
             return
         if font is not None:
             # Prefer font family to avoid backend-specific fontname quirks
-            try:
+            if hasattr(text_obj, "set_fontfamily"):
                 text_obj.set_fontfamily(font)
-            except Exception:
-                try:
-                    text_obj.set_fontname(font)
-                except Exception:
-                    pass
+            elif hasattr(text_obj, "set_fontname"):
+                text_obj.set_fontname(font)
         if fontsize is not None:
             text_obj.set_fontsize(fontsize)
         if color is not None:
@@ -350,19 +347,17 @@ class Plotter:
             if source == "cluster_labels_pval":
                 for i, (cid, _s, _e) in enumerate(cluster_spans):
                     _label, pval = label_map.get(cid, (None, np.nan))
-                    try:
-                        p = float(pval)
-                    except Exception:
-                        p = np.nan
-                    pvals[i] = p
+                    if pval is None or pd.isna(pval):
+                        pvals[i] = np.nan
+                    else:
+                        pvals[i] = float(pval)
             else:
                 for i, (cid, _s, _e) in enumerate(cluster_spans):
                     v = value_map.get(cid, np.nan)
-                    try:
-                        p = float(v)
-                    except Exception:
-                        p = np.nan
-                    pvals[i] = p
+                    if v is None or pd.isna(v):
+                        pvals[i] = np.nan
+                    else:
+                        pvals[i] = float(v)
 
             # Convert to -log10(p) (visual space)
             with np.errstate(divide="ignore", invalid="ignore"):
