@@ -28,22 +28,22 @@ DEFAULT_STYLE = {
     # Matrix panel background (used to mask edge artifacts if desired)
     "matrix_gutter_color": None,
     # Gene-level annotation bar (row-level, purely visual)
-    # Placed between dendrogram and matrix by default.
+    # Placed between dendrogram and matrix by default
     "gene_bar_width": 0.012,
     "gene_bar_gap": 0.006,
     "gene_bar_missing_color": "#eeeeee",
     # Bars rendered inside the label panel (to the left of text)
-    # (label_bar_default_width, label_bar_default_gap removed)
+    # (Label_bar_default_width, label_bar_default_gap removed)
     # Default settings for cluster p-value bars (e.g., sigbar)
-    # NOTE: scaling is controlled by an explicit `norm` passed to plot_cluster_bar.
-    # `sigbar_min_logp` / `sigbar_max_logp` are legacy defaults used only for the legend.
+    # NOTE: scaling is controlled by an explicit `norm` passed to plot_cluster_bar
+    # `Sigbar_min_logp` / `sigbar_max_logp` are legacy defaults used only for the legend
     "sigbar_width": 0.015,
     "sigbar_cmap": "YlOrBr",
     "sigbar_min_logp": 2.0,
     "sigbar_max_logp": 10.0,
     "sigbar_alpha": 0.9,
     "show_sigbar": True,
-    # (sigbar_gap removed)
+    # (Sigbar_gap removed)
     # Label panel bar/text spacing
     "label_bar_pad": 0.01,
     # Cluster boundary lines

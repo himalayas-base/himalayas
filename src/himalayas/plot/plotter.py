@@ -470,7 +470,7 @@ class Plotter:
     # Rendering
     # --------------------------------------------------------
 
-    # _ordered_cluster_spans removed: Plotter now fully consumes layout from Results
+    # _Ordered_cluster_spans removed: Plotter now fully consumes layout from Results
 
     def _render(self) -> None:
         """
@@ -485,8 +485,8 @@ class Plotter:
             raise ValueError("Dendrogram leaf order does not match matrix dimensions.")
 
         # NOTE:
-        #   - layout.leaf_order controls row ordering (statistically meaningful)
-        #   - layout.col_order controls column ordering (visual only)
+        #   - Layout.leaf_order controls row ordering (statistically meaningful)
+        #   - Layout.col_order controls column ordering (visual only)
         row_order = layout.leaf_order
         col_order = layout.col_order
 
@@ -561,7 +561,7 @@ class Plotter:
         for layer, kwargs in self._layers:
             if layer == "gene_bar":
                 if kwargs.get("placement", "between_dendro_matrix") == "label_panel":
-                    # Registered in plot_gene_bar; nothing to render here.
+                    # Registered in plot_gene_bar; nothing to render here
                     continue
                 renderer = GeneBarRenderer(**kwargs)
                 renderer.render(fig, ax, self.matrix, layout, self._style)
@@ -585,8 +585,8 @@ class Plotter:
                     boundary_registry=boundary_registry,
                 )
 
-            # Note: orientation="left" already handles axis direction.
-            # Do NOT manually reverse x-limits or the dendrogram will be mirrored.
+            # Note: orientation="left" already handles axis direction
+            # Do NOT manually reverse x-limits or the dendrogram will be mirrored
             elif layer == "matrix_axis_labels":
                 renderer = AxesRenderer("matrix_axis_labels", **kwargs)
                 renderer.render(fig, ax, self.matrix, layout, self._style)
@@ -639,7 +639,7 @@ class Plotter:
                 renderer.render(fig, self._style)
 
             elif layer == "bar_labels":
-                # Consumed inside the cluster label panel; no direct rendering.
+                # Consumed inside the cluster label panel; no direct rendering
                 continue
 
             elif layer == "cluster_bars":

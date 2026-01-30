@@ -144,7 +144,7 @@ def summarize_clusters(
         else:
             df["_weight"] = 1.0
     else:
-        # top_term requires a p-value column to define 'most enriched'
+        # Top_term requires a p-value column to define 'most enriched'
         if weight_col not in df.columns:
             raise KeyError(f"Missing column required for label_mode='top_term': {weight_col}")
 
@@ -153,7 +153,7 @@ def summarize_clusters(
         cid_int = int(cid)
 
         if label_mode == "top_term":
-            # Deterministic: choose the single smallest p-value row.
+            # Deterministic: choose the single smallest p-value row
             best_idx = sub[weight_col].astype(float).idxmin()
             best_row = df.loc[best_idx]
             label_val = best_row[label_source]
