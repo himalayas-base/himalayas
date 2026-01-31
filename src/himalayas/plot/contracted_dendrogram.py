@@ -173,6 +173,7 @@ def plot_term_hierarchy_contracted(
     sigbar_cmap="YlOrBr",
     sigbar_min_logp=2.0,
     sigbar_max_logp=12.0,
+    sigbar_norm=None,
     sigbar_width=0.06,
     sigbar_alpha=0.9,
     font="Helvetica",
@@ -302,13 +303,20 @@ def plot_term_hierarchy_contracted(
     # === RENDERING: SIGNIFICANCE BAR ===
     cmap = plt.get_cmap(sigbar_cmap)
     ax_sig.set(xlim=(0, 1), ylim=(k * 10, 0))
+    norm = sigbar_norm
     denom = sigbar_max_logp - sigbar_min_logp
     for i, p in enumerate(pvals):
         if not np.isfinite(p) or p <= 0:
             val = 0.0
         else:
             lp = -np.log10(p)
-            val = np.clip((lp - sigbar_min_logp) / denom, 0, 1)
+            if norm is None:
+                val = np.clip((lp - sigbar_min_logp) / denom, 0, 1)
+            else:
+                try:
+                    val = float(norm(lp))
+                except TypeError:
+                    val = float(norm([lp])[0])
         ax_sig.add_patch(
             plt.Rectangle(
                 (0, y[i] - 4),

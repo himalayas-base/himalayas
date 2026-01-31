@@ -247,6 +247,7 @@ class ClusterLabelsRenderer:
     def render(
         self,
         fig: plt.Figure,
+        ax: plt.Axes,
         matrix: Any,
         layout: Any,
         style: Any,
