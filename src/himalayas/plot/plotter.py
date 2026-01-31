@@ -617,7 +617,6 @@ class Plotter:
                 renderer = ClusterLabelsRenderer(df, **renderer_kwargs)
                 renderer.render(
                     fig,
-                    ax,
                     self.matrix,
                     layout,
                     self._style,
