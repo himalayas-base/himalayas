@@ -95,22 +95,22 @@ class StyleConfig:
         self._overrides: dict[str, Any] = {}
 
     def get(self, key: str, default: Any = None) -> Any:
-        """Get a style value with override priority."""
+        """Gets a style value with override priority."""
         if key in self._overrides:
             return self._overrides[key]
         return self._defaults.get(key, default)
 
     def set(self, key: str, value: Any) -> None:
-        """Override a style value."""
+        """Overrides a style value."""
         self._overrides[key] = value
 
     def update(self, overrides: Mapping[str, Any]) -> None:
-        """Apply multiple overrides at once."""
+        """Applies multiple overrides at once."""
         for key, value in overrides.items():
             self._overrides[key] = value
 
     def as_dict(self) -> dict[str, Any]:
-        """Return a merged view of defaults and overrides."""
+        """Returns a merged view of defaults and overrides."""
         merged = dict(self._defaults)
         merged.update(self._overrides)
         return merged

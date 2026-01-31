@@ -10,7 +10,6 @@ from typing import Any, Mapping, Optional, Sequence
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from ..core.results import Results
 from .renderers import (
     AxesRenderer,
     BoundaryRegistry,
@@ -25,6 +24,7 @@ from .renderers import (
 from .renderers.gene_bar import render_gene_bar_track
 from .style import StyleConfig
 from .track_layout import TrackLayoutManager
+from ..core.results import Results
 
 
 class Plotter:
@@ -76,7 +76,7 @@ class Plotter:
         color: Optional[str] = None,
     ) -> Plotter:
         """
-        Declare a global colorbar explaining a visual encoding.
+        Declares a global colorbar explaining a visual encoding.
 
         Colorbars are figure-aligned and rendered in a strip below the matrix.
         They are not data-aligned and do not participate in row or cluster layout.
@@ -113,7 +113,7 @@ class Plotter:
         label_position: str = "below",
     ) -> Plotter:
         """
-        Declare layout for the bottom colorbar strip.
+        Declares layout for the bottom colorbar strip.
 
         Parameters
         ----------
@@ -164,14 +164,14 @@ class Plotter:
 
     def set_background(self, color: str) -> Plotter:
         """
-        Set figure background color (used for display and save).
+        Sets figure background color (used for display and save).
         """
         self._background = color
         return self
 
     def set_label_track_order(self, order: Optional[Sequence[str]]) -> Plotter:
         """
-        Set the order of label-panel tracks in the label panel.
+        Sets the order of label-panel tracks in the label panel.
         Pass None to use default order. Otherwise, must be a list/tuple of unique strings.
         """
         self._track_layout.set_order(order)
@@ -179,7 +179,7 @@ class Plotter:
 
     def plot_cluster_bar(self, name: str, values: object, **kwargs) -> Plotter:
         """
-        Declare a cluster-level label-panel bar (e.g. for p-values or other cluster metrics).
+        Declares a cluster-level label-panel bar (e.g. for p-values or other cluster metrics).
         Supported values: dict, pandas Series, DataFrame with columns (cluster, pval).
         Only kind='pvalue' is implemented.
         """
@@ -236,7 +236,7 @@ class Plotter:
 
     def plot_sigbar_legend(self, **kwargs) -> Plotter:
         """
-        Declare a significance bar legend.
+        Declares a significance bar legend.
 
         Explains the color mapping of the cluster-level significance bar
         (based on -log10(p)). Off by default.
@@ -249,7 +249,7 @@ class Plotter:
     # --------------------------------------------------------
     def plot_matrix(self, **kwargs) -> Plotter:
         """
-        Declare the main matrix heatmap layer.
+        Declares the main matrix heatmap layer.
 
         Parameters are stored verbatim and interpreted at render time.
         Use `gutter_color` to set the matrix panel background (helps mask edge artifacts).
@@ -258,9 +258,9 @@ class Plotter:
         return self
 
     def plot_matrix_axis_labels(self, **kwargs) -> Plotter:
-        """Declare axis labels for the matrix.
+        """Declares axis labels for the matrix.
 
-        Keyword arguments
+        Handles keyword arguments
         -----------------
         xlabel, ylabel : str
             Axis label text.
@@ -276,7 +276,7 @@ class Plotter:
 
     def plot_row_ticks(self, labels: Optional[Sequence[str]] = None, **kwargs) -> Plotter:
         """
-        Declare row tick labels for the matrix.
+        Declares row tick labels for the matrix.
 
         Keyword arguments:
           - position (str): "left" or "right" (default: "right").
@@ -286,7 +286,7 @@ class Plotter:
 
     def plot_col_ticks(self, labels: Optional[Sequence[str]] = None, **kwargs) -> Plotter:
         """
-        Declare column tick labels for the matrix.
+        Declares column tick labels for the matrix.
 
         Keyword arguments:
           - position (str): "top" or "bottom" (default: "top").
@@ -296,14 +296,14 @@ class Plotter:
 
     def plot_bar_labels(self, **kwargs) -> Plotter:
         """
-        Declare titles for bar tracks (shown below bars in label panel).
+        Declares titles for bar tracks (shown below bars in label panel).
         """
         self._layers.append(("bar_labels", kwargs))
         return self
 
     def plot_dendrogram(self, **kwargs) -> Plotter:
         """
-        Declare a dendrogram layer aligned to the matrix.
+        Declares a dendrogram layer aligned to the matrix.
 
         Keyword arguments:
           - data_pad (float): Data-space padding to prevent edge clipping in the dendrogram panel (default: 0.25).
@@ -313,13 +313,13 @@ class Plotter:
 
     def plot_cluster_bars(self, **kwargs) -> Plotter:
         """
-        Declare a cluster membership bar layer.
+        Declares a cluster membership bar layer.
         """
         self._layers.append(("cluster_bars", kwargs))
         return self
 
     def plot_gene_bar(self, values: Mapping[Any, Any], **kwargs) -> Plotter:
-        """Declare a single row-level gene annotation bar.
+        """Declares a single row-level gene annotation bar.
 
         This layer is purely visual: it never affects clustering, ordering, or statistics.
 
@@ -379,14 +379,14 @@ class Plotter:
 
     def plot_labels(self, **kwargs) -> Plotter:
         """
-        Declare annotation label overlays (e.g. GO terms).
+        Declares annotation label overlays (e.g. GO terms).
         """
         self._layers.append(("labels", kwargs))
         return self
 
     def plot_cluster_labels(self, cluster_labels: pd.DataFrame, **kwargs) -> Plotter:
         """
-        Declare cluster-level textual labels.
+        Declares cluster-level textual labels.
 
         `cluster_labels` must be a DataFrame containing:
           - 'cluster' (int)
@@ -454,7 +454,7 @@ class Plotter:
 
     def plot_title(self, title: str, **kwargs) -> Plotter:
         """
-        Declare a plot title.
+        Declares a plot title.
         """
         self._layers.append(("title", {"title": title, **kwargs}))
         return self
@@ -467,7 +467,7 @@ class Plotter:
 
     def _render(self) -> None:
         """
-        Render the accumulated plot layers in declaration order.
+        Renders the accumulated plot layers in declaration order.
         """
         if not self._layers:
             raise RuntimeError("No plot layers declared.")
@@ -668,7 +668,7 @@ class Plotter:
 
     def save(self, path: str, **kwargs) -> None:
         """
-        Save the last rendered figure with correct background handling.
+        Saves the last rendered figure with correct background handling.
         """
         if self._fig is None or not self._figure_is_open():
             self._render()
@@ -681,7 +681,7 @@ class Plotter:
 
     def show(self) -> None:
         """
-        Show the last rendered figure with correct background handling.
+        Shows the last rendered figure with correct background handling.
         """
         if self._fig is None or not self._figure_is_open():
             self._render()

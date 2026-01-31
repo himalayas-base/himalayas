@@ -25,7 +25,7 @@ class Renderer(Protocol):
         style: StyleConfig,
         **kwargs: Any,
     ) -> None:
-        """Execute rendering logic."""
+        """Executes rendering logic."""
         ...
 
 
@@ -41,7 +41,7 @@ class BoundaryRegistry:
         self._boundaries: dict[float, tuple[float, str, float]] = {}
 
     def register(self, y: float, *, lw: float, color: str, alpha: float) -> None:
-        """Register a boundary line, keeping the thickest line per y coordinate."""
+        """Registers a boundary line, keeping the thickest line per y coordinate."""
         y = float(y)
         cur = self._boundaries.get(y)
         if cur is None:
@@ -52,7 +52,7 @@ class BoundaryRegistry:
             self._boundaries[y] = (float(lw), color, float(alpha))
 
     def render(self, ax: plt.Axes, x0: float, x1: float, *, zorder: int = 2) -> None:
-        """Render all registered boundaries on the given axes."""
+        """Renders all registered boundaries on the given axes."""
         if not self._boundaries:
             return
         ys = sorted(self._boundaries.keys())

@@ -456,7 +456,7 @@ class Clusters:
 
     def ordered_labels(self, order: Optional[np.ndarray] = None) -> np.ndarray:
         """
-        Labels aligned to dendrogram order (or a provided order).
+        Returns labels aligned to dendrogram order (or a provided order).
 
         Args:
             order (Optional[np.ndarray]): Optional order of leaf indices. If None, uses dendrogram.

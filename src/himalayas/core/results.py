@@ -46,7 +46,7 @@ class Results:
 
     def filter(self, expr, **kwargs) -> Results:
         """
-        Return a Results object filtered by a DataFrame query expression.
+        Returns a Results object filtered by a DataFrame query expression.
 
         Args:
             expr (str): DataFrame query expression.
@@ -70,7 +70,7 @@ class Results:
         cluster: int,
     ) -> Results:
         """
-        Return a Results object restricted to a single cluster.
+        Returns a Results object restricted to a single cluster.
 
         The returned Results contains:
           - a subset Matrix (rows restricted to the cluster)
@@ -112,7 +112,7 @@ class Results:
     @staticmethod
     def _bh_fdr(pvals: np.ndarray) -> np.ndarray:
         """
-        Benjamini–Hochberg FDR correction.
+        Performs Benjamini–Hochberg FDR correction.
         Returns q-values aligned to the input order.
         """
         pvals = np.asarray(pvals, dtype=float)
@@ -137,7 +137,7 @@ class Results:
 
     def with_qvalues(self, pval_col: str = "pval", qval_col: str = "qval") -> Results:
         """
-        Return a new Results with BH-FDR q-values added as `qval_col`.
+        Returns a new Results with BH-FDR q-values added as `qval_col`.
         Does not mutate the original Results.
         """
         if pval_col not in self.df.columns:
@@ -160,7 +160,7 @@ class Results:
         )
 
     def cluster_layout(self, *, strict: bool = True) -> ClusterLayout:
-        """Return the authoritative clustering layout for downstream plotting."""
+        """Returns the authoritative clustering layout for downstream plotting."""
         if self._layout is None:
             raise ValueError("Results has no attached ClusterLayout")
         return self._layout

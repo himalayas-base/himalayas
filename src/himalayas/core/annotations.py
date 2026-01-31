@@ -74,7 +74,7 @@ class Annotations:
 
     def rebind(self, matrix: Matrix) -> Annotations:
         """
-        Return a new Annotations object filtered to labels present in `matrix`. This
+        Returns a new Annotations object filtered to labels present in `matrix`. This
         is intended for explicit zoom / subset workflows. The original Annotations object
         is not mutated.
 
