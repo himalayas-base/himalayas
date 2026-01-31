@@ -14,7 +14,9 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True)
 class ClusterLayout:
-    """Read-only layout/geometry derived from a clustering."""
+    """
+    Class for storing dendrogram-driven order and cluster span metadata for plotting.
+    """
 
     leaf_order: np.ndarray
     ordered_labels: np.ndarray

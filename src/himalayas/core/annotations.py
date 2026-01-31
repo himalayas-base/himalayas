@@ -14,18 +14,12 @@ from .matrix import Matrix
 
 class Annotations:
     """
-    Holds term-to-labels annotations aligned to a Matrix object and
-    filters annotations to labels present in the matrix.
+    Class for storing term-to-label annotations aligned to a matrix and filtering to present labels.
     """
 
     def __init__(self, term_to_labels: Dict[str, Iterable[str]], matrix: Matrix) -> None:
         """
-        Initializes Annotations.
-
-        Args:
-            term_to_labels (Dict[str, Iterable[str]]): Mapping of terms to their
-                associated labels.
-            matrix (Matrix): Matrix to align annotations to.
+        Initializes the Annotations instance.
         """
         self.matrix_labels = set(matrix.labels)
         self.term_to_labels: Dict[str, Set[str]] = {}

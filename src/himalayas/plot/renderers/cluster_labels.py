@@ -238,9 +238,14 @@ def _format_cluster_label(
 
 
 class ClusterLabelsRenderer:
-    """Render the cluster label panel with tracks and annotations."""
+    """
+    Class for rendering the cluster label panel with tracks and annotations.
+    """
 
     def __init__(self, df: pd.DataFrame, **kwargs: Any) -> None:
+        """
+        Initializes the ClusterLabelsRenderer instance.
+        """
         self.df = df
         self.kwargs = dict(kwargs)
 

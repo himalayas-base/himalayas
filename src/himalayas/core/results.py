@@ -17,7 +17,7 @@ from .matrix import Matrix
 
 class Results:
     """
-    Immutable container for analysis results (e.g., enrichment).
+    Class for holding analysis results and attached context for plotting or subsetting.
     """
 
     def __init__(
@@ -31,18 +31,7 @@ class Results:
         parent: Optional[Results] = None,
     ) -> None:
         """
-        Initializes Results.
-
-        Args:
-            df (pd.DataFrame): DataFrame holding results contents.
-            method (str): Method used to generate results (e.g., "enrichment").
-            matrix (Matrix, optional): Matrix associated with results. Required for subset() and
-                plotting. Defaults to None.
-            clusters (Clusters, optional): Clusters associated with results. Required for subset().
-                Defaults to None.
-            layout (ClusterLayout, optional): ClusterLayout associated with results. Required for
-                cluster_layout() and plotting. Defaults to None.
-            parent (Results, optional): Parent Results for provenance. Defaults to None.
+        Initializes the Results instance.
         """
         self.df = df
         self.method = method

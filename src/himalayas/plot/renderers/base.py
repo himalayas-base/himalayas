@@ -12,7 +12,9 @@ from ..style import StyleConfig
 
 
 class Renderer(Protocol):
-    """Base protocol for plot layer renderers."""
+    """
+    Class for defining the renderer interface used by plot layers.
+    """
 
     def render(
         self,
@@ -28,9 +30,14 @@ class Renderer(Protocol):
 
 
 class BoundaryRegistry:
-    """Deduplicate matrix-aligned boundary lines."""
+    """
+    Class for deduplicating and rendering matrix-aligned boundary lines.
+    """
 
     def __init__(self) -> None:
+        """
+        Initializes the BoundaryRegistry instance.
+        """
         self._boundaries: dict[float, tuple[float, str, float]] = {}
 
     def register(self, y: float, *, lw: float, color: str, alpha: float) -> None:

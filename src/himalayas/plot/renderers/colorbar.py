@@ -79,6 +79,9 @@ def _compute_colorbar_geometry(
     Args:
         ax (plt.Axes): Matplotlib Axes to base geometry on.
         layout (Dict[str, Any]): Resolved layout parameters.
+
+    Returns:
+        Dict[str, float]: Computed geometry with keys: strip_x0, strip_y0, cell_w, cell_h.
     """
     bbox = ax.get_position()
 
@@ -187,13 +190,27 @@ class ColorbarRenderer:
 
     def __init__(
         self,
-        colorbars: Iterable[dict[str, Any]],
-        layout: Optional[dict[str, Any]] = None,
+        colorbars: Iterable[Dict[str, Any]],
+        layout: Optional[Dict[str, Any]] = None,
     ) -> None:
+        """
+        Initializes the ColorbarRenderer instance.
+        """
         self.colorbars = list(colorbars)
         self.layout = dict(layout) if layout is not None else {}
 
-    def render(self, fig, ax, style: Any) -> dict[str, Any]:
+    def render(self, fig: plt.Figure, ax: plt.Axes, style: Any) -> Dict[str, Any]:
+        """
+        Renders the colorbar strip.
+
+        Args:
+            fig (plt.Figure): Matplotlib Figure.
+            ax (plt.Axes): Matplotlib Axes to base geometry on.
+            style (Any): Plot style for defaults.
+
+        Returns:
+            Dict[str, Any]: Resolved layout parameters.
+        """
         layout = _resolve_colorbar_layout(self.layout, style, len(self.colorbars))
         geom = _compute_colorbar_geometry(ax, layout)
 

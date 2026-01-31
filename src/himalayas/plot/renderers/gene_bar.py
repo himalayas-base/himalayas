@@ -9,7 +9,9 @@ import numpy as np
 
 
 class GeneBarRenderer:
-    """Render a row-level gene annotation bar."""
+    """
+    Class for rendering a row-level gene annotation bar.
+    """
 
     def __init__(
         self,
@@ -26,6 +28,9 @@ class GeneBarRenderer:
         gene_bar_width: Optional[float] = None,
         **kwargs: Any,
     ) -> None:
+        """
+        Initializes the GeneBarRenderer instance.
+        """
         self.values = values
         self.mode = mode
         self.colors = colors

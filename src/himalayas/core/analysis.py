@@ -15,16 +15,12 @@ from .results import Results
 
 class Analysis:
     """
-    Interface for performing clustering and enrichment analysis.
+    Class for orchestrating clustering, enrichment, and layout over a matrix and annotations.
     """
 
     def __init__(self, matrix: Matrix, annotations: Annotations) -> None:
         """
-        Initializes Analysis.
-
-        Args:
-            matrix (Matrix): Analysis matrix.
-            annotations (Annotations): Annotations aligned to the matrix.
+        Initializes the Analysis instance.
         """
         self.matrix = matrix
         self.annotations = annotations

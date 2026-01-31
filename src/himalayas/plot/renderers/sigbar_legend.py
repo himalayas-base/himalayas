@@ -9,9 +9,14 @@ import numpy as np
 
 
 class SigbarLegendRenderer:
-    """Render a legend for the significance bar."""
+    """
+    Class for rendering the significance bar legend.
+    """
 
     def __init__(self, **kwargs: Any) -> None:
+        """
+        Initializes the SigbarLegendRenderer instance.
+        """
         self.kwargs = dict(kwargs)
 
     def render(self, fig: plt.Figure, style: Any) -> None:

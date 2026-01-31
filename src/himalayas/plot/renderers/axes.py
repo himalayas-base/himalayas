@@ -9,9 +9,14 @@ import numpy as np
 
 
 class AxesRenderer:
-    """Render axis labels, ticks, or titles for the matrix axis."""
+    """
+    Class for rendering axis labels, ticks, and titles for plot layers.
+    """
 
     def __init__(self, kind: str, **kwargs: Any) -> None:
+        """
+        Initializes the AxesRenderer instance.
+        """
         self.kind = kind
         self.kwargs = dict(kwargs)
 

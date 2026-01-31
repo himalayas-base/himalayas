@@ -6,9 +6,14 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 
 class TrackLayoutManager:
-    """Manage label-panel track registration and geometry."""
+    """
+    Class for computing and storing label-panel track geometry.
+    """
 
     def __init__(self) -> None:
+        """
+        Initializes the TrackLayoutManager instance.
+        """
         self.tracks: List[Dict[str, Any]] = []
         self.order: Optional[Tuple[str, ...]] = None
         self._active_tracks: List[Dict[str, Any]] = []
@@ -17,7 +22,7 @@ class TrackLayoutManager:
     def register_track(
         self,
         name: str,
-        renderer,
+        renderer: Any,
         width: float,
         left_pad: float = 0.0,
         right_pad: float = 0.0,
@@ -25,7 +30,21 @@ class TrackLayoutManager:
         kind: str = "row",
         payload: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """Add a track to the layout."""
+        """
+        Registers a label-panel track.
+
+        Args:
+            name (str): Track name.
+            renderer (Any): Track renderer instance.
+            width (float): Track width in figure coordinates.
+            left_pad (float): Left padding in figure coordinates.
+            right_pad (float): Right padding in figure coordinates.
+            enabled (bool): Whether the track is enabled.
+            kind (str): Track kind, either 'row' or 'cluster'.
+            payload (Optional[Dict[str, Any]]): Additional track-specific data.
+
+
+        """
         if not isinstance(name, str) or not name:
             raise ValueError("track `name` must be a non-empty string")
         if kind not in {"row", "cluster"}:

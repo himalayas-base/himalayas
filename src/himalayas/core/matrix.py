@@ -13,25 +13,14 @@ from himalayas.util.warnings import warn
 
 class Matrix:
     """
-    Immutable container for a data matrix.
-
-    Note: this object should be treated as immutable. Downstream clustering,
-    layouts, and enrichment assume matrix contents are frozen.
+    Class for holding a validated matrix with labeled rows for clustering and plotting.
     """
 
     def __init__(
         self, df: pd.DataFrame, *, matrix_semantics: str = "similarity", axis: str = "rows"
     ) -> None:
         """
-        Initializes Matrix.
-
-        Args:
-            df (pd.DataFrame): DataFrame holding matrix contents with
-                row labels as index.
-            matrix_semantics (str, optional): Semantics of matrix values.
-                One of {"similarity", "distance"}. Defaults to "similarity".
-            axis (str, optional): Axis along which rows are organized.
-                Currently only "rows" is supported. Defaults to "rows".
+        Initializes the Matrix instance.
         """
         # Defensive copy: Matrix contents are treated as immutable downstream
         self.df = df.copy()

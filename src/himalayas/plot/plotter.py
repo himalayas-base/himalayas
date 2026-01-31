@@ -29,19 +29,12 @@ from .track_layout import TrackLayoutManager
 
 class Plotter:
     """
-    Layered, matrix-first plotter for HiMaLAYAS. Rendering happens when `show()` or
-    `save()` is called.
+    Class for building layered, matrix-first plots from analysis results.
     """
 
     def __init__(self, results: Results) -> None:
         """
-        Initializes Plotter.
-
-        Args:
-            results (Results): Results object to plot.
-
-        Raises:
-            AttributeError: If Results object is missing required attributes.
+        Initializes the Plotter instance.
         """
         self.results = results
 

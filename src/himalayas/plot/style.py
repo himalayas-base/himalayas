@@ -81,9 +81,14 @@ DEFAULT_STYLE = {
 
 
 class StyleConfig:
-    """Simple style container with override support."""
+    """
+    Class for storing plot style defaults and overrides.
+    """
 
     def __init__(self, defaults: Optional[Mapping[str, Any]] = None) -> None:
+        """
+        Initializes the StyleConfig instance.
+        """
         if defaults is None:
             defaults = DEFAULT_STYLE
         self._defaults = dict(defaults)

@@ -1,4 +1,7 @@
-"""Dendrogram renderer."""
+"""
+himalayas/plot/renderers/dendrogram
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+"""
 
 from __future__ import annotations
 
@@ -11,7 +14,9 @@ from scipy.cluster.hierarchy import dendrogram
 
 
 class DendrogramRenderer:
-    """Render a dendrogram aligned to the matrix rows."""
+    """
+    Class for rendering a dendrogram aligned to matrix rows.
+    """
 
     def __init__(
         self,
@@ -22,6 +27,16 @@ class DendrogramRenderer:
         data_pad: float = 0.25,
         **kwargs: Any,
     ) -> None:
+        """
+        Initializes the DendrogramRenderer instance.
+
+        Args:
+            axes (Optional[list[float]]): Axes position [x0, y0, width, height].
+            color (Optional[str]): Dendrogram line color.
+            linewidth (Optional[float]): Dendrogram line width.
+            data_pad (float): Padding around data in the y-direction.
+            **kwargs: Additional keyword arguments.
+        """
         self.axes = axes
         self.color = color
         self.linewidth = linewidth

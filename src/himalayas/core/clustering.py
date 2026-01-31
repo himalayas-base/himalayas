@@ -331,8 +331,7 @@ def _enforce_min_cluster_size(
 
 class Clusters:
     """
-    Contains dendrogram structure and cluster assignments. Owns all cluster-level
-    metadata needed for downstream analysis and plotting, avoiding recomputation.
+    Class for storing dendrogram structure and cluster assignments with cached layout metadata.
     """
 
     def __init__(
@@ -344,17 +343,7 @@ class Clusters:
         min_cluster_size: int = 1,
     ):
         """
-        Constructs Clusters from a linkage matrix and label set.
-
-        Args:
-            linkage_matrix (np.ndarray): Linkage matrix from hierarchical clustering.
-            labels (np.ndarray): Labels aligned to the rows/columns of the matrix.
-            threshold (float): Distance threshold for cutting the dendrogram.
-            min_cluster_size (int, optional): Enforces a minimum cluster size by merging smaller clusters upward
-                along the dendrogram. Values <= 1 disable enforcement. Defaults to 1.
-
-        Raises:
-            ValueError: If labels and cluster IDs length mismatch.
+        Initializes the Clusters instance.
         """
         self.linkage_matrix = linkage_matrix
         self.labels = np.asarray(labels, dtype=object)

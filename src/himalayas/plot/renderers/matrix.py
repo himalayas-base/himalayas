@@ -12,7 +12,9 @@ from .base import BoundaryRegistry
 
 
 class MatrixRenderer:
-    """Render the main heatmap matrix."""
+    """
+    Class for rendering the main heatmap matrix panel.
+    """
 
     def __init__(
         self,
@@ -32,6 +34,9 @@ class MatrixRenderer:
         subplots_adjust: Optional[dict[str, float]] = None,
         **kwargs: Any,
     ) -> None:
+        """
+        Initializes the MatrixRenderer instance.
+        """
         self.cmap = cmap
         self.center = center
         self.vmin = vmin
