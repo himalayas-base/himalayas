@@ -570,7 +570,6 @@ class Plotter:
 
                 renderer = MatrixRenderer(**kwargs)
                 renderer.render(
-                    fig,
                     ax,
                     self.matrix,
                     layout,
