@@ -596,7 +596,6 @@ class Plotter:
                 renderer = DendrogramRenderer(**kwargs)
                 renderer.render(
                     fig,
-                    ax,
                     self.matrix,
                     layout,
                     self._style,

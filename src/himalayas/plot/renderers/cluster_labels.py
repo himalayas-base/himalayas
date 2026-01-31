@@ -338,7 +338,6 @@ class ClusterLabelsRenderer:
                     spans,
                     label_map,
                     style,
-                    row_order,
                 )
 
         # Render optional bar titles

@@ -17,7 +17,6 @@ def render_cluster_bar_track(
     cluster_spans,
     label_map,
     style: Any,
-    row_order,
 ) -> None:
     """Render a cluster-level bar track (e.g., -log10 p-values)."""
     value_map = payload.get("value_map", {})
