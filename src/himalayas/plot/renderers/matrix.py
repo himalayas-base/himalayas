@@ -5,25 +5,30 @@ himalayas/plot/renderers/matrix
 
 from __future__ import annotations
 
-from typing import Any, Optional, Tuple
+from typing import Optional, Tuple, TYPE_CHECKING
 
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.colors import TwoSlopeNorm
+from matplotlib.colors import Normalize, TwoSlopeNorm
 
 from .base import BoundaryRegistry
 
+if TYPE_CHECKING:
+    from ..style import StyleConfig
+    from ...core.layout import ClusterLayout
+    from ...core.matrix import Matrix
+
 
 def _resolve_matrix_data(
-    matrix: Any,
-    layout: Any,
+    matrix: Matrix,
+    layout: ClusterLayout,
 ) -> Tuple[np.ndarray, int, int]:
     """
     Resolves and reorder matrix data for rendering.
 
     Args:
-        matrix (Any): Matrix object with DataFrame `df`.
-        layout (Any): Layout providing `leaf_order` and optional `col_order`.
+        matrix (Matrix): Matrix object with DataFrame `df`.
+        layout (ClusterLayout): Layout providing `leaf_order` and optional `col_order`.
 
     Returns:
         Tuple[np.ndarray, int, int]: (data array, n_rows, n_cols).
@@ -58,7 +63,7 @@ def _resolve_color_normalization(
     center: Optional[float],
     vmin: Optional[float],
     vmax: Optional[float],
-) -> Tuple[Optional[Any], Optional[float], Optional[float]]:
+) -> Tuple[Optional[Normalize], Optional[float], Optional[float]]:
     """
     Resolves color normalization for matrix rendering.
 
@@ -69,7 +74,7 @@ def _resolve_color_normalization(
         vmax (Optional[float]): Maximum value override.
 
     Returns:
-        Tuple[Optional[Any], Optional[float], Optional[float]]:
+        Tuple[Optional[Normalize], Optional[float], Optional[float]]:
             (norm, imshow_vmin, imshow_vmax)
     """
     if center is not None:
@@ -88,13 +93,13 @@ def _draw_matrix(
     n_rows: int,
     n_cols: int,
     cmap: str,
-    norm: Optional[Any],
+    norm: Optional[Normalize],
     imshow_vmin: Optional[float],
     imshow_vmax: Optional[float],
     gutter_color: Optional[str],
     outer_lw: float,
     outer_color: str,
-    boundary_registry: Optional[Any],
+    boundary_registry: Optional[BoundaryRegistry],
 ) -> None:
     """
     Draws the heatmap matrix and associated decorations.
@@ -105,13 +110,13 @@ def _draw_matrix(
         n_rows (int): Number of rows.
         n_cols (int): Number of columns.
         cmap (str): Colormap name.
-        norm (Optional[Any]): Normalization object.
+        norm (Optional[Normalize]): Normalization object.
         imshow_vmin (Optional[float]): vmin for imshow.
         imshow_vmax (Optional[float]): vmax for imshow.
         gutter_color (Optional[str]): Background gutter color.
         outer_lw (float): Outer border linewidth.
         outer_color (str): Outer border color.
-        boundary_registry (Optional[Any]): Boundary registry for overlays.
+        boundary_registry (Optional[BoundaryRegistry]): Boundary registry for overlays.
     """
     if gutter_color is not None:
         ax.set_facecolor(gutter_color)
@@ -187,20 +192,21 @@ class MatrixRenderer:
     def render(
         self,
         ax: plt.Axes,
-        matrix: Any,
-        layout: Any,
-        style: Any,
-        **kwargs: Any,
+        matrix: Matrix,
+        layout: ClusterLayout,
+        style: StyleConfig,
+        *,
+        boundary_registry: Optional[BoundaryRegistry] = None,
     ) -> None:
         """
         Renders the heatmap matrix panel.
 
         Args:
             ax (plt.Axes): Target axis.
-            matrix (Any): Matrix object.
-            layout (Any): Layout object.
-            style (Any): Style configuration.
-            **kwargs (Any): Renderer keyword arguments.
+            matrix (Matrix): Matrix object.
+            layout (ClusterLayout): Layout object.
+            style (StyleConfig): Style configuration.
+            boundary_registry (Optional[BoundaryRegistry]): Boundary registry for overlays.
         """
         data, n_rows, n_cols = _resolve_matrix_data(matrix, layout)
         # Resolve color normalization and draw matrix
@@ -227,5 +233,5 @@ class MatrixRenderer:
             gutter_color=gutter_color,
             outer_lw=self.outer_lw,
             outer_color=self.outer_color,
-            boundary_registry=kwargs.get("boundary_registry"),
+            boundary_registry=boundary_registry,
         )

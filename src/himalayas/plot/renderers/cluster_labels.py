@@ -5,15 +5,28 @@ himalayas/plot/renderers/cluster_labels
 
 from __future__ import annotations
 
-from typing import Any, Optional, Dict, Tuple, List, Sequence, Union, TypedDict, Callable
+from typing import (
+    Any,
+    Optional,
+    Dict,
+    Tuple,
+    List,
+    Sequence,
+    Union,
+    TypedDict,
+    Callable,
+    TYPE_CHECKING,
+)
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from ..style import StyleConfig
-from ..track_layout import TrackLayoutManager
-from ...core.matrix import Matrix
+if TYPE_CHECKING:
+    from ..style import StyleConfig
+    from ..track_layout import TrackLayoutManager
+    from ...core.layout import ClusterLayout
+    from ...core.matrix import Matrix
 
 
 class OverrideInput(TypedDict, total=False):

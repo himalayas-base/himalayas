@@ -5,10 +5,13 @@ himalayas/plot/renderers/sigbar_legend
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 import matplotlib.pyplot as plt
 import numpy as np
+
+if TYPE_CHECKING:
+    from ..style import StyleConfig
 
 
 class SigbarLegendRenderer:
@@ -22,13 +25,13 @@ class SigbarLegendRenderer:
         """
         self.kwargs = dict(kwargs)
 
-    def render(self, fig: plt.Figure, style: Any) -> None:
+    def render(self, fig: plt.Figure, style: StyleConfig) -> None:
         """
         Renders the significance bar legend.
 
         Args:
             fig (plt.Figure): Matplotlib Figure.
-            style (Any): Plot style configuration.
+            style (StyleConfig): Plot style configuration.
         """
         kwargs = self.kwargs
         cmap = plt.get_cmap(kwargs.get("sigbar_cmap", style.get("sigbar_cmap", "YlOrBr")))

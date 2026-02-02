@@ -5,13 +5,16 @@ himalayas/plot/renderers/base
 
 from __future__ import annotations
 
-from typing import Any, Protocol
+from typing import Any, Protocol, TYPE_CHECKING
 
 import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
 from matplotlib.colors import to_rgba
 
-from ..style import StyleConfig
+if TYPE_CHECKING:
+    from ...core.layout import ClusterLayout
+    from ...core.matrix import Matrix
+    from ..style import StyleConfig
 
 
 class Renderer(Protocol):
@@ -24,8 +27,8 @@ class Renderer(Protocol):
         self,
         fig: plt.Figure,
         ax: plt.Axes,
-        matrix: Any,
-        layout: Any,
+        matrix: Matrix,
+        layout: ClusterLayout,
         style: StyleConfig,
         **kwargs: Any,
     ) -> None:

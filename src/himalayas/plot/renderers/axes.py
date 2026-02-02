@@ -5,14 +5,15 @@ himalayas/plot/renderers/axes
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ..style import StyleConfig
+    from ...core.layout import ClusterLayout
+    from ...core.matrix import Matrix
 
 import matplotlib.pyplot as plt
 import numpy as np
-
-from ..style import StyleConfig
-from ...core.layout import ClusterLayout
-from ...core.matrix import Matrix
 
 
 class AxesRenderer:
