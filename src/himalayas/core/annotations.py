@@ -7,9 +7,8 @@ from __future__ import annotations
 
 from typing import Dict, Iterable, Set, cast
 
-from himalayas.util.warnings import warn
-
 from .matrix import Matrix
+from ..util.warnings import warn
 
 
 class Annotations:
@@ -20,6 +19,10 @@ class Annotations:
     def __init__(self, term_to_labels: Dict[str, Iterable[str]], matrix: Matrix) -> None:
         """
         Initializes the Annotations instance.
+
+        Args:
+            term_to_labels (Dict[str, Iterable[str]]): Mapping of terms to label lists.
+            matrix (Matrix): Matrix providing the label universe.
         """
         self.matrix_labels = set(matrix.labels)
         self.term_to_labels: Dict[str, Set[str]] = {}
@@ -27,18 +30,19 @@ class Annotations:
 
     def _validate_and_filter(self, term_to_labels: Dict[str, Iterable[str]]) -> None:
         """
-        Validates and filters the input term-to-labels mapping to ensure
-        that only labels present in the matrix are retained. Terms with no
-        overlapping labels are dropped, and a warning is issued if any terms
-        are dropped. Raises an error if no terms remain after filtering.
+        Validates and filters the input term-to-labels mapping to ensure that only labels
+        present in the matrix are retained. Terms with no overlapping labels are dropped,
+        and a warning is issued if any terms are dropped. Raises an error if no terms remain
+        after filtering.
 
         Args:
             term_to_labels (Dict[str, Iterable[str]]): Mapping of terms to their
                 associated labels.
 
         Raises:
-            ValueError: If no annotation terms overlap with matrix labels
+            ValueError: If no annotation terms overlap with matrix labels.
         """
+        # Filter term labels to the matrix universe and track dropped terms
         dropped_terms = []
         for term, labels in term_to_labels.items():
             # Filter labels to those present in the matrix
@@ -48,7 +52,7 @@ class Annotations:
                 continue
             self.term_to_labels[term] = labels
 
-        # Check if any terms remain after filtering
+        # Validation: check if any terms remain after filtering
         if len(self.term_to_labels) == 0:
             raise ValueError(
                 "No annotation terms overlap matrix labels " "(all terms dropped after filtering)"

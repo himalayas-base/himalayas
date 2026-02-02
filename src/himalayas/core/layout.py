@@ -1,4 +1,7 @@
-"""Layout metadata derived from clustering."""
+"""
+himalayas/core/layout
+~~~~~~~~~~~~~~~~~~~~~
+"""
 
 from __future__ import annotations
 
@@ -15,7 +18,7 @@ if TYPE_CHECKING:
 @dataclass(frozen=True)
 class ClusterLayout:
     """
-    Class for storing dendrogram-driven order and cluster span metadata for plotting.
+    Data class for storing dendrogram-driven order and cluster span metadata for plotting.
     """
 
     leaf_order: np.ndarray
@@ -32,7 +35,19 @@ def compute_col_order(
     linkage_method: str = "ward",
     linkage_metric: str = "euclidean",
 ) -> np.ndarray:
-    """Compute a dendrogram leaf order for matrix columns (visual grouping only)."""
+    """
+    Computes a dendrogram leaf order for matrix columns (visual grouping only).
+
+    Args:
+        matrix (Matrix): Matrix providing column values.
+
+    Kwargs:
+        linkage_method (str): Linkage method for hierarchical clustering. Defaults to "ward".
+        linkage_metric (str): Distance metric for hierarchical clustering. Defaults to "euclidean".
+
+    Returns:
+        np.ndarray: Column order indices in dendrogram order.
+    """
     Z = linkage(
         matrix.values.T,
         method=linkage_method,
