@@ -99,8 +99,8 @@ def _format_cluster_label(
     *,
     omit_words: Optional[list[str]] = None,
     max_words: Optional[int] = None,
-    overflow: str = "ellipsis",
-    wrap_text: bool = False,
+    overflow: str = "wrap",
+    wrap_text: bool = True,
     wrap_width: Optional[int] = None,
 ) -> str:
     """
@@ -119,7 +119,7 @@ def _format_cluster_label(
         words = label.split()
         if len(words) > max_words:
             if overflow == "ellipsis" and max_words > 0:
-                label = " ".join(words[: max_words - 1]) + " …"
+                label = " ".join(words[: max_words - 1]) + "…"
             else:
                 label = " ".join(words[:max_words])
 
@@ -172,16 +172,16 @@ def plot_term_hierarchy_contracted(
     figsize: Sequence[float] = (10, 10),
     sigbar_cmap="YlOrBr",
     sigbar_min_logp=2.0,
-    sigbar_max_logp=12.0,
+    sigbar_max_logp=10.0,
     sigbar_norm=None,
     sigbar_width=0.06,
     sigbar_alpha=0.9,
     font="Helvetica",
     fontsize=9,
     max_words=None,
-    wrap_text: bool = False,
+    wrap_text: bool = True,
     wrap_width: Optional[int] = None,
-    overflow: str = "ellipsis",
+    overflow: str = "wrap",
     omit_words=None,
     label_fields: Sequence[str] = ("label", "n", "p"),
     label_overrides: Optional[Dict[int, str]] = None,
@@ -343,7 +343,7 @@ def plot_term_hierarchy_contracted(
             if n is not None:
                 parts.append(f"n={n}")
         if "p" in label_fields and np.isfinite(p):
-            ptxt = f"p={p:.1e}" if p < 1e-3 else f"p={p:.3f}"
+            ptxt = rf"$p$={p:.2e}"
             parts.append(ptxt)
 
         if not parts:
