@@ -1,4 +1,7 @@
-"""Lightweight term summarization with optional NLP."""
+"""
+himalayas/text/term_summarization
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+"""
 
 from __future__ import annotations
 
@@ -14,27 +17,23 @@ def summarize_terms(
     words: Iterable[str], weights: Optional[Iterable[float]] = None, max_words: int = 6
 ) -> str:
     """
-    Compress a list of annotation terms into a short representative label.
+    Compresses annotation terms into a short representative label.
+    Uses NLTK tokenization/stopwords/lemmatization when available and falls back to regex
+    tokenization otherwise.
 
-    Uses NLTK (tokenization, stopwords, lemmatization) if available.
-    Falls back to a simple regex-based tokenizer if NLTK is unavailable.
+    Args:
+        words (Iterable[str]): Term names (already human-readable).
+        weights (Optional[Iterable[float]]): Optional weights (e.g. -log10 pval). Defaults to None.
+        max_words (int): Maximum number of words to return. Defaults to 6.
 
-    Parameters
-    ----------
-    words : iterable of str
-        Term names (already human-readable).
-    weights : iterable of float, optional
-        Optional weights (e.g. -log10 pval). Must align with words.
-    max_words : int
-        Maximum number of words to return.
+    Returns:
+        str: Space-separated representative label.
 
-    Returns
-    -------
-    str
-        Space-separated representative label.
+    Raises:
+        ValueError: If weights length does not match words length.
     """
     counts = Counter()
-
+    # Align weights with terms and validate lengths
     words_iter = list(words)
     if weights is None:
         weights = [1.0] * len(words_iter)
@@ -70,6 +69,7 @@ def summarize_terms(
             tok = re.sub(r"[^\w\-]", "", tok.lower())
             return tok or None
 
+    # Accumulate weighted token counts across all phrases
     for phrase, w in zip(words_iter, weights):
         for t in tokenize(str(phrase)):
             t = normalize(t)
@@ -94,40 +94,32 @@ def summarize_clusters(
     label_col: Optional[str] = "term_name",
 ) -> pd.DataFrame:
     """
-    Return a DataFrame mapping cluster to short textual label, suitable for plotting.
+    Returns per-cluster summary labels for plotting.
 
-    Parameters
-    ----------
-    df : pandas.DataFrame
-        Enrichment results containing term and cluster columns.
-    term_col : str
-        Column containing stable term identifiers (e.g., GO IDs).
-    cluster_col : str
-        Column containing cluster IDs.
-    weight_col : str
-        Column containing p-values. Required for label_mode="top_term"; optional for
-        "compressed" (if missing, weights default to 1.0).
-    label_mode : {"compressed", "top_term"}
-        - "compressed": keyword compression across all terms in a cluster,
-          weighted by -log10(p).
-        - "top_term": Use the single most enriched term (minimum p-value) as the label.
-    label_col : str or None
-        Optional column containing human-readable term names for display. If present, it is
-        used for labels; otherwise the term IDs from term_col are used.
+    Args:
+        df (pd.DataFrame): Enrichment results with term and cluster columns.
+        term_col (str): Column containing stable term identifiers. Defaults to "term".
+        cluster_col (str): Column containing cluster IDs. Defaults to "cluster".
+        weight_col (str): Column containing p-values. Defaults to "pval".
 
-    Returns
-    -------
-    pandas.DataFrame
-        Columns: ["cluster", "label", "pval"].
+    Kwargs:
+        label_mode (str): "compressed" or "top_term". Defaults to "compressed".
+        label_col (Optional[str]): Optional display column for term names. Defaults to "term_name".
+
+    Returns:
+        pd.DataFrame: Columns ["cluster", "label", "pval"].
+
+    Raises:
+        KeyError: If required columns are missing.
+        ValueError: If label_mode is not supported.
     """
+    # Validation
     if term_col not in df.columns:
         raise KeyError(f"Missing column: {term_col}")
     if cluster_col not in df.columns:
         raise KeyError(f"Missing column: {cluster_col}")
-
     if label_mode not in {"compressed", "top_term"}:
         raise ValueError("label_mode must be one of {'compressed', 'top_term'}")
-
     label_col_present = (
         label_col is not None and isinstance(label_col, str) and label_col in df.columns
     )
@@ -135,8 +127,8 @@ def summarize_clusters(
         raise KeyError(f"Missing column: {label_col}")
     label_source = label_col if label_col_present else term_col
 
+    # Avoid in-place modifications
     df = df.copy()
-
     # Precompute weights only when needed (avoid unnecessary columns/work)
     if label_mode == "compressed":
         if weight_col in df.columns:
@@ -148,10 +140,10 @@ def summarize_clusters(
         if weight_col not in df.columns:
             raise KeyError(f"Missing column required for label_mode='top_term': {weight_col}")
 
+    # Build per-cluster summary rows
     rows = []
     for cid, sub in df.groupby(cluster_col, sort=False):
         cid_int = int(cid)
-
         if label_mode == "top_term":
             # Deterministic: choose the single smallest p-value row
             best_idx = sub[weight_col].astype(float).idxmin()
@@ -162,6 +154,7 @@ def summarize_clusters(
             label = str(label_val)
             best_pval = float(best_row[weight_col])
         else:
+            # Select label source values and summarize them
             if label_source != term_col:
                 labels = sub[label_source].where(pd.notna(sub[label_source]), sub[term_col])
                 labels = labels.tolist()
@@ -181,6 +174,7 @@ def summarize_clusters(
             }
         )
 
+    # Return an empty frame when no clusters are present
     if not rows:
         return pd.DataFrame(columns=["cluster", "label", "pval"])
 
