@@ -17,18 +17,30 @@ from ...core.matrix import Matrix
 
 
 class OverrideInput(TypedDict, total=False):
+    """
+    Type class for input per-cluster label override specifications.
+    """
+
     label: str
     hide_stats: bool
     pval: Optional[float]
 
 
 class OverrideSpec(TypedDict, total=False):
+    """
+    Type class for normalized per-cluster label override specifications.
+    """
+
     label: str
     hide_stats: bool
     pval: Optional[float]
 
 
 class TrackSpec(TypedDict, total=False):
+    """
+    Type class for resolved label track specifications.
+    """
+
     name: str
     kind: str
     renderer: Callable[..., Any]

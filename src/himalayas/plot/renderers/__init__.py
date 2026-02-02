@@ -1,7 +1,10 @@
-"""Plot layer renderers."""
+"""
+himalayas/plot/renderers
+~~~~~~~~~~~~~~~~~~~~~~~~
+"""
 
-from .base import BoundaryRegistry, Renderer
 from .axes import AxesRenderer
+from .base import BoundaryRegistry, Renderer
 from .cluster_bar import render_cluster_bar_track
 from .cluster_labels import ClusterLabelsRenderer
 from .colorbar import ColorbarRenderer
