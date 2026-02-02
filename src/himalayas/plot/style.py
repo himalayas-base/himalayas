@@ -158,7 +158,7 @@ class StyleConfig:
         Initializes the StyleConfig instance.
 
         Args:
-            defaults (Optional[Mapping[str, StyleValue]]): Base style defaults.
+            defaults (Optional[Mapping[str, StyleValue]]): Base style defaults. Defaults to None.
         """
         if defaults is None:
             defaults = DEFAULT_STYLE
@@ -171,7 +171,7 @@ class StyleConfig:
 
         Args:
             key (str): Style key.
-            default (Optional[StyleValue]): Default value if key not found.
+            default (Optional[StyleValue]): Default value if key not found. Defaults to None.
 
         Returns:
             StyleValue: Resolved style value.

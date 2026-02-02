@@ -17,7 +17,6 @@ from typing import (
     Union,
 )
 
-
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -43,7 +42,7 @@ def _validate_contracted_inputs(
     results: Results,
     cluster_labels: pd.DataFrame,
     label_fields: Sequence[str],
-    label_overrides: Optional[Dict[int, str]],
+    label_overrides: Optional[Dict[int, str]] = None,
 ) -> None:
     """
     Validates inputs for contracted dendrogram plotting.
@@ -52,7 +51,7 @@ def _validate_contracted_inputs(
         results (Results): Enrichment results exposing cluster_layout() and clusters.
         cluster_labels (pd.DataFrame): DataFrame with columns: cluster, label, pval.
         label_fields (Sequence[str]): Fields to include in labels ("label", "n", "p").
-        label_overrides (Optional[Dict[int, str]]): Mapping cluster_id -> custom label.
+        label_overrides (Optional[Dict[int, str]]): Mapping cluster_id -> custom label. Defaults to None.
 
     Raises:
         AttributeError: If required attributes are missing from results.
@@ -123,7 +122,6 @@ def _resolve_cluster_order(
     gene_to_cluster = {g: int(cid) for cid, genes in c2g.items() for g in genes}
     ordered_cluster_ids: list[int] = []
     seen: set[int] = set()
-
     # Scan master leaf order and collect cluster ids
     for i in leaves_list(Z_master):
         cid = gene_to_cluster.get(row_labels[int(i)], None)
@@ -143,12 +141,12 @@ def _prepare_cluster_labels(
     cluster_labels: pd.DataFrame,
     clusters: Clusters,
     *,
-    label_overrides: Dict[int, str],
-    omit_words: Optional[Sequence[str]],
-    max_words: Optional[int],
-    wrap_text: bool,
-    wrap_width: Optional[int],
-    overflow: str,
+    label_overrides: Optional[Dict[int, str]] = None,
+    omit_words: Optional[Sequence[str]] = None,
+    max_words: Optional[int] = None,
+    wrap_text: bool = True,
+    wrap_width: Optional[int] = None,
+    overflow: str = "wrap",
 ) -> Tuple[
     list[str],
     np.ndarray,
@@ -156,27 +154,57 @@ def _prepare_cluster_labels(
     Optional[Dict[int, int]],
     np.ndarray,
 ]:
+    """
+    Prepares cluster labels and p-values for contracted dendrogram plotting.
+
+    Args:
+        cluster_ids (Sequence[int]): Ordered list of cluster ids.
+        cluster_labels (pd.DataFrame): DataFrame with columns: cluster, label, pval.
+        clusters (Clusters): Clusters instance.
+        label_overrides (Optional[Dict[int, str]]): Mapping cluster_id -> custom label. Defaults to None.
+        omit_words (Optional[Sequence[str]]): Words to omit from cluster labels. Defaults to None.
+        max_words (Optional[int]): Maximum words in cluster labels. Defaults to None.
+        wrap_text (bool): Whether to wrap cluster labels. Defaults to True.
+        wrap_width (Optional[int]): Maximum characters per line when wrapping. Defaults to None.
+        overflow (str): Overflow handling when truncating ("wrap" or "ellipsis"). Defaults to "wrap".
+
+    Returns:
+        Tuple[
+            list[str],
+            np.ndarray,
+            Dict[int, Tuple[str, float, Optional[float]]],
+            Optional[Dict[int, int]],
+            np.ndarray,
+        ]: (
+            List of formatted cluster labels,
+            Array of p-values per cluster,
+            Mapping cluster_id -> (label, pval, n),
+            Optional mapping cluster_id -> size,
+            Y positions for cluster labels,
+        )
+    """
+    if label_overrides is None:
+        label_overrides = {}
+    # Build label map from DataFrame
     lab_map: Dict[int, Tuple[str, float, Optional[float]]] = {
         int(r["cluster"]): (str(r["label"]), float(r["pval"]), r.get("n", None))
         for _, r in cluster_labels.iterrows()
     }
-
     cluster_sizes = getattr(clusters, "cluster_sizes", None) if clusters is not None else None
     cluster_sizes = dict(cluster_sizes) if cluster_sizes is not None else None
 
+    # Prepare labels and p-values in order
     labels: list[str] = []
     pvals: list[float] = []
-
     for cid in cluster_ids:
         if cid not in lab_map:
             labels.append("—")
             pvals.append(np.nan)
             continue
-
+        # Apply overrides and formatting, then collect
         lab, p, _ = lab_map[cid]
         if cid in label_overrides:
             lab = str(label_overrides[cid])
-
         labels.append(
             _format_cluster_label(
                 lab,
@@ -188,7 +216,7 @@ def _prepare_cluster_labels(
             )
         )
         pvals.append(p)
-
+    # Convert p-values to array
     pvals_arr = np.asarray(pvals, float)
     y = np.arange(len(cluster_ids)) * 10.0 + 5.0
 
@@ -201,6 +229,19 @@ def _compute_contracted_dendrogram(
     cluster_ids: Sequence[int],
     row_labels: Sequence[Hashable],
 ) -> DendrogramData:
+    """
+    Computes contracted dendrogram data from master linkage.
+
+    Args:
+        Z_master (np.ndarray): Master linkage matrix.
+        gene_to_cluster (Dict[Hashable, int]): Mapping gene label -> cluster id.
+        cluster_ids (Sequence[int]): Ordered list of cluster ids.
+        row_labels (Sequence[Hashable]): Gene labels corresponding to master linkage.
+
+    Returns:
+        DendrogramData: Contracted dendrogram data.
+    """
+    # Build contracted linkage matrix
     n_master = Z_master.shape[0] + 1
     gene_to_cluster_index = {
         i: gene_to_cluster[row_labels[int(i)]]
@@ -215,8 +256,18 @@ def _setup_contracted_axes(
     figsize: Sequence[float],
     sigbar_width: float,
     label_left_pad: float,
-    background_color: Optional[str],
+    background_color: Optional[str] = None,
 ) -> Tuple[plt.Figure, plt.Axes, plt.Axes, plt.Axes]:
+    """
+    Sets up the contracted dendrogram axes.
+
+    Args:
+        figsize (Sequence[float]): Figure size (width, height).
+        sigbar_width (float): Width of significance bar (axes fraction).
+        label_left_pad (float): Left padding for labels (axes fraction).
+        background_color (Optional[str]): Background color for figure and axes. Defaults to None.
+    """
+    # Build axes layout for dendrogram, sigbar, and labels
     fig = plt.figure(figsize=figsize)
     ax_den = fig.add_axes([0.05, 0.05, 0.60, 0.90], frameon=False)
     ax_sig = fig.add_axes([0.66, 0.05, sigbar_width, 0.90], frameon=False)
@@ -225,7 +276,6 @@ def _setup_contracted_axes(
         [txt_x0, 0.05, 0.33 - sigbar_width - float(label_left_pad), 0.90],
         frameon=False,
     )
-
     if background_color is not None:
         fig.patch.set_facecolor(background_color)
         for ax in (ax_den, ax_sig, ax_txt):
@@ -234,7 +284,13 @@ def _setup_contracted_axes(
     return fig, ax_den, ax_sig, ax_txt
 
 
-def _finalize_axes(fig: plt.Figure, *axes: plt.Axes) -> None:
+def _finalize_axes(*axes: plt.Axes) -> None:
+    """
+    Finalizes axes by removing ticks and spines.
+
+    Args:
+        axes (plt.Axes): Matplotlib Axes to finalize.
+    """
     for ax in axes:
         ax.set(xticks=[], yticks=[])
         for sp in ax.spines.values():
@@ -278,7 +334,6 @@ def _contract_linkage_to_clusters(
     node_groups: Dict[int, set[int]] = {}
     for i, grp in enumerate(leaf_groups):
         node_groups[i] = set() if grp is None else {int(grp)}
-
     # Build contracted linkage rows by scanning master merges
     Zc_rows: list[list[float]] = []
     rep_to_id = {frozenset({i}): i for i in range(len(cluster_ids))}
@@ -295,7 +350,6 @@ def _contract_linkage_to_clusters(
         # Only record merge if it connects two distinct cluster groups
         if len(G) <= 1 or Ga == Gb:
             continue
-
         # Map group representatives to ids
         ra = frozenset(Ga)
         rb = frozenset(Gb)
@@ -306,7 +360,6 @@ def _contract_linkage_to_clusters(
         if rb not in rep_to_id:
             rep_to_id[rb] = next_id
             next_id += 1
-
         # Create contracted linkage row
         ida = rep_to_id[ra]
         idb = rep_to_id[rb]
@@ -339,16 +392,15 @@ def _format_cluster_label(
     wrap_width: Optional[int] = None,
 ) -> str:
     """
-    Applies text policy to cluster label in the following order:
-    omit words -> truncate -> wrap.
+    Applies text policy to cluster label in the following order: omit words -> truncate -> wrap.
 
     Args:
         raw_label (str): Original cluster label.
-        omit_words (Optional[Sequence[str]]): Words to omit (case-insensitive).
-        max_words (Optional[int]): Maximum number of words to keep.
-        overflow (str): Overflow handling when truncating ("wrap" or "ellipsis").
-        wrap_text (bool): Whether to apply text wrapping.
-        wrap_width (Optional[int]): Maximum characters per line when wrapping.
+        omit_words (Optional[Sequence[str]]): Words to omit (case-insensitive). Defaults to None.
+        max_words (Optional[int]): Maximum number of words to keep. Defaults to None.
+        overflow (str): Overflow handling when truncating ("wrap" or "ellipsis"). Defaults to "wrap".
+        wrap_text (bool): Whether to apply text wrapping. Defaults to True.
+        wrap_width (Optional[int]): Maximum characters per line when wrapping. Defaults to None.
 
     Returns:
         str: Formatted cluster label.
@@ -389,7 +441,7 @@ def _get_cluster_size(
     cluster_id: int,
     *,
     label_map: Dict[int, Tuple[str, float, Optional[float]]],
-    cluster_sizes: Optional[Dict[int, int]],
+    cluster_sizes: Optional[Dict[int, int]] = None,
     cluster_to_labels: Dict[int, Collection[Hashable]],
 ) -> Optional[int]:
     """
@@ -399,7 +451,7 @@ def _get_cluster_size(
         cluster_id (int): Cluster id.
         label_map (Dict[int, Tuple[str, float, Optional[float]]]): Mapping cluster_id ->
             (label, pval, n).
-        cluster_sizes (Optional[Dict[int, int]]): Pre-computed cluster sizes.
+        cluster_sizes (Optional[Dict[int, int]]): Pre-computed cluster sizes. Defaults to None.
         cluster_to_labels (Dict[int, Collection[Hashable]]): Mapping cluster_id -> labels
 
     Returns:
@@ -454,29 +506,30 @@ def plot_term_hierarchy_contracted(
     Args:
         results (Results): Enrichment results exposing cluster_layout() and clusters.
         cluster_labels (pd.DataFrame): DataFrame with columns: cluster, label, pval.
-        figsize (Sequence[float]): Figure size (width, height).
-        sigbar_cmap (Union[str, Colormap]): Colormap for significance bar.
-        sigbar_min_logp (float): Minimum -log10(p) for significance bar scaling.
-        sigbar_max_logp (float): Maximum -log10(p) for significance bar scaling.
-        sigbar_norm (Optional[Normalize]): Optional normalization for significance bar.
-        sigbar_width (float): Width of significance bar (axes fraction).
-        sigbar_alpha (float): Alpha for significance bar.
-        font (str): Font family for labels.
-        fontsize (float): Font size for labels.
-        max_words (Optional[int]): Maximum words in cluster labels.
-        wrap_text (bool): Whether to wrap cluster labels.
-        wrap_width (Optional[int]): Maximum characters per line when wrapping.
-        overflow (str): Overflow handling when truncating ("wrap" or "ellipsis").
-        omit_words (Optional[Sequence[str]]): Words to omit from cluster labels.
+        figsize (Sequence[float]): Figure size (width, height). Defaults to (10, 10).
+        sigbar_cmap (Union[str, Colormap]): Colormap for significance bar. Defaults to "YlOrBr".
+        sigbar_min_logp (float): Minimum -log10(p) for significance bar scaling. Defaults to 2.0.
+        sigbar_max_logp (float): Maximum -log10(p) for significance bar scaling. Defaults to 10.0.
+        sigbar_norm (Optional[Normalize]): Optional normalization for significance bar. Defaults to None.
+        sigbar_width (float): Width of significance bar (axes fraction). Defaults to 0.06.
+        sigbar_alpha (float): Alpha for significance bar. Defaults to 0.9.
+        font (str): Font family for labels. Defaults to "Helvetica".
+        fontsize (float): Font size for labels. Defaults to 9.
+        max_words (Optional[int]): Maximum words in cluster labels. Defaults to None.
+        wrap_text (bool): Whether to wrap cluster labels. Defaults to True.
+        wrap_width (Optional[int]): Maximum characters per line when wrapping. Defaults to None.
+        overflow (str): Overflow handling when truncating ("wrap" or "ellipsis"). Defaults to "wrap".
+        omit_words (Optional[Sequence[str]]): Words to omit from cluster labels. Defaults to None.
         label_fields (Sequence[str]): Fields to include in labels ("label", "n", "p").
-        label_overrides (Optional[Dict[int, str]]): Mapping cluster_id -> custom label.
-        label_color (str): Color for cluster labels.
-        label_alpha (float): Alpha for cluster labels.
-        label_fontweight (str): Font weight for cluster labels.
-        dendrogram_color (str): Color for dendrogram lines.
-        dendrogram_lw (float): Line width for dendrogram lines.
-        label_left_pad (float): Left padding for labels (axes fraction).
-        background_color (Optional[str]): Background color for figure and axes.
+            Defaults to ("label", "n", "p").
+        label_overrides (Optional[Dict[int, str]]): Mapping cluster_id -> custom label. Defaults to None.
+        label_color (str): Color for cluster labels. Defaults to "black".
+        label_alpha (float): Alpha for cluster labels. Defaults to 1.0.
+        label_fontweight (str): Font weight for cluster labels. Defaults to "normal".
+        dendrogram_color (str): Color for dendrogram lines. Defaults to "black".
+        dendrogram_lw (float): Line width for dendrogram lines. Defaults to 1.0.
+        label_left_pad (float): Left padding for labels (axes fraction). Defaults to 0.02.
+        background_color (Optional[str]): Background color for figure and axes. Defaults to None.
 
     Raises:
         AttributeError: If required attributes are missing from results.
@@ -485,7 +538,6 @@ def plot_term_hierarchy_contracted(
     """
     # Validation
     _validate_contracted_inputs(results, cluster_labels, label_fields, label_overrides)
-
     # Get master linkage and clusters
     Z_master, clusters = _get_master_linkage(results)
     cluster_ids, gene_to_cluster = _resolve_cluster_order(Z_master, results, clusters)
@@ -525,7 +577,6 @@ def plot_term_hierarchy_contracted(
             mapped.append(cluster_y[int(leaf_order[slot])])
         ax_den.plot(xs, mapped, color=dendrogram_color, lw=dendrogram_lw)
     ax_den.set(xlim=(max_h + x_pad, 0.0), ylim=(k * 10, 0))
-
     # Render significance bar
     cmap = plt.get_cmap(sigbar_cmap)
     ax_sig.set(xlim=(0, 1), ylim=(k * 10, 0))
@@ -553,11 +604,11 @@ def plot_term_hierarchy_contracted(
                 alpha=sigbar_alpha,
             )
         )
-
     # Render text labels
     ax_txt.set(xlim=(0, 1), ylim=(k * 10, 0))
     # c2g is needed for _get_cluster_size
     c2g = getattr(clusters, "cluster_to_labels", None) or {}
+    # Format and place per-cluster label text
     for cid, yi, lab, p in zip(cluster_ids, y, labels, pvals):
         parts = []
         if "label" in label_fields:
@@ -574,7 +625,6 @@ def plot_term_hierarchy_contracted(
         if "p" in label_fields and np.isfinite(p):
             ptxt = rf"$p$={p:.2e}"
             parts.append(ptxt)
-
         if not parts:
             txt = ""
         elif len(parts) == 1:
@@ -591,7 +641,6 @@ def plot_term_hierarchy_contracted(
                     txt = (label_head + "\n" + stat_tail) if label_head else stat_tail
             else:
                 txt = f"{label_head} {stat_tail}"
-
         ax_txt.text(
             0.0,
             yi,
@@ -604,4 +653,5 @@ def plot_term_hierarchy_contracted(
             alpha=label_alpha,
             fontweight=label_fontweight,
         )
-    _finalize_axes(fig, ax_den, ax_sig, ax_txt)
+    # Clean axes and display the figure
+    _finalize_axes(ax_den, ax_sig, ax_txt)

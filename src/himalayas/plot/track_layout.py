@@ -40,11 +40,11 @@ class TrackLayoutManager:
             name (str): Track name.
             renderer (Any): Track renderer instance.
             width (float): Track width in figure coordinates.
-            left_pad (float): Left padding in figure coordinates.
-            right_pad (float): Right padding in figure coordinates.
-            enabled (bool): Whether the track is enabled.
-            kind (str): Track kind, either 'row' or 'cluster'.
-            payload (Optional[Dict[str, Any]]): Additional track-specific data.
+            left_pad (float): Left padding in figure coordinates. Defaults to 0.0.
+            right_pad (float): Right padding in figure coordinates. Defaults to 0.0.
+            enabled (bool): Whether the track is enabled. Defaults to True.
+            kind (str): Track kind, either 'row' or 'cluster'. Defaults to "row".
+            payload (Optional[Dict[str, Any]]): Additional track-specific data. Defaults to None.
 
         Raises:
             ValueError: If name is empty or kind is invalid.
@@ -67,13 +67,13 @@ class TrackLayoutManager:
         }
         self.tracks.append(track)
 
-    def set_order(self, order: Optional[Sequence[str]]) -> None:
+    def set_order(self, order: Optional[Sequence[str]] = None) -> None:
         """
         Sets the explicit track order.
 
         Args:
             order (Optional[Sequence[str]]): List/tuple of track names in desired order,
-                or None to use registration order.
+                or None to use registration order. Defaults to None.
 
         Raises:
             TypeError: If order is not None or a list/tuple of strings.
@@ -108,6 +108,7 @@ class TrackLayoutManager:
         for track in tracks:
             track["payload"] = dict(track.get("payload", {}))
         active_names = [t.get("name") for t in tracks]
+
         # Validation
         if any(not n for n in active_names):
             raise ValueError("All label-panel tracks must have a non-empty 'name'")
