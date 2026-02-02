@@ -429,7 +429,6 @@ class Plotter:
             left_pad = kwargs.get("gene_bar_left_pad", 0.0)
             width = kwargs.get("gene_bar_width", self._style.get("gene_bar_width", 0.015))
             right_pad = kwargs.get("gene_bar_right_pad", 0.0)
-            # If enabled,
             enabled = kwargs.get("enabled", True)
             # Enable label-panel gene bar track registration
             if enabled:
@@ -605,7 +604,6 @@ class Plotter:
                 figsize = kwargs.get("figsize", None)
                 if figsize is not None:
                     fig.set_size_inches(figsize[0], figsize[1], forward=True)
-
                 subplots_adjust = kwargs.get("subplots_adjust", None)
                 if subplots_adjust is not None:
                     fig.subplots_adjust(**subplots_adjust)

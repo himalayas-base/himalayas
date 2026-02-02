@@ -78,6 +78,7 @@ class AxesRenderer:
             ax (plt.Axes): Matplotlib Axes to base geometry on.
             style (StyleConfig): Plot style configuration.
         """
+        # Gather label styling and content
         xlabel = self.kwargs.get("xlabel", "")
         ylabel = self.kwargs.get("ylabel", "")
         fontsize = self.kwargs.get("fontsize", 12)
@@ -147,6 +148,7 @@ class AxesRenderer:
             matrix (Matrix): Matrix object providing the row index.
             layout (ClusterLayout): Cluster layout providing `leaf_order`.
         """
+        # Build ordered labels and tick visibility mask
         labels = self.kwargs.get("labels", None)
         font_size = self.kwargs.get("fontsize", 9)
         max_labels = self.kwargs.get("max_labels", None)
@@ -197,6 +199,7 @@ class AxesRenderer:
             matrix (Matrix): Matrix object providing the column index.
             layout (ClusterLayout): Cluster layout providing `col_order`.
         """
+        # Build ordered labels and tick visibility mask
         labels = self.kwargs.get("labels", None)
         font_size = self.kwargs.get("fontsize", 9)
         rotation = self.kwargs.get("rotation", 90)

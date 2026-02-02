@@ -255,7 +255,6 @@ class ColorbarRenderer:
         for i, cb in enumerate(self.colorbars):
             r = i // layout["ncols"]
             c = i % layout["ncols"]
-            # Compute cell position
             x0 = geom["strip_x0"] + c * (geom["cell_w"] + layout["hpad"])
             y0 = geom["strip_y0"] + (layout["nrows"] - 1 - r) * (geom["cell_h"] + layout["vpad"])
             _render_colorbar_cell(

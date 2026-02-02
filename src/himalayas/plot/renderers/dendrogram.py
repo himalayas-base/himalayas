@@ -111,6 +111,7 @@ def _render_dendrogram_segments(
         color (str): Line color.
         linewidth (float): Line width.
     """
+    # Map dendrogram y-coordinates into matrix row space and draw segments
     for icoord, dcoord in zip(dendro["icoord"], dendro["dcoord"]):
         icoord_mapped = [scale * y + offset for y in icoord]
         ax_dend.plot(

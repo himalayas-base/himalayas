@@ -57,7 +57,6 @@ def _resolve_gene_bar_colors(
 
     # Continuous mode: map numeric values to colormap
     if mode == "continuous":
-        # Get colormap
         cmap = plt.get_cmap(cmap_name)
         vals = np.array(
             [values.get(gid, np.nan) for gid in row_ids],
@@ -96,6 +95,7 @@ def _draw_gene_bar_cells(
         colors (List[Any]): Facecolors per row.
         zorder (int): Patch z-order. Defaults to 2.
     """
+    # Draw one rectangle per row
     for i, c in enumerate(colors):
         ax.add_patch(
             plt.Rectangle(
