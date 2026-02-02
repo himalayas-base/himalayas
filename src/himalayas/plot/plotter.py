@@ -5,7 +5,7 @@ himalayas/plot/plotter
 
 from __future__ import annotations
 
-from typing import Any, Mapping, Optional, Sequence
+from typing import Any, Hashable, Mapping, Optional, Sequence
 
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -42,6 +42,8 @@ class Plotter:
             raise AttributeError("Plotter expects Results with a `.matrix` attribute")
         if not hasattr(results, "cluster_layout"):
             raise AttributeError("Plotter expects Results exposing `cluster_layout()`")
+        if results.matrix is None:
+            raise ValueError("Plotter expects Results with a non-null matrix")
 
         self.matrix = results.matrix
 
@@ -318,14 +320,14 @@ class Plotter:
         self._layers.append(("cluster_bars", kwargs))
         return self
 
-    def plot_gene_bar(self, values: Mapping[Any, Any], **kwargs) -> Plotter:
+    def plot_gene_bar(self, values: Mapping[Hashable, Any], **kwargs) -> Plotter:
         """Declares a single row-level gene annotation bar.
 
         This layer is purely visual: it never affects clustering, ordering, or statistics.
 
         Parameters
         ----------
-        values : dict
+        values : Mapping
             Mapping from gene identifier (row index label) to either:
               - categorical value (mode="categorical")
               - numeric value (mode="continuous")
@@ -351,6 +353,13 @@ class Plotter:
         gene_bar_left_pad, gene_bar_width, gene_bar_right_pad : float, optional
             Padding/width for label_panel placement.
         """
+        if not isinstance(values, dict):
+            # Normalize values for the renderer
+            try:
+                values = dict(values)
+            except Exception as exc:
+                raise TypeError("plot_gene_bar expects values convertible to dict") from exc
+
         placement = kwargs.get("placement", "between_dendro_matrix")
         if placement == "label_panel":
             # Register as an explicit track in the label panel
@@ -557,7 +566,7 @@ class Plotter:
                     # Registered in plot_gene_bar; nothing to render here
                     continue
                 renderer = GeneBarRenderer(**kwargs)
-                renderer.render(fig, ax, self.matrix, layout, self._style)
+                renderer.render(fig, self.matrix, layout, self._style)
                 continue
             if layer == "matrix":
                 figsize = kwargs.get("figsize", None)
