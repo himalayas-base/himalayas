@@ -21,10 +21,10 @@ def _resolve_gene_bar_colors(
     values: Mapping[Any, Any],
     row_ids: Sequence[Any],
     mode: str,
-    colors: Optional[Dict[Any, Any]],
+    colors: Optional[Dict[Any, Any]] = None,
     cmap_name: str,
-    vmin: Optional[float],
-    vmax: Optional[float],
+    vmin: Optional[float] = None,
+    vmax: Optional[float] = None,
     missing_color: Any,
 ) -> List[Any]:
     """
@@ -34,10 +34,10 @@ def _resolve_gene_bar_colors(
         values (Mapping[Any, Any]): Mapping from row ID to value.
         row_ids (Sequence[Any]): Ordered row identifiers.
         mode (str): "categorical" or "continuous".
-        colors (Optional[Dict[Any, Any]]): Category-to-color mapping.
+        colors (Optional[Dict[Any, Any]]): Category-to-color mapping. Defaults to None.
         cmap_name (str): Colormap name for continuous mode.
-        vmin (Optional[float]): Minimum value for normalization.
-        vmax (Optional[float]): Maximum value for normalization.
+        vmin (Optional[float]): Minimum value for normalization. Defaults to None.
+        vmax (Optional[float]): Maximum value for normalization. Defaults to None.
         missing_color (Any): Color for missing values.
 
     Returns:
@@ -94,7 +94,7 @@ def _draw_gene_bar_cells(
         x0 (float): Left x-position.
         width (float): Bar width.
         colors (List[Any]): Facecolors per row.
-        zorder (int): Patch z-order.
+        zorder (int): Patch z-order. Defaults to 2.
     """
     for i, c in enumerate(colors):
         ax.add_patch(
@@ -134,16 +134,16 @@ class GeneBarRenderer:
 
         Args:
             values (Mapping[Any, Any]): Mapping from row ID to value.
-            mode (str): "categorical" or "continuous".
-            colors (Optional[Dict[Any, Any]]): Category-to-color mapping.
-            cmap (str): Colormap name for continuous mode.
-            vmin (Optional[float]): Minimum value for normalization.
-            vmax (Optional[float]): Maximum value for normalization.
-            missing_color (Optional[str]): Color for missing values.
-            axes (Optional[Sequence[float]]): Axes position [x0, y0, width, height].
-            gene_bar_gap (Optional[float]): Gap between dendrogram and gene bar.
-            gene_bar_width (Optional[float]): Width of the gene bar.
-            **kwargs: Additional keyword arguments.
+            mode (str): "categorical" or "continuous". Defaults to "categorical".
+            colors (Optional[Dict[Any, Any]]): Category-to-color mapping. Defaults to None.
+            cmap (str): Colormap name for continuous mode. Defaults to "viridis".
+            vmin (Optional[float]): Minimum value for normalization. Defaults to None.
+            vmax (Optional[float]): Maximum value for normalization. Defaults to None.
+            missing_color (Optional[str]): Color for missing values. Defaults to None.
+            axes (Optional[Sequence[float]]): Axes position [x0, y0, width, height]. Defaults to None.
+            gene_bar_gap (Optional[float]): Gap between dendrogram and gene bar. Defaults to None.
+            gene_bar_width (Optional[float]): Width of the gene bar. Defaults to None.
+            **kwargs: Additional keyword arguments. Defaults to {}.
         """
         self.values = values
         self.mode = mode

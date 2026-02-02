@@ -22,6 +22,9 @@ class SigbarLegendRenderer:
     def __init__(self, **kwargs: Any) -> None:
         """
         Initializes the SigbarLegendRenderer instance.
+
+        Kwargs:
+            **kwargs: Renderer keyword arguments. Defaults to {}.
         """
         self.kwargs = dict(kwargs)
 

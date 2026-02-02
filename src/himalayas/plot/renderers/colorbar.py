@@ -229,6 +229,10 @@ class ColorbarRenderer:
     ) -> None:
         """
         Initializes the ColorbarRenderer instance.
+
+        Args:
+            colorbars (Iterable[ColorbarSpec]): Colorbar specifications.
+            layout (Optional[ColorbarLayout]): Layout parameters. Defaults to None.
         """
         self.colorbars = list(colorbars)
         self.layout = dict(layout) if layout is not None else {}

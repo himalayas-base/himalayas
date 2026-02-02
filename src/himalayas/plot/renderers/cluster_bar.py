@@ -61,7 +61,7 @@ def _scale_cluster_values(
 
     Args:
         values (np.ndarray): Raw values.
-        norm (Optional[Normalize]): Optional matplotlib normalization instance.
+        norm (Optional[Normalize]): Optional matplotlib normalization instance. Defaults to None.
 
     Returns:
         np.ndarray: Scaled values in [0, 1], NaN preserved.

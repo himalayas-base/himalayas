@@ -60,18 +60,18 @@ def _resolve_matrix_data(
 def _resolve_color_normalization(
     data: np.ndarray,
     *,
-    center: Optional[float],
-    vmin: Optional[float],
-    vmax: Optional[float],
+    center: Optional[float] = None,
+    vmin: Optional[float] = None,
+    vmax: Optional[float] = None,
 ) -> Tuple[Optional[Normalize], Optional[float], Optional[float]]:
     """
     Resolves color normalization for matrix rendering.
 
     Args:
         data (np.ndarray): Matrix data.
-        center (Optional[float]): Center value for diverging normalization.
-        vmin (Optional[float]): Minimum value override.
-        vmax (Optional[float]): Maximum value override.
+        center (Optional[float]): Center value for diverging normalization. Defaults to None.
+        vmin (Optional[float]): Minimum value override. Defaults to None.
+        vmax (Optional[float]): Maximum value override. Defaults to None.
 
     Returns:
         Tuple[Optional[Normalize], Optional[float], Optional[float]]:
@@ -93,13 +93,13 @@ def _draw_matrix(
     n_rows: int,
     n_cols: int,
     cmap: str,
-    norm: Optional[Normalize],
-    imshow_vmin: Optional[float],
-    imshow_vmax: Optional[float],
-    gutter_color: Optional[str],
+    norm: Optional[Normalize] = None,
+    imshow_vmin: Optional[float] = None,
+    imshow_vmax: Optional[float] = None,
+    gutter_color: Optional[str] = None,
     outer_lw: float,
     outer_color: str,
-    boundary_registry: Optional[BoundaryRegistry],
+    boundary_registry: Optional[BoundaryRegistry] = None,
 ) -> None:
     """
     Draws the heatmap matrix and associated decorations.
@@ -110,13 +110,13 @@ def _draw_matrix(
         n_rows (int): Number of rows.
         n_cols (int): Number of columns.
         cmap (str): Colormap name.
-        norm (Optional[Normalize]): Normalization object.
-        imshow_vmin (Optional[float]): vmin for imshow.
-        imshow_vmax (Optional[float]): vmax for imshow.
-        gutter_color (Optional[str]): Background gutter color.
+        norm (Optional[Normalize]): Normalization object. Defaults to None.
+        imshow_vmin (Optional[float]): vmin for imshow. Defaults to None.
+        imshow_vmax (Optional[float]): vmax for imshow. Defaults to None.
+        gutter_color (Optional[str]): Background gutter color. Defaults to None.
         outer_lw (float): Outer border linewidth.
         outer_color (str): Outer border color.
-        boundary_registry (Optional[BoundaryRegistry]): Boundary registry for overlays.
+        boundary_registry (Optional[BoundaryRegistry]): Boundary registry for overlays. Defaults to None.
     """
     if gutter_color is not None:
         ax.set_facecolor(gutter_color)
@@ -173,6 +173,22 @@ class MatrixRenderer:
     ) -> None:
         """
         Initializes the MatrixRenderer instance.
+
+        Kwargs:
+            cmap (str): Colormap name. Defaults to "viridis".
+            center (Optional[float]): Center value for diverging normalization. Defaults to None.
+            vmin (Optional[float]): Minimum value override. Defaults to None.
+            vmax (Optional[float]): Maximum value override. Defaults to None.
+            show_minor_rows (bool): Whether to draw minor row lines. Defaults to True.
+            minor_row_step (int): Step size for minor row lines. Defaults to 1.
+            minor_row_lw (float): Line width for minor row lines. Defaults to 0.15.
+            minor_row_alpha (float): Alpha for minor row lines. Defaults to 0.15.
+            outer_lw (float): Outer border linewidth. Defaults to 1.2.
+            outer_color (str): Outer border color. Defaults to "black".
+            gutter_color (Optional[str]): Background gutter color. Defaults to None.
+            figsize (Optional[tuple[float, float]]): Figure size override. Defaults to None.
+            subplots_adjust (Optional[Dict[str, float]]): Subplots adjust override. Defaults to None.
+            **kwargs: Additional keyword arguments. Defaults to {}.
         """
         self.cmap = cmap
         self.center = center
@@ -206,7 +222,7 @@ class MatrixRenderer:
             matrix (Matrix): Matrix object.
             layout (ClusterLayout): Layout object.
             style (StyleConfig): Style configuration.
-            boundary_registry (Optional[BoundaryRegistry]): Boundary registry for overlays.
+            boundary_registry (Optional[BoundaryRegistry]): Boundary registry for overlays. Defaults to None.
         """
         data, n_rows, n_cols = _resolve_matrix_data(matrix, layout)
         # Resolve color normalization and draw matrix

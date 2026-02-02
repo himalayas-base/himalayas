@@ -186,7 +186,7 @@ def _render_tracks(
     spans: Sequence[Tuple[int, int, int]],
     label_map: Dict[int, Tuple[str, Optional[float]]],
     style: StyleConfig,
-    bar_labels_kwargs: Optional[Dict[str, Any]],
+    bar_labels_kwargs: Optional[Dict[str, Any]] = None,
 ) -> None:
     """
     Renders all row-level and cluster-level tracks, and optional bar titles.
@@ -199,7 +199,7 @@ def _render_tracks(
         spans (Sequence[Tuple[int, int, int]]): Iterable of (cluster_id, start, end).
         label_map (Dict[int, Tuple[str, Optional[float]]]): Mapping cluster_id -> (label, pval).
         style (StyleConfig): Style configuration.
-        bar_labels_kwargs (Optional[Dict[str, Any]]): Bar title rendering options.
+        bar_labels_kwargs (Optional[Dict[str, Any]]): Bar title rendering options. Defaults to None.
     """
     # Render track content: data tracks and cluster-level tracks
     for track in tracks:
@@ -364,7 +364,8 @@ def _parse_label_overrides(
     enforces allowed keys and precedence rules.
 
     Args:
-        overrides (Dict[int, Union[str, OverrideInput]] | None): Mapping cluster_id -> label string or override dict.
+        overrides (Dict[int, Union[str, OverrideInput]] | None): Mapping cluster_id -> label
+            string or override dict. Defaults to None.
 
     Returns:
         Dict[int, OverrideSpec]: Normalized override map keyed by cluster id.
@@ -528,9 +529,9 @@ def _format_cluster_label(
 
     Args:
         label (str): Base or overridden label.
-        pval (float | None): P-value to display, if any.
-        n_members (int | None): Cluster size.
-        override (OverrideSpec | None): Override entry for the cluster.
+        pval (float | None): P-value to display, if any. Defaults to None.
+        n_members (int | None): Cluster size. Defaults to None.
+        override (OverrideSpec | None): Override entry for the cluster. Defaults to None.
         label_fields (Tuple[str, ...]): Fields to display.
         kwargs (Dict[str, Any]): Renderer keyword arguments.
         style (StyleConfig): Style configuration.
@@ -600,6 +601,12 @@ class ClusterLabelsRenderer:
     def __init__(self, df: pd.DataFrame, **kwargs: Any) -> None:
         """
         Initializes the ClusterLabelsRenderer instance.
+
+        Args:
+            df (pd.DataFrame): Cluster label table.
+
+        Kwargs:
+            **kwargs: Renderer keyword arguments. Defaults to {}.
         """
         self.df = df
         self.kwargs = dict(kwargs)
@@ -616,6 +623,14 @@ class ClusterLabelsRenderer:
         """
         Renders the cluster label panel with tracks and annotations. Coordinates override
         handling, layout, track rendering, and label drawing.
+
+        Args:
+            fig (plt.Figure): Target figure.
+            matrix (Matrix): Matrix object.
+            layout (ClusterLayout): Cluster layout.
+            style (StyleConfig): Style configuration.
+            track_layout (TrackLayoutManager): Track layout manager.
+            bar_labels_kwargs (Optional[Dict[str, Any]]): Bar title rendering options. Defaults to None.
         """
         df = self.df
         kwargs = self.kwargs

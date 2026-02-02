@@ -32,7 +32,19 @@ class Renderer(Protocol):
         style: StyleConfig,
         **kwargs: Any,
     ) -> None:
-        """Executes rendering logic."""
+        """
+        Executes rendering logic.
+
+        Args:
+            fig (plt.Figure): Target figure.
+            ax (plt.Axes): Target axes.
+            matrix (Matrix): Matrix object.
+            layout (ClusterLayout): Cluster layout.
+            style (StyleConfig): Style configuration.
+
+        Kwargs:
+            **kwargs: Renderer keyword arguments. Defaults to {}.
+        """
         # Protocol stub; no runtime implementation
         ...
 

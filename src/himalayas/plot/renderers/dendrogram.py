@@ -125,7 +125,7 @@ def _render_cluster_boundaries(
     ax_dend: plt.Axes,
     layout: ClusterLayout,
     target_y_max: float,
-    boundary_style: Optional[Dict[str, Any]],
+    boundary_style: Optional[Dict[str, Any]] = None,
 ) -> None:
     """
     Renders horizontal boundary lines aligned to cluster starts.
@@ -134,7 +134,7 @@ def _render_cluster_boundaries(
         ax_dend (plt.Axes): Dendrogram axis.
         layout (ClusterLayout): Layout providing `cluster_spans`.
         target_y_max (float): Maximum y-value in matrix coordinates.
-        boundary_style (Optional[Dict[str, Any]]): Boundary styling dict.
+        boundary_style (Optional[Dict[str, Any]]): Boundary styling dict. Defaults to None.
     """
     # Skip if no boundary style provided
     if boundary_style is None:
@@ -210,11 +210,11 @@ class DendrogramRenderer:
         Initializes the DendrogramRenderer instance.
 
         Args:
-            axes (Optional[Sequence[float]]): Axes position [x0, y0, width, height].
-            color (Optional[str]): Dendrogram line color.
-            linewidth (Optional[float]): Dendrogram line width.
-            data_pad (float): Padding around data in the y-direction.
-            **kwargs: Additional keyword arguments.
+            axes (Optional[Sequence[float]]): Axes position [x0, y0, width, height]. Defaults to None.
+            color (Optional[str]): Dendrogram line color. Defaults to None.
+            linewidth (Optional[float]): Dendrogram line width. Defaults to None.
+            data_pad (float): Padding around data in the y-direction. Defaults to 0.25.
+            **kwargs: Additional keyword arguments. Defaults to {}.
         """
         self.axes = axes
         self.color = color
@@ -238,7 +238,7 @@ class DendrogramRenderer:
             matrix (Matrix): Matrix object providing the row index.
             layout (ClusterLayout): Cluster layout providing `cluster_spans`.
             style (StyleConfig): Style configuration.
-            **kwargs (Any): Renderer keyword arguments.
+            **kwargs (Any): Renderer keyword arguments. Defaults to {}.
         """
         # Resolve configuration and create dendrogram axis
         cfg = _resolve_dendrogram_config(self, style)

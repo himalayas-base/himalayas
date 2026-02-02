@@ -24,6 +24,12 @@ class AxesRenderer:
     def __init__(self, kind: str, **kwargs: Any) -> None:
         """
         Initializes the AxesRenderer instance.
+
+        Args:
+            kind (str): Axes layer kind.
+
+        Kwargs:
+            **kwargs: Renderer keyword arguments. Defaults to {}.
         """
         self.kind = kind
         self.kwargs = dict(kwargs)
@@ -259,11 +265,11 @@ class AxesRenderer:
 
         Args:
             text_obj (plt.Text): Matplotlib Text object to style.
-            font (Optional[str]): Font family or name.
-            fontsize (Optional[float]): Font size.
-            color (Optional[str]): Text color.
-            alpha (Optional[float]): Text transparency.
-            fontweight (Optional[str]): Font weight.
+            font (Optional[str]): Font family or name. Defaults to None.
+            fontsize (Optional[float]): Font size. Defaults to None.
+            color (Optional[str]): Text color. Defaults to None.
+            alpha (Optional[float]): Text transparency. Defaults to None.
+            fontweight (Optional[str]): Font weight. Defaults to None.
         """
         if text_obj is None:
             return
