@@ -1,4 +1,6 @@
-"""Utility helpers (internal)."""
+"""
+himalayas/util
+"""
 
 from .warnings import warn
 
