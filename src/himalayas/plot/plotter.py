@@ -519,8 +519,6 @@ class Plotter:
             raise RuntimeError("No plot layers declared.")
         # Consume authoritative geometry from Results
         layout = self.results.cluster_layout()
-        if len(layout.leaf_order) != self.matrix.df.shape[0]:
-            raise ValueError("Dendrogram leaf order does not match matrix dimensions.")
         # NOTE:
         #   - Layout.leaf_order controls row ordering (statistically meaningful)
         #   - Layout.col_order controls column ordering (visual only)
