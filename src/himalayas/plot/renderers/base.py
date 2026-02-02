@@ -5,13 +5,16 @@ himalayas/plot/renderers/base
 
 from __future__ import annotations
 
-from typing import Any, Protocol
+from typing import Any, Dict, Protocol, TYPE_CHECKING
 
 import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
 from matplotlib.colors import to_rgba
 
-from ..style import StyleConfig
+if TYPE_CHECKING:
+    from ...core.layout import ClusterLayout
+    from ...core.matrix import Matrix
+    from ..style import StyleConfig
 
 
 class Renderer(Protocol):
@@ -24,12 +27,24 @@ class Renderer(Protocol):
         self,
         fig: plt.Figure,
         ax: plt.Axes,
-        matrix: Any,
-        layout: Any,
+        matrix: Matrix,
+        layout: ClusterLayout,
         style: StyleConfig,
         **kwargs: Any,
     ) -> None:
-        """Executes rendering logic."""
+        """
+        Executes rendering logic.
+
+        Args:
+            fig (plt.Figure): Target figure.
+            ax (plt.Axes): Target axes.
+            matrix (Matrix): Matrix object.
+            layout (ClusterLayout): Cluster layout.
+            style (StyleConfig): Style configuration.
+
+        Kwargs:
+            **kwargs: Renderer keyword arguments. Defaults to {}.
+        """
         # Protocol stub; no runtime implementation
         ...
 
@@ -43,7 +58,7 @@ class BoundaryRegistry:
         """
         Initializes the BoundaryRegistry instance.
         """
-        self._boundaries: dict[float, tuple[float, str, float]] = {}
+        self._boundaries: Dict[float, tuple[float, str, float]] = {}
 
     def register(self, y: float, *, lw: float, color: str, alpha: float) -> None:
         """

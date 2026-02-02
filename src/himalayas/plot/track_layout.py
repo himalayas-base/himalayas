@@ -40,18 +40,20 @@ class TrackLayoutManager:
             name (str): Track name.
             renderer (Any): Track renderer instance.
             width (float): Track width in figure coordinates.
-            left_pad (float): Left padding in figure coordinates.
-            right_pad (float): Right padding in figure coordinates.
-            enabled (bool): Whether the track is enabled.
-            kind (str): Track kind, either 'row' or 'cluster'.
-            payload (Optional[Dict[str, Any]]): Additional track-specific data.
+            left_pad (float): Left padding in figure coordinates. Defaults to 0.0.
+            right_pad (float): Right padding in figure coordinates. Defaults to 0.0.
+            enabled (bool): Whether the track is enabled. Defaults to True.
+            kind (str): Track kind, either 'row' or 'cluster'. Defaults to "row".
+            payload (Optional[Dict[str, Any]]): Additional track-specific data. Defaults to None.
+
+        Raises:
+            ValueError: If name is empty or kind is invalid.
         """
         # Validation
         if not isinstance(name, str) or not name:
             raise ValueError("track `name` must be a non-empty string")
         if kind not in {"row", "cluster"}:
             raise ValueError("track `kind` must be 'row' or 'cluster'")
-
         # Store track
         track = {
             "name": name,
@@ -65,13 +67,13 @@ class TrackLayoutManager:
         }
         self.tracks.append(track)
 
-    def set_order(self, order: Optional[Sequence[str]]) -> None:
+    def set_order(self, order: Optional[Sequence[str]] = None) -> None:
         """
         Sets the explicit track order.
 
         Args:
             order (Optional[Sequence[str]]): List/tuple of track names in desired order,
-                or None to use registration order.
+                or None to use registration order. Defaults to None.
 
         Raises:
             TypeError: If order is not None or a list/tuple of strings.
@@ -81,7 +83,6 @@ class TrackLayoutManager:
         if order is None:
             self.order = None
             return
-
         # Validation
         if not isinstance(order, (list, tuple)):
             raise TypeError("label_track_order must be None or a list/tuple of unique strings")
@@ -90,7 +91,7 @@ class TrackLayoutManager:
             raise TypeError("label_track_order must be a list/tuple of unique strings")
         if len(set(names)) != len(names):
             raise ValueError("label_track_order contains duplicate track names")
-
+        # Store order
         self.order = tuple(names)
 
     def _ordered_tracks(self) -> List[Dict[str, Any]]:
@@ -107,6 +108,7 @@ class TrackLayoutManager:
         for track in tracks:
             track["payload"] = dict(track.get("payload", {}))
         active_names = [t.get("name") for t in tracks]
+
         # Validation
         if any(not n for n in active_names):
             raise ValueError("All label-panel tracks must have a non-empty 'name'")
@@ -116,7 +118,6 @@ class TrackLayoutManager:
         # No reordering requested
         if self.order is None:
             return tracks
-
         # Validate requested order
         names = list(self.order)
         available = set(active_names)
@@ -148,6 +149,7 @@ class TrackLayoutManager:
         Returns:
             Dict[str, Tuple[float, float]]: Mapping track name → (x0, x1).
         """
+        # Compute track positions
         tracks = self._ordered_tracks()
         x_cursor = float(base_x) + float(gutter_width)
         for track in tracks:
@@ -155,7 +157,6 @@ class TrackLayoutManager:
             track["x0"] = x_cursor
             track["x1"] = x_cursor + float(track["width"])
             x_cursor = track["x1"] + float(track["right_pad"])
-
         # Store results
         self._active_tracks = tracks
         self._end_x = x_cursor

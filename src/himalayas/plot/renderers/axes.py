@@ -5,14 +5,15 @@ himalayas/plot/renderers/axes
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ..style import StyleConfig
+    from ...core.layout import ClusterLayout
+    from ...core.matrix import Matrix
 
 import matplotlib.pyplot as plt
 import numpy as np
-
-from ..style import StyleConfig
-from ...core.layout import ClusterLayout
-from ...core.matrix import Matrix
 
 
 class AxesRenderer:
@@ -23,6 +24,12 @@ class AxesRenderer:
     def __init__(self, kind: str, **kwargs: Any) -> None:
         """
         Initializes the AxesRenderer instance.
+
+        Args:
+            kind (str): Axes layer kind.
+
+        Kwargs:
+            **kwargs: Renderer keyword arguments. Defaults to {}.
         """
         self.kind = kind
         self.kwargs = dict(kwargs)
@@ -71,6 +78,7 @@ class AxesRenderer:
             ax (plt.Axes): Matplotlib Axes to base geometry on.
             style (StyleConfig): Plot style configuration.
         """
+        # Gather label styling and content
         xlabel = self.kwargs.get("xlabel", "")
         ylabel = self.kwargs.get("ylabel", "")
         fontsize = self.kwargs.get("fontsize", 12)
@@ -140,6 +148,7 @@ class AxesRenderer:
             matrix (Matrix): Matrix object providing the row index.
             layout (ClusterLayout): Cluster layout providing `leaf_order`.
         """
+        # Build ordered labels and tick visibility mask
         labels = self.kwargs.get("labels", None)
         font_size = self.kwargs.get("fontsize", 9)
         max_labels = self.kwargs.get("max_labels", None)
@@ -190,6 +199,7 @@ class AxesRenderer:
             matrix (Matrix): Matrix object providing the column index.
             layout (ClusterLayout): Cluster layout providing `col_order`.
         """
+        # Build ordered labels and tick visibility mask
         labels = self.kwargs.get("labels", None)
         font_size = self.kwargs.get("fontsize", 9)
         rotation = self.kwargs.get("rotation", 90)
@@ -258,11 +268,11 @@ class AxesRenderer:
 
         Args:
             text_obj (plt.Text): Matplotlib Text object to style.
-            font (Optional[str]): Font family or name.
-            fontsize (Optional[float]): Font size.
-            color (Optional[str]): Text color.
-            alpha (Optional[float]): Text transparency.
-            fontweight (Optional[str]): Font weight.
+            font (Optional[str]): Font family or name. Defaults to None.
+            fontsize (Optional[float]): Font size. Defaults to None.
+            color (Optional[str]): Text color. Defaults to None.
+            alpha (Optional[float]): Text transparency. Defaults to None.
+            fontweight (Optional[str]): Font weight. Defaults to None.
         """
         if text_obj is None:
             return

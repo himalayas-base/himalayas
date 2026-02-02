@@ -5,24 +5,30 @@ himalayas/plot/renderers/dendrogram
 
 from __future__ import annotations
 
-from typing import Any, Optional, Dict, Tuple
+from typing import Any, Optional, Dict, Tuple, Sequence, TYPE_CHECKING
 
+import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
 from matplotlib.colors import to_rgba
 from scipy.cluster.hierarchy import dendrogram
 
+if TYPE_CHECKING:
+    from ..style import StyleConfig
+    from ...core.layout import ClusterLayout
+    from ...core.matrix import Matrix
+
 
 def _resolve_dendrogram_config(
     renderer: "DendrogramRenderer",
-    style: Any,
+    style: StyleConfig,
 ) -> Dict[str, Any]:
     """
     Resolves dendrogram rendering configuration.
 
     Args:
         renderer (DendrogramRenderer): Renderer instance holding optional overrides.
-        style (Any): Style configuration.
+        style (StyleConfig): Style configuration.
 
     Returns:
         Dict[str, Any]: Normalized configuration values.
@@ -37,7 +43,7 @@ def _resolve_dendrogram_config(
 
 def _resolve_linkage_matrix(
     kwargs: Dict[str, Any],
-) -> Any:
+) -> np.ndarray:
     """
     Resolves the linkage matrix used to compute the dendrogram.
 
@@ -45,7 +51,7 @@ def _resolve_linkage_matrix(
         kwargs (Dict[str, Any]): Renderer keyword arguments.
 
     Returns:
-        Any: SciPy linkage matrix.
+        np.ndarray: SciPy linkage matrix.
 
     Raises:
         ValueError: If neither `linkage_matrix` nor a `results.clusters` linkage is provided.
@@ -62,14 +68,14 @@ def _resolve_linkage_matrix(
 
 
 def _compute_y_affine_map(
-    icoord: Any,
+    icoord: Sequence[Sequence[float]],
     n_rows: int,
 ) -> Tuple[float, float, float, float]:
     """
     Computes an affine mapping from dendrogram y-coordinates to matrix row coordinates.
 
     Args:
-        icoord (Any): Dendrogram y-coordinates from SciPy (dendro["icoord"]).
+        icoord (Sequence[Sequence[float]]): Dendrogram y-coordinates from SciPy (dendro["icoord"]).
         n_rows (int): Number of matrix rows.
 
     Returns:
@@ -105,6 +111,7 @@ def _render_dendrogram_segments(
         color (str): Line color.
         linewidth (float): Line width.
     """
+    # Map dendrogram y-coordinates into matrix row space and draw segments
     for icoord, dcoord in zip(dendro["icoord"], dendro["dcoord"]):
         icoord_mapped = [scale * y + offset for y in icoord]
         ax_dend.plot(
@@ -117,18 +124,18 @@ def _render_dendrogram_segments(
 
 def _render_cluster_boundaries(
     ax_dend: plt.Axes,
-    layout: Any,
+    layout: ClusterLayout,
     target_y_max: float,
-    boundary_style: Optional[Dict[str, Any]],
+    boundary_style: Optional[Dict[str, Any]] = None,
 ) -> None:
     """
     Renders horizontal boundary lines aligned to cluster starts.
 
     Args:
         ax_dend (plt.Axes): Dendrogram axis.
-        layout (Any): Layout providing `cluster_spans`.
+        layout (ClusterLayout): Layout providing `cluster_spans`.
         target_y_max (float): Maximum y-value in matrix coordinates.
-        boundary_style (Optional[Dict[str, Any]]): Boundary styling dict.
+        boundary_style (Optional[Dict[str, Any]]): Boundary styling dict. Defaults to None.
     """
     # Skip if no boundary style provided
     if boundary_style is None:
@@ -194,7 +201,7 @@ class DendrogramRenderer:
     def __init__(
         self,
         *,
-        axes: Optional[list[float]] = None,
+        axes: Optional[Sequence[float]] = None,
         color: Optional[str] = None,
         linewidth: Optional[float] = None,
         data_pad: float = 0.25,
@@ -204,11 +211,11 @@ class DendrogramRenderer:
         Initializes the DendrogramRenderer instance.
 
         Args:
-            axes (Optional[list[float]]): Axes position [x0, y0, width, height].
-            color (Optional[str]): Dendrogram line color.
-            linewidth (Optional[float]): Dendrogram line width.
-            data_pad (float): Padding around data in the y-direction.
-            **kwargs: Additional keyword arguments.
+            axes (Optional[Sequence[float]]): Axes position [x0, y0, width, height]. Defaults to None.
+            color (Optional[str]): Dendrogram line color. Defaults to None.
+            linewidth (Optional[float]): Dendrogram line width. Defaults to None.
+            data_pad (float): Padding around data in the y-direction. Defaults to 0.25.
+            **kwargs: Additional keyword arguments. Defaults to {}.
         """
         self.axes = axes
         self.color = color
@@ -219,9 +226,9 @@ class DendrogramRenderer:
     def render(
         self,
         fig: plt.Figure,
-        matrix: Any,
-        layout: Any,
-        style: Any,
+        matrix: Matrix,
+        layout: ClusterLayout,
+        style: StyleConfig,
         **kwargs: Any,
     ) -> None:
         """
@@ -229,11 +236,10 @@ class DendrogramRenderer:
 
         Args:
             fig (plt.Figure): Target figure.
-            ax (plt.Axes): Matrix axis used for alignment.
-            matrix (Any): Matrix object providing the row index.
-            layout (Any): Cluster layout providing `cluster_spans`.
-            style (Any): Style configuration.
-            **kwargs (Any): Renderer keyword arguments.
+            matrix (Matrix): Matrix object providing the row index.
+            layout (ClusterLayout): Cluster layout providing `cluster_spans`.
+            style (StyleConfig): Style configuration.
+            **kwargs (Any): Renderer keyword arguments. Defaults to {}.
         """
         # Resolve configuration and create dendrogram axis
         cfg = _resolve_dendrogram_config(self, style)

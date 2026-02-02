@@ -5,21 +5,26 @@ himalayas/plot/renderers/gene_bar
 
 from __future__ import annotations
 
-from typing import Any, Mapping, Optional, Dict, List
+from typing import Any, Mapping, Optional, Dict, List, Sequence, TYPE_CHECKING
 
 import matplotlib.pyplot as plt
 import numpy as np
+
+if TYPE_CHECKING:
+    from ..style import StyleConfig
+    from ...core.layout import ClusterLayout
+    from ...core.matrix import Matrix
 
 
 def _resolve_gene_bar_colors(
     *,
     values: Mapping[Any, Any],
-    row_ids: List[Any],
+    row_ids: Sequence[Any],
     mode: str,
-    colors: Optional[Dict[Any, Any]],
+    colors: Optional[Dict[Any, Any]] = None,
     cmap_name: str,
-    vmin: Optional[float],
-    vmax: Optional[float],
+    vmin: Optional[float] = None,
+    vmax: Optional[float] = None,
     missing_color: Any,
 ) -> List[Any]:
     """
@@ -27,16 +32,20 @@ def _resolve_gene_bar_colors(
 
     Args:
         values (Mapping[Any, Any]): Mapping from row ID to value.
-        row_ids (List[Any]): Ordered row identifiers.
+        row_ids (Sequence[Any]): Ordered row identifiers.
         mode (str): "categorical" or "continuous".
-        colors (Optional[Dict[Any, Any]]): Category-to-color mapping.
+        colors (Optional[Dict[Any, Any]]): Category-to-color mapping. Defaults to None.
         cmap_name (str): Colormap name for continuous mode.
-        vmin (Optional[float]): Minimum value for normalization.
-        vmax (Optional[float]): Maximum value for normalization.
+        vmin (Optional[float]): Minimum value for normalization. Defaults to None.
+        vmax (Optional[float]): Maximum value for normalization. Defaults to None.
         missing_color (Any): Color for missing values.
 
     Returns:
         List[Any]: Facecolors per row.
+
+    Raises:
+        TypeError: If `colors` is not provided in categorical mode.
+        ValueError: If `mode` is not recognized.
     """
     # Categorical mode: map categories to colors
     if mode == "categorical":
@@ -48,7 +57,6 @@ def _resolve_gene_bar_colors(
 
     # Continuous mode: map numeric values to colormap
     if mode == "continuous":
-        # Get colormap
         cmap = plt.get_cmap(cmap_name)
         vals = np.array(
             [values.get(gid, np.nan) for gid in row_ids],
@@ -85,8 +93,9 @@ def _draw_gene_bar_cells(
         x0 (float): Left x-position.
         width (float): Bar width.
         colors (List[Any]): Facecolors per row.
-        zorder (int): Patch z-order.
+        zorder (int): Patch z-order. Defaults to 2.
     """
+    # Draw one rectangle per row
     for i, c in enumerate(colors):
         ax.add_patch(
             plt.Rectangle(
@@ -110,12 +119,12 @@ class GeneBarRenderer:
         *,
         values: Mapping[Any, Any],
         mode: str = "categorical",
-        colors: Optional[dict[Any, Any]] = None,
+        colors: Optional[Dict[Any, Any]] = None,
         cmap: str = "viridis",
         vmin: Optional[float] = None,
         vmax: Optional[float] = None,
         missing_color: Optional[str] = None,
-        axes: Optional[list[float]] = None,
+        axes: Optional[Sequence[float]] = None,
         gene_bar_gap: Optional[float] = None,
         gene_bar_width: Optional[float] = None,
         **kwargs: Any,
@@ -125,16 +134,16 @@ class GeneBarRenderer:
 
         Args:
             values (Mapping[Any, Any]): Mapping from row ID to value.
-            mode (str): "categorical" or "continuous".
-            colors (Optional[dict[Any, Any]]): Category-to-color mapping.
-            cmap (str): Colormap name for continuous mode.
-            vmin (Optional[float]): Minimum value for normalization.
-            vmax (Optional[float]): Maximum value for normalization.
-            missing_color (Optional[str]): Color for missing values.
-            axes (Optional[list[float]]): Axes position [x0, y0, width, height].
-            gene_bar_gap (Optional[float]): Gap between dendrogram and gene bar.
-            gene_bar_width (Optional[float]): Width of the gene bar.
-            **kwargs: Additional keyword arguments.
+            mode (str): "categorical" or "continuous". Defaults to "categorical".
+            colors (Optional[Dict[Any, Any]]): Category-to-color mapping. Defaults to None.
+            cmap (str): Colormap name for continuous mode. Defaults to "viridis".
+            vmin (Optional[float]): Minimum value for normalization. Defaults to None.
+            vmax (Optional[float]): Maximum value for normalization. Defaults to None.
+            missing_color (Optional[str]): Color for missing values. Defaults to None.
+            axes (Optional[Sequence[float]]): Axes position [x0, y0, width, height]. Defaults to None.
+            gene_bar_gap (Optional[float]): Gap between dendrogram and gene bar. Defaults to None.
+            gene_bar_width (Optional[float]): Width of the gene bar. Defaults to None.
+            **kwargs: Additional keyword arguments. Defaults to {}.
         """
         self.values = values
         self.mode = mode
@@ -151,18 +160,18 @@ class GeneBarRenderer:
     def render(
         self,
         fig: plt.Figure,
-        matrix: Any,
-        layout: Any,
-        style: Any,
+        matrix: Matrix,
+        layout: ClusterLayout,
+        style: StyleConfig,
     ) -> None:
         """
         Renders a gene annotation bar aligned to matrix rows.
 
         Args:
             fig (plt.Figure): Target figure.
-            matrix (Any): Data matrix.
-            layout (Any): Track layout information.
-            style (Any): Plot style configuration.
+            matrix (Matrix): Data matrix.
+            layout (ClusterLayout): Track layout information.
+            style (StyleConfig): Plot style configuration.
 
         Raises:
             TypeError: If `values` is not a dict mapping row IDs to values.
@@ -219,10 +228,10 @@ def render_gene_bar_track(
     ax: plt.Axes,
     x0: float,
     width: float,
-    payload: dict[str, Any],
-    matrix: Any,
-    row_order,
-    style: Any,
+    payload: Dict[str, Any],
+    matrix: Matrix,
+    row_order: Sequence[int],
+    style: StyleConfig,
 ) -> None:
     """
     Renders a gene bar track inside the label panel.
@@ -231,10 +240,10 @@ def render_gene_bar_track(
         ax (plt.Axes): Target axis.
         x0 (float): Left x-position.
         width (float): Bar width.
-        payload (dict[str, Any]): Track payload data.
-        matrix (Any): Data matrix.
-        row_order (List[int]): Row ordering indices.
-        style (Any): Plot style configuration.
+        payload (Dict[str, Any]): Track payload data.
+        matrix (Matrix): Data matrix.
+        row_order (Sequence[int]): Row ordering indices.
+        style (StyleConfig): Plot style configuration.
     """
     # Resolve facecolors and draw gene bar
     values = payload["values"]

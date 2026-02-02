@@ -1,10 +1,78 @@
-"""Style configuration for HiMaLAYAS plots."""
+"""
+himalayas/plot/style
+~~~~~~~~~~~~~~~~~~~~
+"""
 
 from __future__ import annotations
 
-from typing import Any, Mapping, Optional
+from typing import Dict, Mapping, Optional, Sequence, TypedDict, TypeAlias, Union
 
-DEFAULT_STYLE = {
+from matplotlib.colors import Colormap
+
+# Type alias for style values
+StyleValue: TypeAlias = Union[
+    str,
+    float,
+    int,
+    bool,
+    None,
+    Sequence[float],
+    Sequence[str],
+    Mapping[str, float],
+    Colormap,
+]
+
+
+class StyleDefaults(TypedDict):
+    """
+    Type class for plot style defaults.
+    """
+
+    figsize: tuple[float, float]
+    subplots_adjust: Dict[str, float]
+    dendro_axes: Sequence[float]
+    dendro_color: str
+    dendro_lw: float
+    label_axes: Sequence[float]
+    label_x: float
+    label_gutter_width: float
+    label_gutter_color: str
+    ylabel_pad: float
+    matrix_gutter_color: Optional[str]
+    gene_bar_width: float
+    gene_bar_gap: float
+    gene_bar_missing_color: str
+    sigbar_width: float
+    sigbar_cmap: Union[str, Colormap]
+    sigbar_min_logp: float
+    sigbar_max_logp: float
+    sigbar_alpha: float
+    show_sigbar: bool
+    label_bar_pad: float
+    boundary_color: str
+    boundary_lw: float
+    boundary_alpha: float
+    dendro_boundary_color: str
+    dendro_boundary_lw: float
+    dendro_boundary_alpha: float
+    placeholder_text: str
+    placeholder_color: str
+    placeholder_alpha: float
+    text_color: str
+    title_fontsize: float
+    title_pad: float
+    label_fontsize: float
+    label_sep_color: str
+    label_sep_lw: float
+    label_sep_alpha: float
+    label_sep_xmin: Optional[float]
+    label_sep_xmax: Optional[float]
+    label_omit_words: Optional[Sequence[str]]
+    label_fields: tuple[str, ...]
+    label_wrap_width: Optional[int]
+
+
+DEFAULT_STYLE: StyleDefaults = {
     # Figure layout
     "figsize": (9, 7),
     "subplots_adjust": {
@@ -85,38 +153,84 @@ class StyleConfig:
     Class for storing plot style defaults and overrides.
     """
 
-    def __init__(self, defaults: Optional[Mapping[str, Any]] = None) -> None:
+    def __init__(self, defaults: Optional[Mapping[str, StyleValue]] = None) -> None:
         """
         Initializes the StyleConfig instance.
+
+        Args:
+            defaults (Optional[Mapping[str, StyleValue]]): Base style defaults. Defaults to None.
         """
         if defaults is None:
             defaults = DEFAULT_STYLE
-        self._defaults = dict(defaults)
-        self._overrides: dict[str, Any] = {}
+        self._defaults: Dict[str, StyleValue] = dict(defaults)
+        self._overrides: Dict[str, StyleValue] = {}
 
-    def get(self, key: str, default: Any = None) -> Any:
-        """Gets a style value with override priority."""
+    def get(self, key: str, default: Optional[StyleValue] = None) -> StyleValue:
+        """
+        Gets a style value with override priority.
+
+        Args:
+            key (str): Style key.
+            default (Optional[StyleValue]): Default value if key not found. Defaults to None.
+
+        Returns:
+            StyleValue: Resolved style value.
+        """
         if key in self._overrides:
             return self._overrides[key]
         return self._defaults.get(key, default)
 
-    def set(self, key: str, value: Any) -> None:
-        """Overrides a style value."""
+    def set(self, key: str, value: StyleValue) -> None:
+        """
+        Overrides a style value.
+
+        Args:
+            key (str): Style key.
+            value (StyleValue): Style value to set.
+        """
         self._overrides[key] = value
 
-    def update(self, overrides: Mapping[str, Any]) -> None:
-        """Applies multiple overrides at once."""
+    def update(self, overrides: Mapping[str, StyleValue]) -> None:
+        """
+        Applies multiple overrides at once.
+
+        Args:
+            overrides (Mapping[str, StyleValue]): Mapping of style keys to values.
+        """
         for key, value in overrides.items():
             self._overrides[key] = value
 
-    def as_dict(self) -> dict[str, Any]:
-        """Returns a merged view of defaults and overrides."""
+    def as_dict(self) -> Dict[str, StyleValue]:
+        """
+        Returns a merged view of defaults and overrides.
+
+        Returns:
+            Dict[str, StyleValue]: Merged style dictionary.
+        """
         merged = dict(self._defaults)
         merged.update(self._overrides)
         return merged
 
-    def __getitem__(self, key: str) -> Any:
+    def __getitem__(self, key: str) -> StyleValue:
+        """
+        Gets a style value with override priority.
+
+        Args:
+            key (str): Style key.
+
+        Returns:
+            StyleValue: Resolved style value.
+        """
         return self.get(key)
 
     def __contains__(self, key: object) -> bool:
+        """
+        Checks if a style key exists in defaults or overrides.
+
+        Args:
+            key (object): Style key.
+
+        Returns:
+            bool: True if key exists, False otherwise.
+        """
         return key in self._overrides or key in self._defaults
