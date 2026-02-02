@@ -48,7 +48,6 @@ def _count_intersection_sorted(a: np.ndarray, b: np.ndarray) -> int:
     na = int(a.size)
     nb = int(b.size)
     c = 0
-
     # Two-pointer scan
     while i < na and j < nb:
         av = int(a[i])
@@ -79,6 +78,7 @@ def _validate_background(matrix: Matrix, background: Optional[Matrix]) -> Tuple[
     Raises:
         ValueError: If background matrix does not contain all analysis matrix labels.
     """
+    # Resolve universe labels and validate background coverage
     bg_labels = background.labels if background is not None else matrix.labels
     N = int(bg_labels.shape[0])
     if background is not None:
@@ -86,8 +86,10 @@ def _validate_background(matrix: Matrix, background: Optional[Matrix]) -> Tuple[
             raise ValueError(
                 "background matrix must contain all labels present in the analysis matrix"
             )
+    # Validation
     if N == 0:
         raise ValueError("Enrichment universe is empty (N=0)")
+
     return bg_labels, N
 
 
@@ -139,7 +141,7 @@ def _encode_clusters(
     """
     cluster_dict: Dict[int, Tuple[np.ndarray, int]] = {}
     cluster_ids = clusters.unique_clusters
-
+    # Encode each cluster as a sorted index array
     for cid in cluster_ids:
         cid_int = int(cid)
         cluster_labels = clusters.cluster_to_labels[cid_int]
@@ -147,14 +149,17 @@ def _encode_clusters(
         if n <= 0 or n < int(min_overlap):
             continue
 
+        # Build and de-duplicate cluster index list
         cidx = np.fromiter((label_to_idx[l] for l in cluster_labels), dtype=np.int32)
         cidx.sort()
         if cidx.size > 1:
             cidx = np.unique(cidx)
+        # Validation
         if cidx.size == 0:
             raise RuntimeError("Cluster with zero label indices encountered after validation")
 
         cluster_dict[cid_int] = (cidx, n)
+
     return cluster_dict
 
 
@@ -174,9 +179,10 @@ def run_cluster_hypergeom(
         matrix (Matrix): Analysis matrix.
         clusters (Clusters): Clustering results aligned to the matrix.
         annotations (Annotations): Annotations aligned to the matrix.
-        min_overlap (int, optional): Minimum overlap (k) to report. Defaults to 1.
-        background (Optional[Matrix], optional): Background matrix defining enrichment universe.
-            Defaults to None.
+
+    Kwargs:
+        min_overlap (int): Minimum overlap (k) to report. Defaults to 1.
+        background (Optional[Matrix]): Background matrix defining enrichment universe. Defaults to None.
 
     Returns:
         Results: Enrichment results with the following columns: cluster, term, k, K, n, N, pval
@@ -233,7 +239,6 @@ def run_cluster_hypergeom(
     df = pd.DataFrame(rows)
     if not df.empty:
         df = df.sort_values(["pval", "cluster", "term"], kind="mergesort").reset_index(drop=True)
-
         # Reduce memory footprint (safe downcasts for typical biology sizes)
         # Use int32 universally if you anticipate >32767 labels/terms
         df = df.astype(
