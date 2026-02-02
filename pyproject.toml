@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "himalayas"
-version = "0.0.1"
+dynamic = ["version"]
 description = "Hierarchical Matrix Layout and Annotation Software"
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -35,3 +35,6 @@ text = ["nltk"]
 [project.urls]
 Homepage = "https://github.com/himalayas-base/himalayas"
 Repository = "https://github.com/himalayas-base/himalayas"
+
+[tool.setuptools.dynamic]
+version = { attr = "himalayas.__version__" }
