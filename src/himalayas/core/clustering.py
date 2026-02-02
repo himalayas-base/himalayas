@@ -31,12 +31,10 @@ def _build_tree_arrays(Z: np.ndarray, n_leaves: int) -> Tuple[np.ndarray, np.nda
     Z = np.asarray(Z)
     m = int(Z.shape[0])
     n_nodes = int(n_leaves + m)
-
     # Allocate explicit binary-tree representation
     left = np.full(n_nodes, -1, dtype=np.int32)
     right = np.full(n_nodes, -1, dtype=np.int32)
     parent = np.full(n_nodes, -1, dtype=np.int32)
-
     # Populate child and parent pointers for each merge
     for i in range(m):
         a = int(Z[i, 0])
@@ -66,7 +64,6 @@ def _compute_subtree_sizes(left: np.ndarray, right: np.ndarray, n_leaves: int) -
     n_nodes = int(left.size)
     sizes = np.zeros(n_nodes, dtype=np.int32)
     sizes[:n_leaves] = 1
-
     # Internal nodes are laid out in increasing index order
     for node in range(n_leaves, n_nodes):
         a = int(left[node])
@@ -125,6 +122,7 @@ def _lca_many(nodes: Sequence[int], parent: np.ndarray) -> int:
     Raises:
         ValueError: If the input node list is empty.
     """
+    # Validation
     if not nodes:
         raise ValueError("LCA requested for empty node set")
     # Iteratively compute LCA pairwise
@@ -344,6 +342,17 @@ class Clusters:
     ):
         """
         Initializes the Clusters instance.
+
+        Args:
+            linkage_matrix (np.ndarray): Linkage matrix from hierarchical clustering.
+            labels (np.ndarray): Labels aligned to the linkage leaves.
+            threshold (float): Distance threshold for cutting the dendrogram.
+
+        Kwargs:
+            min_cluster_size (int): Minimum cluster size to enforce. Defaults to 1.
+
+        Raises:
+            ValueError: If labels length does not match the number of leaves.
         """
         self.linkage_matrix = linkage_matrix
         self.labels = np.asarray(labels, dtype=object)
@@ -475,13 +484,16 @@ class Clusters:
         *,
         strict: bool = True,
     ) -> List[Tuple[int, int, int]]:
-        """Returns contiguous spans for each cluster in dendrogram order. If `strict` is True,
+        """
+        Returns contiguous spans for each cluster in dendrogram order. If `strict` is True,
         raises an error if any cluster is non-contiguous in the requested order.
 
         Args:
             order (Optional[np.ndarray]): Optional order of leaf indices. If None, uses dendrogram
                 order. Defaults to None.
-            strict (bool, optional): If True, raises an error if any cluster is non-contiguous in the order.
+
+        Kwargs:
+            strict (bool): If True, raises an error if any cluster is non-contiguous in the order.
                 Defaults to True.
 
         Returns:
@@ -529,14 +541,17 @@ class Clusters:
         """
         Returns a frozen, read-only layout object for downstream plotting.
 
-        Args:
-            strict (bool, optional): If True, raises an error if any cluster is non-contiguous in the order.
+        Kwargs:
+            strict (bool): If True, raises an error if any cluster is non-contiguous in the order.
                 Defaults to True.
             col_order (Optional[np.ndarray]): Optional order of leaf indices for columns. If None,
                 columns are left in their original order. Defaults to None.
 
         Returns:
             ClusterLayout: Cached cluster layout object.
+
+        Raises:
+            ValueError: If `strict` is True and any cluster is non-contiguous in the order.
         """
         if self._layout is None:
             order = self.leaf_order
@@ -569,10 +584,12 @@ def cluster(
 
     Args:
         matrix (Matrix): Matrix to cluster.
-        linkage_method (str, optional): Linkage method for hierarchical clustering. Defaults to "ward".
-        linkage_metric (str, optional): Distance metric for hierarchical clustering. Defaults to "euclidean".
-        linkage_threshold (float, optional): Distance threshold for cutting the dendrogram. Defaults to 0.7.
-        min_cluster_size (int, optional): Enforces a minimum cluster size by merging smaller clusters
+        linkage_method (str): Linkage method for hierarchical clustering. Defaults to "ward".
+        linkage_metric (str): Distance metric for hierarchical clustering. Defaults to "euclidean".
+        linkage_threshold (float): Distance threshold for cutting the dendrogram. Defaults to 0.7.
+
+    Kwargs:
+        min_cluster_size (int): Enforces a minimum cluster size by merging smaller clusters
             upward along the dendrogram. Values <= 1 disable enforcement. Defaults to 1.
 
     Returns:

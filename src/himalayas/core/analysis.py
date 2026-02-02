@@ -21,6 +21,10 @@ class Analysis:
     def __init__(self, matrix: Matrix, annotations: Annotations) -> None:
         """
         Initializes the Analysis instance.
+
+        Args:
+            matrix (Matrix): Matrix to analyze.
+            annotations (Annotations): Annotations aligned to the matrix.
         """
         self.matrix = matrix
         self.annotations = annotations
@@ -32,6 +36,9 @@ class Analysis:
         """
         Performs clustering on the analysis matrix.
 
+        Kwargs:
+            **kwargs: Keyword arguments forwarded to clustering. Defaults to {}.
+
         Returns:
             Analysis: The Analysis instance (for method chaining).
         """
@@ -42,12 +49,18 @@ class Analysis:
         """
         Performs enrichment analysis on the clustered matrix.
 
+        Kwargs:
+            **kwargs: Keyword arguments forwarded to enrichment. Defaults to {}.
+
         Returns:
             Analysis: The Analysis instance (for method chaining).
+
+        Raises:
+            RuntimeError: If cluster() has not been called.
         """
+        # Validation
         if self.clusters is None:
             raise RuntimeError("cluster() must be called before enrich()")
-
         self.results = run_cluster_hypergeom(
             self.matrix,
             self.clusters,
@@ -68,16 +81,25 @@ class Analysis:
         This step is required for plotting and downstream visualization, but may be skipped if only raw
         enrichment statistics are needed.
 
+        Kwargs:
+            add_qvalues (bool): Whether to compute q-values. Defaults to True.
+            col_cluster (bool): Whether to compute column order by clustering. Defaults to False.
+            **kwargs: Keyword arguments forwarded to column ordering. Defaults to {}.
+
         Returns:
             Analysis: The Analysis instance (for method chaining).
+
+        Raises:
+            RuntimeError: If cluster() or enrich() has not been called.
         """
+        # Validation
         if self.clusters is None or self.results is None:
             raise RuntimeError("cluster() and enrich() must be called before finalize()")
 
+        # Resolve column order, then construct finalized Results
         col_order = None
         if col_cluster:
             col_order = compute_col_order(self.matrix, **kwargs)
-
         self.layout = self.clusters.layout(col_order=col_order)
         self.results = Results(
             self.results.df,
