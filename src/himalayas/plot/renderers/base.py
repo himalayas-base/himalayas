@@ -5,7 +5,7 @@ himalayas/plot/renderers/base
 
 from __future__ import annotations
 
-from typing import Any, Protocol, TYPE_CHECKING
+from typing import Any, Dict, Protocol, TYPE_CHECKING
 
 import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
@@ -46,7 +46,7 @@ class BoundaryRegistry:
         """
         Initializes the BoundaryRegistry instance.
         """
-        self._boundaries: dict[float, tuple[float, str, float]] = {}
+        self._boundaries: Dict[float, tuple[float, str, float]] = {}
 
     def register(self, y: float, *, lw: float, color: str, alpha: float) -> None:
         """

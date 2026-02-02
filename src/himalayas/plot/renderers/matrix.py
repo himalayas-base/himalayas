@@ -5,7 +5,7 @@ himalayas/plot/renderers/matrix
 
 from __future__ import annotations
 
-from typing import Optional, Tuple, TYPE_CHECKING
+from typing import Any, Dict, Optional, Tuple, TYPE_CHECKING
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -168,7 +168,7 @@ class MatrixRenderer:
         outer_color: str = "black",
         gutter_color: Optional[str] = None,
         figsize: Optional[tuple[float, float]] = None,
-        subplots_adjust: Optional[dict[str, float]] = None,
+        subplots_adjust: Optional[Dict[str, float]] = None,
         **kwargs: Any,
     ) -> None:
         """
