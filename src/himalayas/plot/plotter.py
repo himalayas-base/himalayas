@@ -1,6 +1,6 @@
 """
 himalayas/plot/plotter
-~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~
 """
 
 from __future__ import annotations
