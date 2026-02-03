@@ -38,3 +38,12 @@ Repository = "https://github.com/himalayas-base/himalayas"
 
 [tool.setuptools.dynamic]
 version = { attr = "himalayas.__version__" }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+markers = [
+    "api: public API tests",
+    "unit: unit tests",
+    "slow: slow or integration tests",
+]
