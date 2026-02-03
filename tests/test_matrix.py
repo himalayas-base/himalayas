@@ -1,3 +1,8 @@
+"""
+tests/test_matrix
+~~~~~~~~~~~~~~~~~
+"""
+
 import pandas as pd
 import pytest
 

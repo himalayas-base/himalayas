@@ -1,3 +1,8 @@
+"""
+tests/test_annotations
+~~~~~~~~~~~~~~~~~~~~~~
+"""
+
 import warnings
 
 import numpy as np

@@ -1,3 +1,8 @@
+"""
+tests/test_api_smoke
+~~~~~~~~~~~~~~~~~~~~
+"""
+
 import pytest
 
 from himalayas import Analysis, Annotations, Matrix, Results, cluster

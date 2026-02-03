@@ -1,3 +1,8 @@
+"""
+tests/test_enrichment
+~~~~~~~~~~~~~~~~~~~~~
+"""
+
 import pandas as pd
 
 from himalayas import Matrix, cluster

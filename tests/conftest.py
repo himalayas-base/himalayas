@@ -1,3 +1,8 @@
+"""
+tests/conftest
+~~~~~~~~~~~~~~
+"""
+
 import pandas as pd
 import pytest
 

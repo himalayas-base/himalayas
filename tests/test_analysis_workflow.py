@@ -1,3 +1,8 @@
+"""
+tests/test_analysis_workflow
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+"""
+
 import pytest
 
 from himalayas import Analysis

@@ -1,3 +1,8 @@
+"""
+tests/test_clustering
+~~~~~~~~~~~~~~~~~~~~~
+"""
+
 import pandas as pd
 
 from himalayas import Matrix, cluster

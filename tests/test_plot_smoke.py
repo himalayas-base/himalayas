@@ -1,3 +1,8 @@
+"""
+tests/test_plot_smoke
+~~~~~~~~~~~~~~~~~~~~~
+"""
+
 import pandas as pd
 import pytest
 
