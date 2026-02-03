@@ -7,10 +7,10 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from himalayas import Matrix, cluster
-from himalayas.core import Results
+from himalayas import Matrix, Results, cluster
 
 
+@pytest.mark.api
 def test_results_with_qvalues_adds_column():
     """
     Ensures q-values are added to results.
@@ -24,6 +24,7 @@ def test_results_with_qvalues_adds_column():
     assert np.all(np.isfinite(out.df["qval"]))
 
 
+@pytest.mark.api
 def test_results_subset_requires_matrix_and_clusters():
     """
     Ensures subsetting requires matrix and clusters.
@@ -35,6 +36,7 @@ def test_results_subset_requires_matrix_and_clusters():
         res.subset(cluster=1)
 
 
+@pytest.mark.api
 def test_results_subset_returns_new_matrix():
     """
     Ensures subsetting returns a new matrix and clears clusters.

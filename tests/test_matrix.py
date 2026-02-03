@@ -6,9 +6,10 @@ tests/test_matrix
 import pandas as pd
 import pytest
 
-from himalayas.core import Matrix
+from himalayas import Matrix
 
 
+@pytest.mark.api
 def test_matrix_labels_unique():
     """
     Ensures matrix labels are preserved when unique.
@@ -23,6 +24,7 @@ def test_matrix_labels_unique():
     assert matrix.labels.tolist() == ["a", "b"]
 
 
+@pytest.mark.api
 def test_matrix_duplicate_labels_raise():
     """
     Ensures duplicate matrix labels raise a ValueError.

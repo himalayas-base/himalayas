@@ -9,9 +9,10 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from himalayas.core import Annotations, Matrix
+from himalayas import Annotations, Matrix
 
 
+@pytest.mark.api
 def test_annotations_filtering_warns():
     """
     Ensures annotations warn when terms are dropped after filtering.
@@ -28,6 +29,7 @@ def test_annotations_filtering_warns():
     assert any("Dropped" in str(w.message) for w in caught)
 
 
+@pytest.mark.api
 def test_annotations_all_dropped_raises():
     """
     Ensures annotations raise when all terms are dropped.
@@ -36,3 +38,15 @@ def test_annotations_all_dropped_raises():
     matrix = Matrix(df)
     with pytest.raises(ValueError):
         Annotations({"t1": ["x"]}, matrix)
+
+
+@pytest.mark.api
+def test_annotations_rejects_string_labels(toy_matrix):
+    """
+    Ensures string labels are rejected for term mappings.
+
+    Args:
+        toy_matrix (Matrix): Toy matrix fixture.
+    """
+    with pytest.raises(TypeError):
+        Annotations({"t1": "abc"}, toy_matrix)
