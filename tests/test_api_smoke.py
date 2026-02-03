@@ -10,6 +10,9 @@ from himalayas import Analysis, Annotations, Matrix, Results, cluster
 
 @pytest.mark.api
 def test_public_imports():
+    """
+    Ensures core public imports are exposed.
+    """
     assert Matrix is not None
     assert Annotations is not None
     assert Analysis is not None
@@ -19,9 +22,14 @@ def test_public_imports():
 
 @pytest.mark.api
 def test_end_to_end_smoke(toy_df):
+    """
+    Ensures the basic analysis pipeline produces usable results.
+
+    Args:
+        toy_df (pd.DataFrame): Toy input DataFrame.
+    """
     matrix = Matrix(toy_df)
     annotations = Annotations({"t1": ["a", "b"], "t2": ["c", "d"]}, matrix)
-
     analysis = (
         Analysis(matrix, annotations)
         .cluster(linkage_threshold=1.0)

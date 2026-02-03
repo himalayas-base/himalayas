@@ -10,6 +10,13 @@ from himalayas import Analysis
 
 @pytest.mark.api
 def test_analysis_requires_cluster_before_enrich(toy_matrix, toy_annotations):
+    """
+    Ensures enrich() requires clustering first.
+
+    Args:
+        toy_matrix (Matrix): Toy matrix fixture.
+        toy_annotations (Annotations): Toy annotations fixture.
+    """
     analysis = Analysis(toy_matrix, toy_annotations)
     with pytest.raises(RuntimeError):
         analysis.enrich()
@@ -17,6 +24,13 @@ def test_analysis_requires_cluster_before_enrich(toy_matrix, toy_annotations):
 
 @pytest.mark.api
 def test_analysis_requires_cluster_and_enrich_before_finalize(toy_matrix, toy_annotations):
+    """
+    Ensures finalize() requires both clustering and enrichment.
+
+    Args:
+        toy_matrix (Matrix): Toy matrix fixture.
+        toy_annotations (Annotations): Toy annotations fixture.
+    """
     analysis = Analysis(toy_matrix, toy_annotations)
     with pytest.raises(RuntimeError):
         analysis.finalize()
@@ -24,6 +38,13 @@ def test_analysis_requires_cluster_and_enrich_before_finalize(toy_matrix, toy_an
 
 @pytest.mark.api
 def test_finalize_attaches_layout_and_qvalues(toy_matrix, toy_annotations):
+    """
+    Ensures finalize() attaches layout and q-values when requested.
+
+    Args:
+        toy_matrix (Matrix): Toy matrix fixture.
+        toy_annotations (Annotations): Toy annotations fixture.
+    """
     analysis = (
         Analysis(toy_matrix, toy_annotations)
         .cluster(linkage_threshold=1.0)

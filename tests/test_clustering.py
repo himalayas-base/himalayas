@@ -9,6 +9,10 @@ from himalayas import Matrix, cluster
 
 
 def test_cluster_layout_spans_cover_all_rows():
+    """
+    Ensures cluster spans cover all rows in dendrogram order.
+    """
+    # Build a small matrix with two obvious clusters
     df = pd.DataFrame(
         [[0.0, 0.1], [0.0, 0.2], [5.0, 5.1], [5.0, 5.2]],
         index=["a", "b", "c", "d"],
