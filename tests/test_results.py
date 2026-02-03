@@ -100,3 +100,4 @@ def test_results_filter_preserves_parent_and_method(toy_results):
 
     assert filtered.parent is toy_results
     assert filtered.method == toy_results.method
+    assert filtered.matrix is toy_results.matrix
