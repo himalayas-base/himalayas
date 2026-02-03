@@ -53,3 +53,21 @@ def test_run_cluster_hypergeom_empty_rows_schema(toy_matrix):
 
     assert results.df.empty
     assert results.df.columns.tolist() == ["cluster", "term", "k", "K", "n", "N", "pval"]
+
+
+@pytest.mark.api
+def test_run_cluster_hypergeom_background_mismatch_raises(toy_matrix):
+    """
+    Ensures background matrix must contain all analysis labels.
+    """
+    clusters = cluster(toy_matrix, linkage_threshold=1.0)
+    annotations = Annotations({"t1": ["a", "b"]}, toy_matrix)
+    background_df = toy_matrix.df.loc[["a", "b"]]
+    background = Matrix(background_df)
+    with pytest.raises(ValueError):
+        run_cluster_hypergeom(
+            toy_matrix,
+            clusters,
+            annotations,
+            background=background,
+        )

@@ -28,6 +28,9 @@ def test_matrix_labels_unique():
 def test_matrix_duplicate_labels_raise():
     """
     Ensures duplicate matrix labels raise a ValueError.
+
+    Raises:
+        ValueError: If matrix labels are not unique.
     """
     # Construct a matrix with duplicate row labels
     df = pd.DataFrame(

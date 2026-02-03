@@ -33,6 +33,9 @@ def test_annotations_filtering_warns():
 def test_annotations_all_dropped_raises():
     """
     Ensures annotations raise when all terms are dropped.
+
+    Raises:
+        ValueError: If no terms overlap matrix labels.
     """
     df = pd.DataFrame(np.eye(2), index=["a", "b"], columns=["a", "b"])
     matrix = Matrix(df)
@@ -47,6 +50,27 @@ def test_annotations_rejects_string_labels(toy_matrix):
 
     Args:
         toy_matrix (Matrix): Toy matrix fixture.
+
+    Raises:
+        TypeError: If term labels are not iterable collections.
     """
     with pytest.raises(TypeError):
         Annotations({"t1": "abc"}, toy_matrix)
+
+
+@pytest.mark.api
+def test_annotations_rejects_non_iterable_labels(toy_matrix):
+    """
+    Ensures non-iterable labels are rejected.
+    """
+    with pytest.raises(TypeError):
+        Annotations({"t1": 123}, toy_matrix)
+
+
+@pytest.mark.api
+def test_annotations_empty_input_raises(toy_matrix):
+    """
+    Ensures empty annotations raise a ValueError.
+    """
+    with pytest.raises(ValueError):
+        Annotations({}, toy_matrix)

@@ -28,6 +28,9 @@ def test_results_with_qvalues_adds_column():
 def test_results_subset_requires_matrix_and_clusters():
     """
     Ensures subsetting requires matrix and clusters.
+
+    Raises:
+        ValueError: If subsetting is attempted without attachments.
     """
     # Subsetting without attachments should fail
     df = pd.DataFrame({"pval": [0.1]})
@@ -54,3 +57,46 @@ def test_results_subset_returns_new_matrix():
 
     assert sub.matrix is not None
     assert sub.clusters is None
+
+
+@pytest.mark.api
+def test_results_with_qvalues_rejects_invalid_pvals():
+    """
+    Ensures invalid p-values raise a ValueError.
+    """
+    df = pd.DataFrame({"pval": [0.2, -0.1, 1.2]})
+    res = Results(df, method="test")
+    with pytest.raises(ValueError):
+        res.with_qvalues()
+
+
+@pytest.mark.api
+def test_results_with_qvalues_preserves_nan():
+    """
+    Ensures NaN p-values remain NaN after q-value computation.
+    """
+    df = pd.DataFrame({"pval": [0.01, np.nan, 0.2]})
+    res = Results(df, method="test")
+    out = res.with_qvalues()
+
+    assert np.isnan(out.df.loc[1, "qval"])
+
+
+@pytest.mark.api
+def test_results_subset_invalid_cluster_raises(toy_results):
+    """
+    Ensures subsetting with an unknown cluster id raises.
+    """
+    with pytest.raises(KeyError):
+        toy_results.subset(cluster=999)
+
+
+@pytest.mark.api
+def test_results_filter_preserves_parent_and_method(toy_results):
+    """
+    Ensures filter() keeps method and parent linkage.
+    """
+    filtered = toy_results.filter("pval >= 0")
+
+    assert filtered.parent is toy_results
+    assert filtered.method == toy_results.method
