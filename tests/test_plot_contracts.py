@@ -12,6 +12,18 @@ from himalayas.plot import Plotter
 from himalayas.plot.track_layout import TrackLayoutManager
 
 
+def _use_agg_backend():
+    """
+    Configures Matplotlib to use the Agg backend for tests.
+
+    Returns:
+        Any: Matplotlib pyplot module with Agg backend active.
+    """
+    matplotlib = pytest.importorskip("matplotlib")
+    matplotlib.use("Agg", force=True)
+    return plt
+
+
 @pytest.mark.api
 def test_plotter_requires_layers(toy_results):
     """
@@ -23,8 +35,7 @@ def test_plotter_requires_layers(toy_results):
     Raises:
         RuntimeError: If no plot layers are declared.
     """
-    matplotlib = pytest.importorskip("matplotlib")
-    matplotlib.use("Agg", force=True)
+    plt = _use_agg_backend()
     plt_show = plt.show
     plt.show = lambda *args, **kwargs: None
     try:
@@ -48,6 +59,7 @@ def test_plotter_requires_layout(toy_matrix):
     clusters = cluster(toy_matrix, linkage_threshold=1.0)
     results = Results(pd.DataFrame(), method="test", matrix=toy_matrix, clusters=clusters)
 
+    plt = _use_agg_backend()
     plt_show = plt.show
     plt.show = lambda *args, **kwargs: None
     try:
@@ -99,6 +111,7 @@ def test_plot_gene_bar_requires_colors(toy_results):
     Raises:
         TypeError: If categorical mode is missing a colors mapping.
     """
+    plt = _use_agg_backend()
     plt_show = plt.show
     plt.show = lambda *args, **kwargs: None
     try:

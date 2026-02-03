@@ -6,16 +6,24 @@ tests/test_matrix_edge_cases
 import pandas as pd
 import pytest
 
-from himalayas import Matrix, cluster
+from himalayas import Matrix
 
 
 @pytest.mark.api
-def test_cluster_rejects_non_numeric_matrix():
+def test_matrix_rejects_non_numeric_values():
     """
-    Ensures clustering fails on non-numeric data.
+    Ensures Matrix rejects non-numeric values.
     """
     df = pd.DataFrame([["x"], ["y"]], index=["a", "b"], columns=["v"])
-    matrix = Matrix(df)
+    with pytest.raises(ValueError):
+        Matrix(df)
 
-    with pytest.raises(Exception):
-        cluster(matrix)
+
+@pytest.mark.api
+def test_matrix_rejects_empty():
+    """
+    Ensures empty matrices are rejected.
+    """
+    df = pd.DataFrame([], index=[], columns=[])
+    with pytest.raises(ValueError):
+        Matrix(df)
