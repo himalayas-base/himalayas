@@ -48,6 +48,9 @@ def compute_col_order(
     Returns:
         np.ndarray: Column order indices in dendrogram order.
     """
+    n_cols = int(matrix.df.shape[1])
+    if n_cols <= 1:
+        return np.arange(n_cols, dtype=int)
     Z = linkage(
         matrix.values.T,
         method=linkage_method,

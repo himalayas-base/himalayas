@@ -5,7 +5,12 @@ himalayas/plot/style
 
 from __future__ import annotations
 
-from typing import Dict, Mapping, Optional, Sequence, TypedDict, TypeAlias, Union
+from typing import Dict, Mapping, Optional, Sequence, TypedDict, Union
+
+try:
+    from typing import TypeAlias
+except ImportError:  # Python <3.10
+    from typing_extensions import TypeAlias
 
 from matplotlib.colors import Colormap
 
