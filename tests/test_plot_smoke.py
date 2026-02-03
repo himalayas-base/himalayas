@@ -17,7 +17,7 @@ def test_plotter_smoke():
         index=["a", "b", "c"],
         columns=["x"],
     )
-    matrix = Matrix(df, matrix_semantics="distance")
+    matrix = Matrix(df)
     annotations = Annotations({"t1": ["a", "b"], "t2": ["c"]}, matrix)
 
     analysis = (

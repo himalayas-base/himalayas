@@ -10,7 +10,7 @@ def test_run_cluster_hypergeom_basic():
         index=["a", "b", "c"],
         columns=["x"],
     )
-    matrix = Matrix(df, matrix_semantics="distance")
+    matrix = Matrix(df)
     clusters = cluster(matrix, linkage_threshold=100.0)
     annotations = Annotations({"t1": ["a", "b"], "t2": ["c"]}, matrix)
 

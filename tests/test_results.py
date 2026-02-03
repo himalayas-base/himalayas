@@ -27,7 +27,7 @@ def test_results_subset_returns_new_matrix():
         index=["a", "b", "c"],
         columns=["x"],
     )
-    matrix = Matrix(df, matrix_semantics="distance")
+    matrix = Matrix(df)
     clusters = cluster(matrix, linkage_threshold=100.0)
     res = Results(pd.DataFrame(), method="test", matrix=matrix, clusters=clusters)
     sub = res.subset(cluster=int(clusters.unique_clusters[0]))

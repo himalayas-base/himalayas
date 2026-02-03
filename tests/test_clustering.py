@@ -1,4 +1,3 @@
-import numpy as np
 import pandas as pd
 
 from himalayas import Matrix, cluster
@@ -10,7 +9,7 @@ def test_cluster_layout_spans_cover_all_rows():
         index=["a", "b", "c", "d"],
         columns=["f1", "f2"],
     )
-    matrix = Matrix(df, matrix_semantics="distance")
+    matrix = Matrix(df)
     clusters = cluster(matrix, linkage_threshold=1.0)
     layout = clusters.layout()
 
