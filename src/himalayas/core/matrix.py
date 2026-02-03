@@ -43,5 +43,9 @@ class Matrix:
             ValueError: If matrix is invalid.
         """
         # Validation
+        if self.df.shape[0] == 0 or self.df.shape[1] == 0:
+            raise ValueError("Matrix must have at least one row and one column")
         if self.df.index.has_duplicates:
             raise ValueError("Matrix labels must be unique")
+        if not np.issubdtype(self.df.values.dtype, np.number):
+            raise ValueError("Matrix values must be numeric")
