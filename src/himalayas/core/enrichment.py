@@ -190,6 +190,7 @@ def run_cluster_hypergeom(
     Raises:
         ValueError: If background matrix does not contain all analysis matrix labels.
     """
+    result_columns = ["cluster", "term", "k", "K", "n", "N", "pval"]
     # Validate background and get universe labels and size
     bg_labels, N = _validate_background(matrix, background)
     label_to_idx = _encode_label_indices(bg_labels)
@@ -197,7 +198,7 @@ def run_cluster_hypergeom(
     # Early exit if no terms pass filtering
     if not term_items:
         return Results(
-            pd.DataFrame(columns=["cluster", "term", "k", "K", "n", "N", "pval"]),
+            pd.DataFrame(columns=result_columns),
             method="hypergeom",
             matrix=matrix,
             clusters=clusters,
@@ -236,7 +237,7 @@ def run_cluster_hypergeom(
             )
 
     # Assemble results DataFrame
-    df = pd.DataFrame(rows)
+    df = pd.DataFrame(rows, columns=result_columns)
     if not df.empty:
         df = df.sort_values(["pval", "cluster", "term"], kind="mergesort").reset_index(drop=True)
         # Reduce memory footprint (safe downcasts for typical biology sizes)
