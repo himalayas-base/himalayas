@@ -182,7 +182,7 @@ def _finalize_dendrogram_axis(
         data_pad (float): Padding added to y-limits.
     """
     # Invert axes and set limits
-    ax_dend.set_ylim(target_y_min - data_pad, target_y_max + data_pad)
+    ax_dend.set_ylim(target_y_min, target_y_max + data_pad)
     ax_dend.invert_yaxis()
     ax_dend.invert_xaxis()
     ax_dend.set_xticks([])
