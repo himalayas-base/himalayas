@@ -70,22 +70,6 @@ def test_plotter_requires_layout(toy_matrix):
 
 
 @pytest.mark.api
-def test_plot_cluster_labels_rejects_deprecated_kwargs(toy_results, toy_cluster_labels):
-    """
-    Ensures deprecated kwargs are rejected by plot_cluster_labels.
-
-    Args:
-        toy_results (Results): Results fixture with clusters and layout.
-        toy_cluster_labels (pd.DataFrame): Cluster labels fixture.
-
-    Raises:
-        TypeError: If deprecated kwargs are provided.
-    """
-    with pytest.raises(TypeError):
-        Plotter(toy_results).plot_cluster_labels(toy_cluster_labels, sigbar_width=0.1)
-
-
-@pytest.mark.api
 def test_plot_cluster_bar_rejects_invalid_values(toy_results):
     """
     Ensures plot_cluster_bar enforces supported input types.
@@ -101,7 +85,7 @@ def test_plot_cluster_bar_rejects_invalid_values(toy_results):
 
 
 @pytest.mark.api
-def test_plot_gene_bar_requires_colors(toy_results):
+def test_plot_gene_bar_requires_colors(toy_results, toy_cluster_labels):
     """
     Ensures categorical gene bars require an explicit colors mapping.
 
@@ -119,6 +103,7 @@ def test_plot_gene_bar_requires_colors(toy_results):
             (
                 Plotter(toy_results)
                 .plot_matrix()
+                .plot_cluster_labels(toy_cluster_labels)
                 .plot_gene_bar(values={"a": "hit"}, mode="categorical")
                 .show()
             )
