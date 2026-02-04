@@ -454,28 +454,7 @@ class Plotter:
 
         Returns:
             Plotter: Self for chaining.
-
-        Raises:
-            TypeError: If deprecated kwargs are provided.
         """
-        # Reject deprecated sigbar/track-order kwargs
-        _deprecated = [
-            "show_sigbar",
-            "sigbar_width",
-            "sigbar_left_pad",
-            "sigbar_right_pad",
-            "sigbar_cmap",
-            "sigbar_min_logp",
-            "sigbar_max_logp",
-            "sigbar_alpha",
-            "label_track_order",
-        ]
-        present = [k for k in _deprecated if k in kwargs]
-        if present:
-            raise TypeError(
-                f"plot_cluster_labels no longer accepts {present}. "
-                "Use plot_cluster_bar(...) and set_label_track_order(...) instead."
-            )
         self._layers.append(("cluster_labels", {"df": cluster_labels, **kwargs}))
         return self
 

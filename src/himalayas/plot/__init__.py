@@ -4,6 +4,6 @@ himalayas/plot
 """
 
 from .plotter import Plotter
-from .contracted_dendrogram import plot_term_hierarchy_contracted
+from .condensed_dendrogram import plot_dendrogram_condensed
 
-__all__ = ["Plotter", "plot_term_hierarchy_contracted"]
+__all__ = ["Plotter", "plot_dendrogram_condensed"]

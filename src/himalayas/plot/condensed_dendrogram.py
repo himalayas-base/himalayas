@@ -1,6 +1,6 @@
 """
-himalayas/plot/contracted_dendrogram
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+himalayas/plot/condensed_dendrogram
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 """
 
 from __future__ import annotations
@@ -30,7 +30,7 @@ if TYPE_CHECKING:
 
 class DendrogramData(TypedDict):
     """
-    Type class for contracted dendrogram data.
+    Type class for condensed dendrogram data.
     """
 
     icoord: Sequence[Sequence[float]]
@@ -38,14 +38,14 @@ class DendrogramData(TypedDict):
     leaves: Sequence[int]
 
 
-def _validate_contracted_inputs(
+def _validate_condensed_inputs(
     results: Results,
     cluster_labels: pd.DataFrame,
     label_fields: Sequence[str],
     label_overrides: Optional[Dict[int, str]] = None,
 ) -> None:
     """
-    Validates inputs for contracted dendrogram plotting.
+    Validates inputs for condensed dendrogram plotting.
 
     Args:
         results (Results): Enrichment results exposing cluster_layout() and clusters.
@@ -155,7 +155,7 @@ def _prepare_cluster_labels(
     np.ndarray,
 ]:
     """
-    Prepares cluster labels and p-values for contracted dendrogram plotting.
+    Prepares cluster labels and p-values for condensed dendrogram plotting.
 
     Args:
         cluster_ids (Sequence[int]): Ordered list of cluster ids.
@@ -223,14 +223,14 @@ def _prepare_cluster_labels(
     return labels, pvals_arr, lab_map, cluster_sizes, y
 
 
-def _compute_contracted_dendrogram(
+def _compute_condensed_dendrogram(
     Z_master: np.ndarray,
     gene_to_cluster: Dict[Hashable, int],
     cluster_ids: Sequence[int],
     row_labels: Sequence[Hashable],
 ) -> DendrogramData:
     """
-    Computes contracted dendrogram data from master linkage.
+    Computes condensed dendrogram data from master linkage.
 
     Args:
         Z_master (np.ndarray): Master linkage matrix.
@@ -239,27 +239,27 @@ def _compute_contracted_dendrogram(
         row_labels (Sequence[Hashable]): Gene labels corresponding to master linkage.
 
     Returns:
-        DendrogramData: Contracted dendrogram data.
+        DendrogramData: Condensed dendrogram data.
     """
-    # Build contracted linkage matrix
+    # Build condensed linkage matrix
     n_master = Z_master.shape[0] + 1
     gene_to_cluster_index = {
         i: gene_to_cluster[row_labels[int(i)]]
         for i in range(n_master)
         if row_labels[int(i)] in gene_to_cluster
     }
-    Zc = _contract_linkage_to_clusters(Z_master, gene_to_cluster_index, cluster_ids)
+    Zc = _condense_linkage_to_clusters(Z_master, gene_to_cluster_index, cluster_ids)
     return dendrogram(Zc, orientation="left", no_labels=True, no_plot=True)
 
 
-def _setup_contracted_axes(
+def _setup_condensed_axes(
     figsize: Sequence[float],
     sigbar_width: float,
     label_left_pad: float,
     background_color: Optional[str] = None,
 ) -> Tuple[plt.Figure, plt.Axes, plt.Axes, plt.Axes]:
     """
-    Sets up the contracted dendrogram axes.
+    Sets up the condensed dendrogram axes.
 
     Args:
         figsize (Sequence[float]): Figure size (width, height).
@@ -298,15 +298,15 @@ def _finalize_axes(*axes: plt.Axes) -> None:
     plt.show()
 
 
-def _contract_linkage_to_clusters(
+def _condense_linkage_to_clusters(
     Z_master: np.ndarray,
     gene_to_cluster: Dict[int, int],
     cluster_ids: Sequence[int],
 ) -> np.ndarray:
     """
-    Contracts master linkage matrix to cluster-level dendrogram. Preserves master
+    Condenses master linkage matrix to cluster-level dendrogram. Preserves master
     dendrogram heights and leaf order by treating each cluster as a single leaf
-    in the contracted tree.
+    in the condensed tree.
 
     Args:
         Z_master (np.ndarray): Master linkage matrix (n-1, 4).
@@ -314,10 +314,10 @@ def _contract_linkage_to_clusters(
         cluster_ids (Sequence[int]): Ordered list of cluster ids to include.
 
     Returns:
-        np.ndarray: Contracted linkage matrix (k-1, 4).
+        np.ndarray: Condensed linkage matrix (k-1, 4).
 
     Raises:
-        ValueError: If the contracted linkage is incomplete.
+        ValueError: If the condensed linkage is incomplete.
     """
     cluster_index = {cid: i for i, cid in enumerate(cluster_ids)}
     # Build leaf group mapping
@@ -334,7 +334,7 @@ def _contract_linkage_to_clusters(
     node_groups: Dict[int, set[int]] = {}
     for i, grp in enumerate(leaf_groups):
         node_groups[i] = set() if grp is None else {int(grp)}
-    # Build contracted linkage rows by scanning master merges
+    # Build condensed linkage rows by scanning master merges
     Zc_rows: list[list[float]] = []
     rep_to_id = {frozenset({i}): i for i in range(len(cluster_ids))}
     next_id = len(cluster_ids)
@@ -360,7 +360,7 @@ def _contract_linkage_to_clusters(
         if rb not in rep_to_id:
             rep_to_id[rb] = next_id
             next_id += 1
-        # Create contracted linkage row
+        # Create condensed linkage row
         ida = rep_to_id[ra]
         idb = rep_to_id[rb]
         if rg in rep_to_id:
@@ -373,7 +373,7 @@ def _contract_linkage_to_clusters(
     expected = len(cluster_ids) - 1
     if len(Zc_rows) != expected:
         raise ValueError(
-            "Contracted linkage is incomplete (expected "
+            "Condensed linkage is incomplete (expected "
             f"{expected} merges, got {len(Zc_rows)}). "
             "This usually means clusters are not all connected under the provided "
             "master linkage."
@@ -470,7 +470,7 @@ def _get_cluster_size(
     return None
 
 
-def plot_term_hierarchy_contracted(
+def plot_dendrogram_condensed(
     results: Results,
     cluster_labels: pd.DataFrame,
     *,
@@ -499,8 +499,8 @@ def plot_term_hierarchy_contracted(
     background_color: Optional[str] = None,
 ) -> None:
     """
-    Plots cluster-level dendrogram using contracted master linkage. Leaf order and branch
-    heights are preserved from the master dendrogram by contracting the master linkage
+    Plots cluster-level dendrogram using condensed master linkage. Leaf order and branch
+    heights are preserved from the master dendrogram by condensing the master linkage
     matrix at the cluster level.
 
     Args:
@@ -537,7 +537,7 @@ def plot_term_hierarchy_contracted(
         TypeError: If label_overrides is not a dict.
     """
     # Validation
-    _validate_contracted_inputs(results, cluster_labels, label_fields, label_overrides)
+    _validate_condensed_inputs(results, cluster_labels, label_fields, label_overrides)
     # Get master linkage and clusters
     Z_master, clusters = _get_master_linkage(results)
     cluster_ids, gene_to_cluster = _resolve_cluster_order(Z_master, results, clusters)
@@ -553,13 +553,13 @@ def plot_term_hierarchy_contracted(
         wrap_width=wrap_width,
         overflow=overflow,
     )
-    d = _compute_contracted_dendrogram(
+    d = _compute_condensed_dendrogram(
         Z_master,
         gene_to_cluster,
         cluster_ids,
         results.matrix.labels,
     )
-    fig, ax_den, ax_sig, ax_txt = _setup_contracted_axes(
+    fig, ax_den, ax_sig, ax_txt = _setup_condensed_axes(
         figsize, sigbar_width, label_left_pad, background_color
     )
 
