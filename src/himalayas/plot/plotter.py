@@ -16,7 +16,6 @@ from .renderers import (
     ClusterLabelsRenderer,
     ColorbarRenderer,
     DendrogramRenderer,
-    GeneBarRenderer,
     MatrixRenderer,
     render_cluster_bar_track,
     SigbarLegendRenderer,
@@ -388,8 +387,8 @@ class Plotter:
 
     def plot_gene_bar(self, values: Mapping[Hashable, Any], **kwargs) -> Plotter:
         """
-        Declares a single row-level gene annotation bar.
-        Preserves clustering and ordering because it is purely visual.
+        Declares a single row-level gene annotation bar in the label panel. Preserves clustering and
+        ordering because it is purely visual.
 
         Args:
             values (Mapping): Mapping from gene identifier (row index label) to either:
@@ -397,18 +396,15 @@ class Plotter:
                 - numeric value (mode="continuous")
 
         Kwargs:
-            mode ({"categorical", "continuous"}): Rendering mode. Defaults to "categorical".
-            colors (dict): Category -> color mapping (categorical mode). Defaults to None.
+            mode ({"categorical", "continuous"}): Rendering mode; drives color mapping. Defaults to "categorical".
+            colors (dict): Category -> color mapping (categorical mode, required). Defaults to None.
             cmap (str): Matplotlib colormap name (continuous mode). Defaults to "viridis".
             vmin (float): Color scale minimum (continuous mode). Defaults to None.
             vmax (float): Color scale maximum (continuous mode). Defaults to None.
             missing_color (str): Color for missing values. Defaults to None.
-            axes (list[float]): Override axes box [x0, y0, w, h]. Defaults to None.
-            placement ({"between_dendro_matrix", "label_panel"}): Bar placement.
-                Defaults to "between_dendro_matrix".
-            gene_bar_left_pad (float): Left padding for label_panel placement. Defaults to 0.0.
-            gene_bar_width (float): Width for label_panel placement. Defaults to style gene_bar_width.
-            gene_bar_right_pad (float): Right padding for label_panel placement. Defaults to 0.0.
+            left_pad (float): Left padding for the gene bar track. Defaults to 0.0.
+            width (float): Track width. Defaults to style gene_bar_width.
+            right_pad (float): Right padding for the gene bar track. Defaults to 0.0.
 
         Returns:
             Plotter: Self for chaining.
@@ -416,36 +412,30 @@ class Plotter:
         Raises:
             TypeError: If values cannot be converted to a dict.
         """
+        # Validation
         if not isinstance(values, dict):
-            # Normalize values for the renderer
             try:
                 values = dict(values)
             except Exception as exc:
                 raise TypeError("plot_gene_bar expects values convertible to dict") from exc
 
-        placement = kwargs.get("placement", "between_dendro_matrix")
-        if placement == "label_panel":
-            # Register as an explicit track in the label panel
-            left_pad = kwargs.get("gene_bar_left_pad", 0.0)
-            width = kwargs.get("gene_bar_width", self._style.get("gene_bar_width", 0.015))
-            right_pad = kwargs.get("gene_bar_right_pad", 0.0)
-            enabled = kwargs.get("enabled", True)
-            # Enable label-panel gene bar track registration
-            if enabled:
-                self._track_layout.register_track(
-                    name=kwargs.get("name", "gene_bar"),
-                    kind="row",
-                    renderer=render_gene_bar_track,
-                    left_pad=left_pad,
-                    width=width,
-                    right_pad=right_pad if right_pad is not None else 0.0,
-                    enabled=enabled,
-                    payload={**kwargs, "values": values, "title": kwargs.get("title", None)},
-                )
-            return self
-
-        # Default: render as its own bar axis between dendrogram and matrix
-        self._layers.append(("gene_bar", {"values": values, **kwargs}))
+        # Always register as an explicit track in the label panel
+        kwargs.pop("placement", None)
+        width = kwargs.pop("width", self._style.get("gene_bar_width", 0.015))
+        left_pad = kwargs.pop("left_pad", 0.0)
+        right_pad = kwargs.pop("right_pad", 0.0)
+        enabled = kwargs.get("enabled", True)
+        if enabled:
+            self._track_layout.register_track(
+                name=kwargs.get("name", "gene_bar"),
+                kind="row",
+                renderer=render_gene_bar_track,
+                left_pad=left_pad,
+                width=width,
+                right_pad=right_pad if right_pad is not None else 0.0,
+                enabled=enabled,
+                payload={**kwargs, "values": values, "title": kwargs.get("title", None)},
+            )
         return self
 
     def plot_cluster_labels(self, cluster_labels: pd.DataFrame, **kwargs) -> Plotter:
@@ -589,15 +579,8 @@ class Plotter:
                 ),
             }
 
-        # Render declared layers in order, skipping label-panel-only tracks
+        # Render declared layers in order
         for layer, kwargs in self._layers:
-            if layer == "gene_bar":
-                if kwargs.get("placement", "between_dendro_matrix") == "label_panel":
-                    # Registered in plot_gene_bar; nothing to render here
-                    continue
-                renderer = GeneBarRenderer(**kwargs)
-                renderer.render(fig, self.matrix, layout, self._style)
-                continue
             if layer == "matrix":
                 figsize = kwargs.get("figsize", None)
                 if figsize is not None:

@@ -12,7 +12,6 @@ import numpy as np
 
 if TYPE_CHECKING:
     from ..style import StyleConfig
-    from ...core.layout import ClusterLayout
     from ...core.matrix import Matrix
 
 
@@ -106,121 +105,6 @@ def _draw_gene_bar_cells(
                 edgecolor="none",
                 zorder=zorder,
             )
-        )
-
-
-class GeneBarRenderer:
-    """
-    Class for rendering a row-level gene annotation bar.
-    """
-
-    def __init__(
-        self,
-        *,
-        values: Mapping[Any, Any],
-        mode: str = "categorical",
-        colors: Optional[Dict[Any, Any]] = None,
-        cmap: str = "viridis",
-        vmin: Optional[float] = None,
-        vmax: Optional[float] = None,
-        missing_color: Optional[str] = None,
-        axes: Optional[Sequence[float]] = None,
-        gene_bar_gap: Optional[float] = None,
-        gene_bar_width: Optional[float] = None,
-        **kwargs: Any,
-    ) -> None:
-        """
-        Initializes the GeneBarRenderer instance.
-
-        Args:
-            values (Mapping[Any, Any]): Mapping from row ID to value.
-            mode (str): "categorical" or "continuous". Defaults to "categorical".
-            colors (Optional[Dict[Any, Any]]): Category-to-color mapping. Defaults to None.
-            cmap (str): Colormap name for continuous mode. Defaults to "viridis".
-            vmin (Optional[float]): Minimum value for normalization. Defaults to None.
-            vmax (Optional[float]): Maximum value for normalization. Defaults to None.
-            missing_color (Optional[str]): Color for missing values. Defaults to None.
-            axes (Optional[Sequence[float]]): Axes position [x0, y0, width, height]. Defaults to None.
-            gene_bar_gap (Optional[float]): Gap between dendrogram and gene bar. Defaults to None.
-            gene_bar_width (Optional[float]): Width of the gene bar. Defaults to None.
-            **kwargs: Additional keyword arguments. Defaults to {}.
-        """
-        self.values = values
-        self.mode = mode
-        self.colors = colors
-        self.cmap = cmap
-        self.vmin = vmin
-        self.vmax = vmax
-        self.missing_color = missing_color
-        self.axes = axes
-        self.gene_bar_gap = gene_bar_gap
-        self.gene_bar_width = gene_bar_width
-        self._extra = dict(kwargs)
-
-    def render(
-        self,
-        fig: plt.Figure,
-        matrix: Matrix,
-        layout: ClusterLayout,
-        style: StyleConfig,
-    ) -> None:
-        """
-        Renders a gene annotation bar aligned to matrix rows.
-
-        Args:
-            fig (plt.Figure): Target figure.
-            matrix (Matrix): Data matrix.
-            layout (ClusterLayout): Track layout information.
-            style (StyleConfig): Plot style configuration.
-
-        Raises:
-            TypeError: If `values` is not a dict mapping row IDs to values.
-        """
-        # Validation
-        if not isinstance(self.values, dict):
-            raise TypeError("plot_gene_bar expects `values` as a dict mapping row IDs to values")
-
-        # Determine parameters; use style defaults if not set
-        missing_color = (
-            self.missing_color
-            if self.missing_color is not None
-            else style["gene_bar_missing_color"]
-        )
-        dendro_axes = style["dendro_axes"]
-        gap = self.gene_bar_gap if self.gene_bar_gap is not None else style["gene_bar_gap"]
-        bar_w = self.gene_bar_width if self.gene_bar_width is not None else style["gene_bar_width"]
-
-        # Determine axes and position gene bar to the right of the dendrogram
-        x0 = dendro_axes[0] + dendro_axes[2] + gap
-        bar_axes = (
-            self.axes if self.axes is not None else [x0, dendro_axes[1], bar_w, dendro_axes[3]]
-        )
-        ax_bar = fig.add_axes(bar_axes, frameon=False)
-        ax_bar.set_xlim(0, 1)
-        n_rows = matrix.df.shape[0]
-        ax_bar.set_ylim(-0.5, n_rows - 0.5)
-        ax_bar.invert_yaxis()
-        ax_bar.set_xticks([])
-        ax_bar.set_yticks([])
-
-        # Resolve facecolors and draw gene bar
-        row_ids = matrix.df.index.to_numpy()[layout.leaf_order]
-        facecolors = _resolve_gene_bar_colors(
-            values=self.values,
-            row_ids=list(row_ids),
-            mode=self.mode,
-            colors=self.colors,
-            cmap_name=self.cmap,
-            vmin=self.vmin,
-            vmax=self.vmax,
-            missing_color=missing_color,
-        )
-        _draw_gene_bar_cells(
-            ax=ax_bar,
-            x0=0.0,
-            width=1.0,
-            colors=facecolors,
-            zorder=2,
         )
 
 

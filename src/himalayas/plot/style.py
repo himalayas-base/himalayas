@@ -45,7 +45,6 @@ class StyleDefaults(TypedDict):
     ylabel_pad: float
     matrix_gutter_color: Optional[str]
     gene_bar_width: float
-    gene_bar_gap: float
     gene_bar_missing_color: str
     sigbar_width: float
     sigbar_cmap: Union[str, Colormap]
@@ -100,10 +99,8 @@ DEFAULT_STYLE: StyleDefaults = {
     "ylabel_pad": 0.015,
     # Matrix panel background (used to mask edge artifacts if desired)
     "matrix_gutter_color": None,
-    # Gene-level annotation bar (row-level, purely visual)
-    # Placed between dendrogram and matrix by default
+    # Gene-level annotation bar (row-level, label-panel track)
     "gene_bar_width": 0.012,
-    "gene_bar_gap": 0.006,
     "gene_bar_missing_color": "#eeeeee",
     # Bars rendered inside the label panel (to the left of text)
     # (Label_bar_default_width, label_bar_default_gap removed)
