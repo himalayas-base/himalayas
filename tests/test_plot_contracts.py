@@ -111,6 +111,44 @@ def test_plot_gene_bar_requires_colors(toy_results, toy_cluster_labels):
         plt.show = plt_show
 
 
+@pytest.mark.api
+def test_plot_cluster_labels_respect_np_order(toy_results, toy_cluster_labels):
+    """
+    Ensures cluster labels keep label first while respecting n/p order from label_fields
+    and emitting a single stats block.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+        toy_cluster_labels (pd.DataFrame): Cluster label fixture.
+    """
+    plt = _use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        plotter = (
+            Plotter(toy_results)
+            .plot_matrix()
+            .plot_cluster_labels(
+                toy_cluster_labels,
+                label_fields=("label", "p", "n"),
+            )
+        )
+        plotter.show()
+        fig = plotter._fig
+        texts = [t.get_text() for ax in fig.axes for t in ax.texts]
+        label_texts = [t for t in texts if "Cluster" in t]
+        assert label_texts, "Expected cluster label text to be rendered."
+        for txt in label_texts:
+            assert txt.strip().startswith("Cluster")
+            assert " (" in txt
+            assert txt.strip().endswith(")")
+            assert "$p$=" in txt
+            assert "n=" in txt
+            assert txt.find("$p$=") < txt.find("n=")
+    finally:
+        plt.show = plt_show
+
+
 @pytest.mark.unit
 def test_track_layout_duplicate_names_raise():
     """

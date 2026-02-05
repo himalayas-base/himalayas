@@ -91,6 +91,44 @@ def test_dendrogram_condensed_smoke(toy_results, toy_cluster_labels):
 
 
 @pytest.mark.api
+def test_dendrogram_condensed_label_fields_respect_np_order(
+    toy_results, toy_cluster_labels
+):
+    """
+    Ensures condensed dendrogram labels keep label first while respecting n/p order
+    from label_fields and emitting a single stats block.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+        toy_cluster_labels (pd.DataFrame): Cluster labels fixture.
+    """
+    matplotlib = pytest.importorskip("matplotlib")
+    matplotlib.use("Agg", force=True)
+    # Suppress GUI rendering during tests
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        plot_dendrogram_condensed(
+            toy_results,
+            toy_cluster_labels,
+            label_fields=("label", "p", "n"),
+        )
+        fig = plt.gcf()
+        texts = [t.get_text() for ax in fig.axes for t in ax.texts]
+        label_texts = [t for t in texts if "Cluster" in t]
+        assert label_texts, "Expected cluster label text to be rendered."
+        for txt in label_texts:
+            assert txt.strip().startswith("Cluster")
+            assert " (" in txt
+            assert txt.strip().endswith(")")
+            assert "$p$=" in txt
+            assert "n=" in txt
+            assert txt.find("$p$=") < txt.find("n=")
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
 def test_dendrogram_condensed_missing_linkage_raises(toy_results, toy_cluster_labels):
     """
     Ensures missing master linkage raises an AttributeError.
