@@ -650,7 +650,7 @@ class Plotter:
             return False
         try:
             return self._fig.number in plt.get_fignums()
-        except Exception:
+        except (AttributeError, RuntimeError, ValueError):
             return False
 
     def save(self, path: str, **kwargs) -> None:

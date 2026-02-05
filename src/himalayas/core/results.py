@@ -201,6 +201,8 @@ class Results:
         Raises:
             ValueError: If no ClusterLayout is attached.
         """
+        # NOTE: strict is reserved for future validation; keep API stable.
+        _ = strict
         if self._layout is None:
             raise ValueError("Results has no attached ClusterLayout")
         return self._layout

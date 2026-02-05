@@ -7,13 +7,13 @@ from __future__ import annotations
 
 from typing import Any, Optional, TYPE_CHECKING
 
+import matplotlib.pyplot as plt
+import numpy as np
+
 if TYPE_CHECKING:
     from ..style import StyleConfig
     from ...core.layout import ClusterLayout
     from ...core.matrix import Matrix
-
-import matplotlib.pyplot as plt
-import numpy as np
 
 
 class AxesRenderer:

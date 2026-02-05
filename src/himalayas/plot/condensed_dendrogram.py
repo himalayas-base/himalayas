@@ -561,7 +561,7 @@ def plot_dendrogram_condensed(
         cluster_ids,
         results.matrix.labels,
     )
-    fig, ax_den, ax_sig, ax_txt = _setup_condensed_axes(
+    _fig, ax_den, ax_sig, ax_txt = _setup_condensed_axes(
         figsize, sigbar_width, label_left_pad, background_color
     )
 
