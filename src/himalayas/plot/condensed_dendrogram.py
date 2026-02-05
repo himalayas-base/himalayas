@@ -23,6 +23,8 @@ import pandas as pd
 from matplotlib.colors import Colormap, Normalize
 from scipy.cluster.hierarchy import dendrogram, leaves_list
 
+from .renderers._label_format import collect_label_stats
+
 if TYPE_CHECKING:
     from ..core.clustering import Clusters
     from ..core.results import Results
@@ -610,23 +612,20 @@ def plot_dendrogram_condensed(
     c2g = getattr(clusters, "cluster_to_labels", None) or {}
     # Format and place per-cluster label text
     for cid, yi, lab, p in zip(cluster_ids, y, labels, pvals):
-        has_label = "label" in label_fields
-        stats = []
-        for field in label_fields:
-            if field == "label":
-                continue
-            if field == "n":
-                n = _get_cluster_size(
-                    int(cid),
-                    label_map=lab_map,
-                    cluster_sizes=cluster_sizes,
-                    cluster_to_labels=c2g,
-                )
-                if n is not None:
-                    stats.append(f"n={n}")
-            elif field == "p" and np.isfinite(p):
-                ptxt = rf"$p$={p:.2e}"
-                stats.append(ptxt)
+        n = None
+        if "n" in label_fields:
+            n = _get_cluster_size(
+                int(cid),
+                label_map=lab_map,
+                cluster_sizes=cluster_sizes,
+                cluster_to_labels=c2g,
+            )
+        pval_value = p if np.isfinite(p) else None
+        has_label, stats = collect_label_stats(
+            label_fields,
+            n_members=n,
+            pval=pval_value,
+        )
         if has_label:
             if stats:
                 stat_tail = "(" + ", ".join(stats) + ")"

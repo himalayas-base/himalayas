@@ -23,6 +23,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+from ._label_format import collect_label_stats
+
 if TYPE_CHECKING:
     from ..style import StyleConfig
     from ..track_layout import TrackLayoutManager
@@ -543,15 +545,12 @@ def _format_cluster_label(
         effective_fields = label_fields
 
     # Assemble label parts for requested fields
-    has_label = "label" in effective_fields
-    stats = []
-    for field in effective_fields:
-        if field == "label":
-            continue
-        if field == "n" and n_members is not None:
-            stats.append(f"n={n_members}")
-        elif field == "p" and pval is not None and not pd.isna(pval):
-            stats.append(rf"$p$={pval:.2e}")
+    pval_value = pval if pval is not None and not pd.isna(pval) else None
+    has_label, stats = collect_label_stats(
+        effective_fields,
+        n_members=n_members,
+        pval=pval_value,
+    )
     # Join parts into display text
     if has_label:
         if stats:
