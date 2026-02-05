@@ -537,35 +537,32 @@ def _format_cluster_label(
         str: Final formatted label text.
     """
     # Resolve fields based on overrides
-    if override:
-        if override.get("hide_stats", False):
-            effective_fields = ("label",)
-        elif "pval" in override and override.get("pval") is not None:
-            effective_fields = ("label", "p")
-        else:
-            effective_fields = ("label",)
+    if override and override.get("hide_stats", False):
+        effective_fields = ("label",)
     else:
         effective_fields = label_fields
 
     # Assemble label parts for requested fields
-    parts = []
+    has_label = "label" in effective_fields
+    stats = []
     for field in effective_fields:
         if field == "label":
-            parts.append(label)
-        elif field == "n" and n_members is not None:
-            parts.append(f"n={n_members}")
+            continue
+        if field == "n" and n_members is not None:
+            stats.append(f"n={n_members}")
         elif field == "p" and pval is not None and not pd.isna(pval):
-            parts.append(rf"$p$={pval:.2e}")
+            stats.append(rf"$p$={pval:.2e}")
     # Join parts into display text
-    if not parts:
-        text = label
-    else:
-        if parts[0] == label:
-            head = label
-            tail = parts[1:]
-            text = f"{head} ({', '.join(tail)})" if tail else head
+    if has_label:
+        if stats:
+            text = f"{label} ({', '.join(stats)})"
         else:
-            text = ", ".join(parts)
+            text = label
+    else:
+        if stats:
+            text = f"({', '.join(stats)})"
+        else:
+            text = label
 
     # Apply truncation and wrapping options
     max_words = kwargs.get("max_words", None)

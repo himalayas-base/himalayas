@@ -610,37 +610,42 @@ def plot_dendrogram_condensed(
     c2g = getattr(clusters, "cluster_to_labels", None) or {}
     # Format and place per-cluster label text
     for cid, yi, lab, p in zip(cluster_ids, y, labels, pvals):
-        parts = []
-        if "label" in label_fields:
-            parts.append(lab)
-        if "n" in label_fields:
-            n = _get_cluster_size(
-                int(cid),
-                label_map=lab_map,
-                cluster_sizes=cluster_sizes,
-                cluster_to_labels=c2g,
-            )
-            if n is not None:
-                parts.append(f"n={n}")
-        if "p" in label_fields and np.isfinite(p):
-            ptxt = rf"$p$={p:.2e}"
-            parts.append(ptxt)
-        if not parts:
-            txt = ""
-        elif len(parts) == 1:
-            txt = parts[0]
-        else:
-            label_head = parts[0]
-            stat_tail = "(" + ", ".join(parts[1:]) + ")"
-            if wrap_text and wrap_width is not None and wrap_width > 0:
-                lines = label_head.split("\n") if label_head else [""]
-                if len(lines[-1]) + 1 + len(stat_tail) <= wrap_width:
-                    lines[-1] = (lines[-1] + " " + stat_tail).strip()
-                    txt = "\n".join(lines)
+        has_label = "label" in label_fields
+        stats = []
+        for field in label_fields:
+            if field == "label":
+                continue
+            if field == "n":
+                n = _get_cluster_size(
+                    int(cid),
+                    label_map=lab_map,
+                    cluster_sizes=cluster_sizes,
+                    cluster_to_labels=c2g,
+                )
+                if n is not None:
+                    stats.append(f"n={n}")
+            elif field == "p" and np.isfinite(p):
+                ptxt = rf"$p$={p:.2e}"
+                stats.append(ptxt)
+        if has_label:
+            if stats:
+                stat_tail = "(" + ", ".join(stats) + ")"
+                if wrap_text and wrap_width is not None and wrap_width > 0:
+                    lines = lab.split("\n") if lab else [""]
+                    if len(lines[-1]) + 1 + len(stat_tail) <= wrap_width:
+                        lines[-1] = (lines[-1] + " " + stat_tail).strip()
+                        txt = "\n".join(lines)
+                    else:
+                        txt = (lab + "\n" + stat_tail) if lab else stat_tail
                 else:
-                    txt = (label_head + "\n" + stat_tail) if label_head else stat_tail
+                    txt = f"{lab} {stat_tail}"
             else:
-                txt = f"{label_head} {stat_tail}"
+                txt = lab
+        else:
+            if stats:
+                txt = "(" + ", ".join(stats) + ")"
+            else:
+                txt = ""
         ax_txt.text(
             0.0,
             yi,
