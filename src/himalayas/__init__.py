@@ -2,7 +2,7 @@
 himalayas
 ~~~~~~~~~
 
-HiMaLAYAS: Hierarchical Matrix Layout and Annotation Software
+HiMaLAYAS: enrichment-based annotation of hierarchically clustered matrices
 """
 
 from .core.matrix import Matrix
