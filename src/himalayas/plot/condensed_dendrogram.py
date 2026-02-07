@@ -42,7 +42,6 @@ class DendrogramData(TypedDict):
 
 def _validate_condensed_inputs(
     results: Results,
-    cluster_labels: pd.DataFrame,
     label_fields: Sequence[str],
     label_overrides: Optional[Dict[int, str]] = None,
 ) -> None:
@@ -51,21 +50,17 @@ def _validate_condensed_inputs(
 
     Args:
         results (Results): Enrichment results exposing cluster_layout() and clusters.
-        cluster_labels (pd.DataFrame): DataFrame with columns: cluster, label, pval.
         label_fields (Sequence[str]): Fields to include in labels ("label", "n", "p").
         label_overrides (Optional[Dict[int, str]]): Mapping cluster_id -> custom label. Defaults to None.
 
     Raises:
         AttributeError: If required attributes are missing from results.
-        ValueError: If cluster_labels is missing required columns or no clusters found.
+        ValueError: If no clusters are available or label_fields is invalid.
         TypeError: If label_overrides is not a dict.
     """
     # Validation
     if not hasattr(results, "cluster_layout"):
         raise AttributeError("results must expose cluster_layout()")
-    required = {"cluster", "label", "pval"}
-    if not required.issubset(cluster_labels.columns):
-        raise ValueError(f"cluster_labels must contain {required}")
     allowed = {"label", "n", "p"}
     if not set(label_fields).issubset(allowed):
         raise ValueError(f"label_fields must be a subset of {allowed}")
@@ -163,6 +158,8 @@ def _prepare_cluster_labels(
         cluster_ids (Sequence[int]): Ordered list of cluster ids.
         cluster_labels (pd.DataFrame): DataFrame with columns: cluster, label, pval.
         clusters (Clusters): Clusters instance.
+
+    Kwargs:
         label_overrides (Optional[Dict[int, str]]): Mapping cluster_id -> custom label. Defaults to None.
         omit_words (Optional[Sequence[str]]): Words to omit from cluster labels. Defaults to None.
         max_words (Optional[int]): Maximum words in cluster labels. Defaults to None.
@@ -188,10 +185,11 @@ def _prepare_cluster_labels(
     if label_overrides is None:
         label_overrides = {}
     # Build label map from DataFrame
-    lab_map: Dict[int, Tuple[str, float, Optional[float]]] = {
-        int(r["cluster"]): (str(r["label"]), float(r["pval"]), r.get("n", None))
-        for _, r in cluster_labels.iterrows()
-    }
+    lab_map: Dict[int, Tuple[str, float, Optional[float]]] = {}
+    for _, row in cluster_labels.iterrows():
+        pval_raw = row.get("pval", np.nan)
+        pval = float(pval_raw) if pval_raw is not None and not pd.isna(pval_raw) else np.nan
+        lab_map[int(row["cluster"])] = (str(row["label"]), pval, row.get("n", None))
     cluster_sizes = getattr(clusters, "cluster_sizes", None) if clusters is not None else None
     cluster_sizes = dict(cluster_sizes) if cluster_sizes is not None else None
 
@@ -398,6 +396,8 @@ def _format_cluster_label(
 
     Args:
         raw_label (str): Original cluster label.
+
+    Kwargs:
         omit_words (Optional[Sequence[str]]): Words to omit (case-insensitive). Defaults to None.
         max_words (Optional[int]): Maximum number of words to keep. Defaults to None.
         overflow (str): Overflow handling when truncating ("wrap" or "ellipsis"). Defaults to "wrap".
@@ -451,6 +451,8 @@ def _get_cluster_size(
 
     Args:
         cluster_id (int): Cluster id.
+
+    Kwargs:
         label_map (Dict[int, Tuple[str, float, Optional[float]]]): Mapping cluster_id ->
             (label, pval, n).
         cluster_sizes (Optional[Dict[int, int]]): Pre-computed cluster sizes. Defaults to None.
@@ -474,8 +476,13 @@ def _get_cluster_size(
 
 def plot_dendrogram_condensed(
     results: Results,
-    cluster_labels: pd.DataFrame,
     *,
+    term_col: str = "term",
+    cluster_col: str = "cluster",
+    weight_col: str = "pval",
+    label_mode: str = "top_term",
+    label_col: Optional[str] = "term_name",
+    summary_max_words: int = 6,
     figsize: Sequence[float] = (10, 10),
     sigbar_cmap: Union[str, Colormap] = "YlOrBr",
     sigbar_min_logp: float = 2.0,
@@ -507,7 +514,14 @@ def plot_dendrogram_condensed(
 
     Args:
         results (Results): Enrichment results exposing cluster_layout() and clusters.
-        cluster_labels (pd.DataFrame): DataFrame with columns: cluster, label, pval.
+
+    Kwargs:
+        term_col (str): Term id column used for label generation. Defaults to "term".
+        cluster_col (str): Cluster id column used for label generation. Defaults to "cluster".
+        weight_col (str): P-value/weight column used for label generation. Defaults to "pval".
+        label_mode (str): Label mode, one of {"top_term", "compressed"}. Defaults to "top_term".
+        label_col (Optional[str]): Optional display-name column. Defaults to "term_name".
+        summary_max_words (int): Max words for compressed label summarization. Defaults to 6.
         figsize (Sequence[float]): Figure size (width, height). Defaults to (10, 10).
         sigbar_cmap (Union[str, Colormap]): Colormap for significance bar. Defaults to "YlOrBr".
         sigbar_min_logp (float): Minimum -log10(p) for significance bar scaling. Defaults to 2.0.
@@ -535,11 +549,19 @@ def plot_dendrogram_condensed(
 
     Raises:
         AttributeError: If required attributes are missing from results.
-        ValueError: If cluster_labels is missing required columns or no clusters found.
+        ValueError: If no clusters are found or plotting options are invalid.
         TypeError: If label_overrides is not a dict.
     """
     # Validation
-    _validate_condensed_inputs(results, cluster_labels, label_fields, label_overrides)
+    _validate_condensed_inputs(results, label_fields, label_overrides)
+    cluster_labels = results.cluster_labels(
+        term_col=term_col,
+        cluster_col=cluster_col,
+        weight_col=weight_col,
+        label_mode=label_mode,
+        label_col=label_col,
+        max_words=summary_max_words,
+    )
     # Get master linkage and clusters
     Z_master, clusters = _get_master_linkage(results)
     cluster_ids, gene_to_cluster = _resolve_cluster_order(Z_master, results, clusters)
