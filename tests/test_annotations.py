@@ -62,6 +62,12 @@ def test_annotations_rejects_string_labels(toy_matrix):
 def test_annotations_rejects_non_iterable_labels(toy_matrix):
     """
     Ensures non-iterable labels are rejected.
+
+    Args:
+        toy_matrix (Matrix): Toy matrix fixture.
+
+    Raises:
+        TypeError: If a term maps to a non-iterable label value.
     """
     with pytest.raises(TypeError):
         Annotations({"t1": 123}, toy_matrix)
@@ -71,6 +77,12 @@ def test_annotations_rejects_non_iterable_labels(toy_matrix):
 def test_annotations_empty_input_raises(toy_matrix):
     """
     Ensures empty annotations raise a ValueError.
+
+    Args:
+        toy_matrix (Matrix): Toy matrix fixture.
+
+    Raises:
+        ValueError: If the annotations mapping is empty.
     """
     with pytest.raises(ValueError):
         Annotations({}, toy_matrix)

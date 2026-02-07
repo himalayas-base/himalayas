@@ -69,6 +69,10 @@ def test_finalize_attaches_layout_and_qvalues(toy_matrix, toy_annotations):
 def test_finalize_without_qvalues(toy_matrix, toy_annotations):
     """
     Ensures finalize(add_qvalues=False) leaves q-values absent.
+
+    Args:
+        toy_matrix (Matrix): Toy matrix fixture.
+        toy_annotations (Annotations): Toy annotations fixture.
     """
     analysis = (
         Analysis(toy_matrix, toy_annotations)
@@ -85,6 +89,10 @@ def test_finalize_without_qvalues(toy_matrix, toy_annotations):
 def test_cluster_can_be_called_twice(toy_matrix, toy_annotations):
     """
     Ensures repeated clustering updates the analysis state without error.
+
+    Args:
+        toy_matrix (Matrix): Toy matrix fixture.
+        toy_annotations (Annotations): Toy annotations fixture.
     """
     analysis = Analysis(toy_matrix, toy_annotations).cluster(linkage_threshold=1.0)
     first_clusters = analysis.clusters

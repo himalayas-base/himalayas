@@ -13,6 +13,9 @@ from himalayas import Matrix
 def test_matrix_rejects_non_numeric_values():
     """
     Ensures Matrix rejects non-numeric values.
+
+    Raises:
+        ValueError: If matrix values are not numeric.
     """
     df = pd.DataFrame([["x"], ["y"]], index=["a", "b"], columns=["v"])
     with pytest.raises(ValueError):
@@ -23,6 +26,9 @@ def test_matrix_rejects_non_numeric_values():
 def test_matrix_rejects_empty():
     """
     Ensures empty matrices are rejected.
+
+    Raises:
+        ValueError: If the input matrix has zero rows or columns.
     """
     df = pd.DataFrame([], index=[], columns=[])
     with pytest.raises(ValueError):

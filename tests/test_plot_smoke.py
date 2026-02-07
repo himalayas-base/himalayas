@@ -10,13 +10,12 @@ from himalayas.plot import Plotter
 
 
 @pytest.mark.api
-def test_plotter_smoke(toy_results, toy_cluster_labels):
+def test_plotter_smoke(toy_results):
     """
     Ensures Plotter can render a minimal plot without errors.
 
     Args:
         toy_results (Results): Results fixture for plotting.
-        toy_cluster_labels (pd.DataFrame): Cluster label fixture.
     """
     matplotlib = pytest.importorskip("matplotlib")
     matplotlib.use("Agg", force=True)
@@ -24,6 +23,6 @@ def test_plotter_smoke(toy_results, toy_cluster_labels):
     plt_show = plt.show
     plt.show = lambda *args, **kwargs: None
     try:
-        Plotter(toy_results).plot_matrix().plot_cluster_labels(toy_cluster_labels).show()
+        Plotter(toy_results).plot_matrix().plot_cluster_labels().show()
     finally:
         plt.show = plt_show

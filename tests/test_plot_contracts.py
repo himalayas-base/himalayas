@@ -85,7 +85,7 @@ def test_plot_cluster_bar_rejects_invalid_values(toy_results):
 
 
 @pytest.mark.api
-def test_plot_gene_bar_requires_colors(toy_results, toy_cluster_labels):
+def test_plot_gene_bar_requires_colors(toy_results):
     """
     Ensures categorical gene bars require an explicit colors mapping.
 
@@ -103,7 +103,7 @@ def test_plot_gene_bar_requires_colors(toy_results, toy_cluster_labels):
             (
                 Plotter(toy_results)
                 .plot_matrix()
-                .plot_cluster_labels(toy_cluster_labels)
+                .plot_cluster_labels()
                 .plot_gene_bar(values={"a": "hit"}, mode="categorical")
                 .show()
             )
@@ -112,14 +112,13 @@ def test_plot_gene_bar_requires_colors(toy_results, toy_cluster_labels):
 
 
 @pytest.mark.api
-def test_plot_cluster_labels_respect_np_order(toy_results, toy_cluster_labels):
+def test_plot_cluster_labels_respect_np_order(toy_results):
     """
     Ensures cluster labels keep label first while respecting n/p order from label_fields
     and emitting a single stats block.
 
     Args:
         toy_results (Results): Results fixture with clusters and layout.
-        toy_cluster_labels (pd.DataFrame): Cluster label fixture.
     """
     plt = _use_agg_backend()
     plt_show = plt.show
@@ -129,22 +128,50 @@ def test_plot_cluster_labels_respect_np_order(toy_results, toy_cluster_labels):
             Plotter(toy_results)
             .plot_matrix()
             .plot_cluster_labels(
-                toy_cluster_labels,
                 label_fields=("label", "p", "n"),
             )
         )
         plotter.show()
         fig = plotter._fig
         texts = [t.get_text() for ax in fig.axes for t in ax.texts]
-        label_texts = [t for t in texts if "Cluster" in t]
+        label_texts = [t for t in texts if "$p$=" in t and "n=" in t]
         assert label_texts, "Expected cluster label text to be rendered."
         for txt in label_texts:
-            assert txt.strip().startswith("Cluster")
             assert " (" in txt
             assert txt.strip().endswith(")")
             assert "$p$=" in txt
             assert "n=" in txt
             assert txt.find("$p$=") < txt.find("n=")
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+def test_plot_cluster_labels_accepts_override_mapper(toy_results):
+    """
+    Ensures cluster label overrides can replace generated labels by cluster id.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = _use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        cid = int(toy_results.cluster_layout().cluster_spans[0][0])
+        custom_label = f"Custom-{cid}"
+        plotter = (
+            Plotter(toy_results)
+            .plot_matrix()
+            .plot_cluster_labels(
+                overrides={cid: custom_label},
+                label_fields=("label",),
+            )
+        )
+        plotter.show()
+        fig = plotter._fig
+        texts = [t.get_text() for ax in fig.axes for t in ax.texts]
+        assert any(custom_label in t for t in texts)
     finally:
         plt.show = plt_show
 

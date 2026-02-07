@@ -59,6 +59,12 @@ def test_run_cluster_hypergeom_empty_rows_schema(toy_matrix):
 def test_run_cluster_hypergeom_background_mismatch_raises(toy_matrix):
     """
     Ensures background matrix must contain all analysis labels.
+
+    Args:
+        toy_matrix (Matrix): Toy matrix fixture.
+
+    Raises:
+        ValueError: If background is missing labels from the analysis matrix.
     """
     clusters = cluster(toy_matrix, linkage_threshold=1.0)
     annotations = Annotations({"t1": ["a", "b"]}, toy_matrix)

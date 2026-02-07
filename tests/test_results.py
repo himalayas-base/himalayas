@@ -63,6 +63,9 @@ def test_results_subset_returns_new_matrix():
 def test_results_with_qvalues_rejects_invalid_pvals():
     """
     Ensures invalid p-values raise a ValueError.
+
+    Raises:
+        ValueError: If p-values contain invalid values.
     """
     df = pd.DataFrame({"pval": [0.2, -0.1, 1.2]})
     res = Results(df, method="test")
@@ -86,6 +89,12 @@ def test_results_with_qvalues_preserves_nan():
 def test_results_subset_invalid_cluster_raises(toy_results):
     """
     Ensures subsetting with an unknown cluster id raises.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+
+    Raises:
+        KeyError: If the requested cluster id does not exist.
     """
     with pytest.raises(KeyError):
         toy_results.subset(cluster=999)
@@ -95,9 +104,103 @@ def test_results_subset_invalid_cluster_raises(toy_results):
 def test_results_filter_preserves_parent_and_method(toy_results):
     """
     Ensures filter() keeps method and parent linkage.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
     """
     filtered = toy_results.filter("pval >= 0")
 
     assert filtered.parent is toy_results
     assert filtered.method == toy_results.method
     assert filtered.matrix is toy_results.matrix
+
+
+@pytest.mark.api
+def test_results_cluster_labels_top_term_defaults():
+    """
+    Ensures cluster_labels() returns top-term labels and canonical columns.
+    """
+    df = pd.DataFrame(
+        {
+            "cluster": [1, 1, 2],
+            "term": ["t_a", "t_b", "t_c"],
+            "term_name": ["Term A", None, "Term C"],
+            "pval": [0.2, 0.01, 0.4],
+            "n": [7, 7, 3],
+        }
+    )
+    res = Results(df, method="test")
+    out = res.cluster_labels()
+
+    assert list(out.columns) == ["cluster", "label", "pval", "n", "term"]
+    c1 = out.loc[out["cluster"] == 1].iloc[0]
+    c2 = out.loc[out["cluster"] == 2].iloc[0]
+
+    # Cluster 1: term_name is missing for best row; fallback to stable term id.
+    assert c1["label"] == "t_b"
+    assert c1["term"] == "t_b"
+    assert c1["pval"] == pytest.approx(0.01)
+    assert c1["n"] == 7
+    assert c2["label"] == "Term C"
+    assert c2["term"] == "t_c"
+
+
+@pytest.mark.api
+def test_results_cluster_labels_compressed_works_without_pvals():
+    """
+    Ensures compressed labels work without a p-value column.
+    """
+    df = pd.DataFrame(
+        {
+            "cluster": [1, 1],
+            "term": ["Alpha Beta", "Alpha Gamma"],
+        }
+    )
+    res = Results(df, method="test")
+    out = res.cluster_labels(label_mode="compressed", max_words=1)
+
+    assert out.loc[0, "cluster"] == 1
+    assert out.loc[0, "label"] == "alpha"
+    assert out.loc[0, "pval"] is None
+
+
+@pytest.mark.api
+def test_results_cluster_labels_invalid_label_mode_raises():
+    """
+    Ensures unsupported label modes raise a ValueError.
+
+    Raises:
+        ValueError: If label_mode is not supported.
+    """
+    df = pd.DataFrame({"cluster": [1], "term": ["t1"], "pval": [0.1]})
+    res = Results(df, method="test")
+    with pytest.raises(ValueError):
+        res.cluster_labels(label_mode="bad")
+
+
+@pytest.mark.api
+def test_results_cluster_labels_missing_required_columns_raises():
+    """
+    Ensures missing required columns raise a KeyError.
+
+    Raises:
+        KeyError: If required input columns are missing.
+    """
+    df = pd.DataFrame({"cluster": [1], "pval": [0.1]})
+    res = Results(df, method="test")
+    with pytest.raises(KeyError):
+        res.cluster_labels()
+
+
+@pytest.mark.api
+def test_results_cluster_labels_top_term_requires_pval():
+    """
+    Ensures top_term mode requires a p-value column.
+
+    Raises:
+        KeyError: If top_term mode is requested without a p-value column.
+    """
+    df = pd.DataFrame({"cluster": [1], "term": ["t1"]})
+    res = Results(df, method="test")
+    with pytest.raises(KeyError):
+        res.cluster_labels(label_mode="top_term")
