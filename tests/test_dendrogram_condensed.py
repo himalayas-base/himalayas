@@ -4,7 +4,6 @@ tests/test_dendrogram_condensed
 """
 
 import matplotlib.pyplot as plt
-import pandas as pd
 import pytest
 
 from himalayas.core.clustering import Clusters
@@ -13,29 +12,36 @@ from himalayas.plot import plot_dendrogram_condensed
 
 
 @pytest.mark.api
-def test_dendrogram_condensed_missing_columns_raises(toy_results):
+def test_dendrogram_condensed_missing_term_column_raises(toy_results):
     """
-    Ensures missing columns in cluster_labels raises a ValueError.
+    Ensures missing required term column raises a KeyError.
 
     Args:
         toy_results (Results): Results fixture with clusters and layout.
 
     Raises:
-        ValueError: If required cluster label columns are missing.
+        KeyError: If required label-generation columns are missing.
     """
-    cluster_labels = pd.DataFrame({"cluster": [1], "label": ["X"]})
-    with pytest.raises(ValueError):
-        plot_dendrogram_condensed(toy_results, cluster_labels)
+    bad_df = toy_results.df.drop(columns=["term"])
+    results = Results(
+        bad_df,
+        method=toy_results.method,
+        matrix=toy_results.matrix,
+        clusters=toy_results.clusters,
+        layout=toy_results.cluster_layout(),
+        parent=toy_results,
+    )
+    with pytest.raises(KeyError):
+        plot_dendrogram_condensed(results)
 
 
 @pytest.mark.api
-def test_dendrogram_condensed_invalid_label_fields_raises(toy_results, toy_cluster_labels):
+def test_dendrogram_condensed_invalid_label_fields_raises(toy_results):
     """
     Ensures invalid label_fields values raise a ValueError.
 
     Args:
         toy_results (Results): Results fixture with clusters and layout.
-        toy_cluster_labels (pd.DataFrame): Cluster labels fixture.
 
     Raises:
         ValueError: If label_fields contains unsupported values.
@@ -43,21 +49,19 @@ def test_dendrogram_condensed_invalid_label_fields_raises(toy_results, toy_clust
     with pytest.raises(ValueError):
         plot_dendrogram_condensed(
             toy_results,
-            toy_cluster_labels,
             label_fields=("label", "bad"),
         )
 
 
 @pytest.mark.api
 def test_dendrogram_condensed_bad_label_overrides_type_raises(
-    toy_results, toy_cluster_labels
+    toy_results
 ):
     """
     Ensures label_overrides must be a dict when provided.
 
     Args:
         toy_results (Results): Results fixture with clusters and layout.
-        toy_cluster_labels (pd.DataFrame): Cluster labels fixture.
 
     Raises:
         TypeError: If label_overrides is not a dict.
@@ -65,19 +69,17 @@ def test_dendrogram_condensed_bad_label_overrides_type_raises(
     with pytest.raises(TypeError):
         plot_dendrogram_condensed(
             toy_results,
-            toy_cluster_labels,
             label_overrides=["not-a-dict"],
         )
 
 
 @pytest.mark.api
-def test_dendrogram_condensed_smoke(toy_results, toy_cluster_labels):
+def test_dendrogram_condensed_smoke(toy_results):
     """
     Ensures condensed dendrogram renders without error for valid inputs.
 
     Args:
         toy_results (Results): Results fixture with clusters and layout.
-        toy_cluster_labels (pd.DataFrame): Cluster labels fixture.
     """
     matplotlib = pytest.importorskip("matplotlib")
     matplotlib.use("Agg", force=True)
@@ -85,22 +87,19 @@ def test_dendrogram_condensed_smoke(toy_results, toy_cluster_labels):
     plt_show = plt.show
     plt.show = lambda *args, **kwargs: None
     try:
-        plot_dendrogram_condensed(toy_results, toy_cluster_labels)
+        plot_dendrogram_condensed(toy_results)
     finally:
         plt.show = plt_show
 
 
 @pytest.mark.api
-def test_dendrogram_condensed_label_fields_respect_np_order(
-    toy_results, toy_cluster_labels
-):
+def test_dendrogram_condensed_label_fields_respect_np_order(toy_results):
     """
     Ensures condensed dendrogram labels keep label first while respecting n/p order
     from label_fields and emitting a single stats block.
 
     Args:
         toy_results (Results): Results fixture with clusters and layout.
-        toy_cluster_labels (pd.DataFrame): Cluster labels fixture.
     """
     matplotlib = pytest.importorskip("matplotlib")
     matplotlib.use("Agg", force=True)
@@ -110,15 +109,13 @@ def test_dendrogram_condensed_label_fields_respect_np_order(
     try:
         plot_dendrogram_condensed(
             toy_results,
-            toy_cluster_labels,
             label_fields=("label", "p", "n"),
         )
         fig = plt.gcf()
         texts = [t.get_text() for ax in fig.axes for t in ax.texts]
-        label_texts = [t for t in texts if "Cluster" in t]
+        label_texts = [t for t in texts if "$p$=" in t and "n=" in t]
         assert label_texts, "Expected cluster label text to be rendered."
         for txt in label_texts:
-            assert txt.strip().startswith("Cluster")
             assert " (" in txt
             assert txt.strip().endswith(")")
             assert "$p$=" in txt
@@ -129,13 +126,12 @@ def test_dendrogram_condensed_label_fields_respect_np_order(
 
 
 @pytest.mark.api
-def test_dendrogram_condensed_missing_linkage_raises(toy_results, toy_cluster_labels):
+def test_dendrogram_condensed_missing_linkage_raises(toy_results):
     """
     Ensures missing master linkage raises an AttributeError.
 
     Args:
         toy_results (Results): Results fixture with clusters and layout.
-        toy_cluster_labels (pd.DataFrame): Cluster labels fixture.
 
     Raises:
         AttributeError: If master linkage is missing from results.clusters.
@@ -153,17 +149,16 @@ def test_dendrogram_condensed_missing_linkage_raises(toy_results, toy_cluster_la
         parent=toy_results,
     )
     with pytest.raises(AttributeError):
-        plot_dendrogram_condensed(results, toy_cluster_labels)
+        plot_dendrogram_condensed(results)
 
 
 @pytest.mark.api
-def test_dendrogram_condensed_no_clusters_raises(toy_results, toy_cluster_labels):
+def test_dendrogram_condensed_no_clusters_raises(toy_results):
     """
     Ensures empty cluster layout raises a ValueError.
 
     Args:
         toy_results (Results): Results fixture with clusters and layout.
-        toy_cluster_labels (pd.DataFrame): Cluster labels fixture.
 
     Raises:
         ValueError: If no clusters are present in the layout.
@@ -180,17 +175,16 @@ def test_dendrogram_condensed_no_clusters_raises(toy_results, toy_cluster_labels
         parent=toy_results,
     )
     with pytest.raises(ValueError):
-        plot_dendrogram_condensed(results, toy_cluster_labels)
+        plot_dendrogram_condensed(results)
 
 
 @pytest.mark.api
-def test_dendrogram_condensed_unmapped_clusters_raises(toy_results, toy_cluster_labels):
+def test_dendrogram_condensed_unmapped_clusters_raises(toy_results):
     """
     Ensures unmapped cluster ids raise a ValueError.
 
     Args:
         toy_results (Results): Results fixture with clusters and layout.
-        toy_cluster_labels (pd.DataFrame): Cluster labels fixture.
 
     Raises:
         ValueError: If cluster ids cannot be mapped from master leaf order.
@@ -210,4 +204,4 @@ def test_dendrogram_condensed_unmapped_clusters_raises(toy_results, toy_cluster_
         parent=toy_results,
     )
     with pytest.raises(ValueError):
-        plot_dendrogram_condensed(results, toy_cluster_labels)
+        plot_dendrogram_condensed(results)
