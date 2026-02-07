@@ -197,6 +197,8 @@ def _render_tracks(
     Args:
         ax_lab (plt.Axes): Target label axis.
         tracks (List[TrackSpec]): List of track specifications.
+
+    Kwargs:
         matrix (Matrix): Data matrix.
         row_order (np.ndarray): Row ordering indices.
         spans (Sequence[Tuple[int, int, int]]): Iterable of (cluster_id, start, end).
@@ -285,6 +287,8 @@ def _render_cluster_text_and_separators(
 
     Args:
         ax_lab (plt.Axes): Target label axis.
+
+    Kwargs:
         spans (Sequence[Tuple[int, int, int]]): Iterable of (cluster_id, start, end).
         cluster_sizes (Dict[int, int]): Mapping cluster_id -> size.
         label_map (Dict[int, Tuple[str, Optional[float]]]): Mapping cluster_id -> (label, pval).
@@ -531,6 +535,8 @@ def _format_cluster_label(
         pval (float | None): P-value to display, if any. Defaults to None.
         n_members (int | None): Cluster size. Defaults to None.
         override (OverrideSpec | None): Override entry for the cluster. Defaults to None.
+
+    Kwargs:
         label_fields (Tuple[str, ...]): Fields to display.
         kwargs (Dict[str, Any]): Renderer keyword arguments.
         style (StyleConfig): Style configuration.

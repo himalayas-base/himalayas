@@ -31,6 +31,8 @@ def _summarize_terms(
     Args:
         words (Iterable[str]): Term phrases.
         weights (Optional[Iterable[float]]): Optional term weights. Defaults to None.
+
+    Kwargs:
         max_words (int): Maximum number of tokens in the output. Defaults to 6.
 
     Returns:
@@ -255,7 +257,7 @@ class Results:
         Returns a new Results with BH-FDR q-values added as `qval_col`. Does not mutate
         the original Results.
 
-        Kwargs:
+        Args:
             pval_col (str): Column name for p-values. Defaults to "pval".
             qval_col (str): Column name for q-values. Defaults to "qval".
 

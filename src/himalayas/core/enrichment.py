@@ -102,6 +102,8 @@ def _encode_terms(
     Args:
         annotations (Annotations): Annotations aligned to the matrix.
         label_to_idx (Dict[Any, int]): Mapping from label to integer index.
+
+    Kwargs:
         min_overlap (int): Minimum overlap (k) to report.
 
     Returns:
@@ -131,6 +133,8 @@ def _encode_clusters(
     Args:
         clusters (Clusters): Clustering results aligned to the matrix.
         label_to_idx (Dict[Any, int]): Mapping from label to integer index.
+
+    Kwargs:
         min_overlap (int): Minimum overlap (k) to report.
 
     Returns:

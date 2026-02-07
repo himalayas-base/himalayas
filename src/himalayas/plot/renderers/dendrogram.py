@@ -108,6 +108,8 @@ def _render_dendrogram_segments(
         dendro (Dict[str, Any]): SciPy dendrogram output with "icoord" and "dcoord".
         scale (float): Y scale factor.
         offset (float): Y offset.
+
+    Kwargs:
         color (str): Line color.
         linewidth (float): Line width.
     """
@@ -177,6 +179,8 @@ def _finalize_dendrogram_axis(
 
     Args:
         ax_dend (plt.Axes): Dendrogram axis.
+
+    Kwargs:
         target_y_min (float): Minimum y-value in matrix coordinates.
         target_y_max (float): Maximum y-value in matrix coordinates.
         data_pad (float): Padding added to y-limits.
@@ -210,7 +214,7 @@ class DendrogramRenderer:
         """
         Initializes the DendrogramRenderer instance.
 
-        Args:
+        Kwargs:
             axes (Optional[Sequence[float]]): Axes position [x0, y0, width, height]. Defaults to None.
             color (Optional[str]): Dendrogram line color. Defaults to None.
             linewidth (Optional[float]): Dendrogram line width. Defaults to None.
@@ -239,6 +243,8 @@ class DendrogramRenderer:
             matrix (Matrix): Matrix object providing the row index.
             layout (ClusterLayout): Cluster layout providing `cluster_spans`.
             style (StyleConfig): Style configuration.
+
+        Kwargs:
             **kwargs (Any): Renderer keyword arguments. Defaults to {}.
         """
         # Resolve configuration and create dendrogram axis

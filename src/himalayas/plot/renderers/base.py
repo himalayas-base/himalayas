@@ -66,6 +66,8 @@ class BoundaryRegistry:
 
         Args:
             y (float): Y coordinate of the boundary line.
+
+        Kwargs:
             lw (float): Line width.
             color (str): Line color.
             alpha (float): Line alpha (opacity).
@@ -89,6 +91,8 @@ class BoundaryRegistry:
             ax (plt.Axes): Axes to render on.
             x0 (float): Left x coordinate.
             x1 (float): Right x coordinate.
+
+        Kwargs:
             zorder (int): Z-order for rendering. Defaults to 2.
         """
         if not self._boundaries:

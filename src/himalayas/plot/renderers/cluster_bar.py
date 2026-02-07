@@ -25,7 +25,7 @@ def _resolve_cluster_values(
     """
     Resolves raw values per cluster.
 
-    Args:
+    Kwargs:
         cluster_spans (Sequence[Tuple[int, int, int]]): Iterable of (cluster_id, start, end).
         payload (Dict[str, Any]): Track payload.
         label_map (Dict[int, Tuple[str, Optional[float]]]): Mapping cluster_id -> (label, pval).
@@ -61,6 +61,8 @@ def _scale_cluster_values(
 
     Args:
         values (np.ndarray): Raw values.
+
+    Kwargs:
         norm (Optional[Normalize]): Optional matplotlib normalization instance. Defaults to None.
 
     Returns:

@@ -29,7 +29,7 @@ def _resolve_gene_bar_colors(
     """
     Resolves per-row facecolors for a gene bar.
 
-    Args:
+    Kwargs:
         values (Mapping[Any, Any]): Mapping from row ID to value.
         row_ids (Sequence[Any]): Ordered row identifiers.
         mode (str): "categorical" or "continuous".
@@ -87,7 +87,7 @@ def _draw_gene_bar_cells(
     """
     Draws rectangular gene bar cells.
 
-    Args:
+    Kwargs:
         ax (plt.Axes): Target axis.
         x0 (float): Left x-position.
         width (float): Bar width.

@@ -81,7 +81,7 @@ class Plotter:
         and rendered in a strip below the matrix. They are not data-aligned and do not participate
         in row or cluster layout.
 
-        Args:
+        Kwargs:
             name (str): Colorbar name.
             cmap: Colormap name or instance.
             norm: Matplotlib normalization instance.
@@ -693,6 +693,8 @@ class Plotter:
 
         Args:
             path (str): Output path for the figure.
+
+        Kwargs:
             **kwargs: Additional matplotlib savefig options. Defaults to {}.
         """
         if self._fig is None or not self._figure_is_open():

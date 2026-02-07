@@ -69,6 +69,8 @@ def _resolve_color_normalization(
 
     Args:
         data (np.ndarray): Matrix data.
+
+    Kwargs:
         center (Optional[float]): Center value for diverging normalization. Defaults to None.
         vmin (Optional[float]): Minimum value override. Defaults to None.
         vmax (Optional[float]): Maximum value override. Defaults to None.
@@ -104,7 +106,7 @@ def _draw_matrix(
     """
     Draws the heatmap matrix and associated decorations.
 
-    Args:
+    Kwargs:
         ax (plt.Axes): Target axis.
         data (np.ndarray): Matrix data.
         n_rows (int): Number of rows.
@@ -222,6 +224,8 @@ class MatrixRenderer:
             matrix (Matrix): Matrix object.
             layout (ClusterLayout): Layout object.
             style (StyleConfig): Style configuration.
+
+        Kwargs:
             boundary_registry (Optional[BoundaryRegistry]): Boundary registry for overlays. Defaults to None.
         """
         data, n_rows, n_cols = _resolve_matrix_data(matrix, layout)

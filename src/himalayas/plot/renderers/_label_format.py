@@ -19,6 +19,8 @@ def collect_label_stats(
 
     Args:
         label_fields (Sequence[str]): Fields to include in labels.
+
+    Kwargs:
         n_members (Optional[int]): Cluster size for "n". Defaults to None.
         pval (Optional[float]): P-value for "p". Defaults to None.
 

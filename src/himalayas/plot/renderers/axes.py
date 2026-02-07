@@ -268,6 +268,8 @@ class AxesRenderer:
 
         Args:
             text_obj (plt.Text): Matplotlib Text object to style.
+
+        Kwargs:
             font (Optional[str]): Font family or name. Defaults to None.
             fontsize (Optional[float]): Font size. Defaults to None.
             color (Optional[str]): Text color. Defaults to None.
