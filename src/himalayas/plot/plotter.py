@@ -438,24 +438,57 @@ class Plotter:
             )
         return self
 
-    def plot_cluster_labels(self, cluster_labels: pd.DataFrame, **kwargs) -> Plotter:
+    def plot_cluster_labels(
+        self,
+        *,
+        overrides: Optional[dict[int, Any]] = None,
+        **kwargs,
+    ) -> Plotter:
         """
         Declares cluster-level labels shown in the right panel.
-
-        Args:
-            cluster_labels (pd.DataFrame): DataFrame with 'cluster', 'label', and optional 'pval'.
+        Labels are generated from attached Results by default.
 
         Kwargs:
+            overrides (dict[int, Any]): Per-cluster label overrides keyed by cluster id.
+                Values may be a label string or a dict with keys
+                {"label", "pval", "hide_stats"}.
+            term_col (str): Term id column for label generation. Defaults to "term".
+            cluster_col (str): Cluster id column for label generation. Defaults to "cluster".
+            weight_col (str): Weight/p-value column for label generation. Defaults to "pval".
+            label_mode (str): Label mode, one of {"top_term", "compressed"}.
+                Defaults to "top_term".
+            label_col (Optional[str]): Optional display-name column. Defaults to "term_name".
+            max_words (int): Maximum words for compressed labels. Defaults to 6.
             label_fields (tuple[str]): Fields to include: "label", "n", "p".
                 Defaults to ("label", "n", "p").
-            overrides (dict): Per-cluster overrides (str or dict with keys
-                {"label", "pval", "hide_stats"}). Defaults to None.
             **kwargs: Renderer keyword arguments. Defaults to {}.
 
         Returns:
             Plotter: Self for chaining.
         """
-        self._layers.append(("cluster_labels", {"df": cluster_labels, **kwargs}))
+        label_option_keys = {
+            "term_col",
+            "cluster_col",
+            "weight_col",
+            "label_mode",
+            "label_col",
+            "max_words",
+        }
+        label_options = {}
+        for key in tuple(kwargs):
+            if key in label_option_keys:
+                label_options[key] = kwargs.pop(key)
+
+        self._layers.append(
+            (
+                "cluster_labels",
+                {
+                    "_label_options": label_options,
+                    "overrides": overrides,
+                    **kwargs,
+                },
+            )
+        )
         return self
 
     def plot_title(self, title: str, **kwargs) -> Plotter:
@@ -607,7 +640,8 @@ class Plotter:
                         bar_kwargs = kw  # last one wins
                 # Prepare cluster label renderer inputs and render label panel
                 renderer_kwargs = dict(kwargs)
-                df = renderer_kwargs.pop("df")
+                label_options = renderer_kwargs.pop("_label_options", {})
+                df = self.results.cluster_labels(**label_options)
                 renderer = ClusterLabelsRenderer(df, **renderer_kwargs)
                 renderer.render(
                     fig,
