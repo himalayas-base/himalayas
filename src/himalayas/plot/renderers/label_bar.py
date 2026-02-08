@@ -1,5 +1,5 @@
 """
-himalayas/plot/renderers/gene_bar
+himalayas/plot/renderers/label_bar
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 """
 
@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from ...core.matrix import Matrix
 
 
-def _resolve_gene_bar_colors(
+def _resolve_label_bar_colors(
     *,
     values: Mapping[Any, Any],
     row_ids: Sequence[Any],
@@ -27,7 +27,7 @@ def _resolve_gene_bar_colors(
     missing_color: Any,
 ) -> List[Any]:
     """
-    Resolves per-row facecolors for a gene bar.
+    Resolves per-row facecolors for a label bar.
 
     Kwargs:
         values (Mapping[Any, Any]): Mapping from row ID to value.
@@ -50,7 +50,7 @@ def _resolve_gene_bar_colors(
     if mode == "categorical":
         if colors is None or not isinstance(colors, dict):
             raise TypeError(
-                "categorical gene_bar requires `colors` as a dict mapping category -> color"
+                "categorical label_bar requires `colors` as a dict mapping category -> color"
             )
         return [colors.get(values.get(gid, None), missing_color) for gid in row_ids]
 
@@ -73,10 +73,10 @@ def _resolve_gene_bar_colors(
         return [missing_color if not np.isfinite(v) else cmap(norm(v)) for v in vals]
 
     # Unknown mode
-    raise ValueError("gene_bar mode must be 'categorical' or 'continuous'")
+    raise ValueError("label_bar mode must be 'categorical' or 'continuous'")
 
 
-def _draw_gene_bar_cells(
+def _draw_label_bar_cells(
     *,
     ax: plt.Axes,
     x0: float,
@@ -85,7 +85,7 @@ def _draw_gene_bar_cells(
     zorder: int = 2,
 ) -> None:
     """
-    Draws rectangular gene bar cells.
+    Draws rectangular label bar cells.
 
     Kwargs:
         ax (plt.Axes): Target axis.
@@ -108,7 +108,7 @@ def _draw_gene_bar_cells(
         )
 
 
-def render_gene_bar_track(
+def render_label_bar_track(
     ax: plt.Axes,
     x0: float,
     width: float,
@@ -118,7 +118,7 @@ def render_gene_bar_track(
     style: StyleConfig,
 ) -> None:
     """
-    Renders a gene bar track inside the label panel.
+    Renders a label bar track inside the label panel.
 
     Args:
         ax (plt.Axes): Target axis.
@@ -129,12 +129,12 @@ def render_gene_bar_track(
         row_order (Sequence[int]): Row ordering indices.
         style (StyleConfig): Plot style configuration.
     """
-    # Resolve facecolors and draw gene bar
+    # Resolve facecolors and draw label bar
     values = payload["values"]
     mode = payload.get("mode", "categorical")
-    missing_color = payload.get("missing_color", style["gene_bar_missing_color"])
+    missing_color = payload.get("missing_color", style["label_bar_missing_color"])
     row_ids = matrix.df.index.to_numpy()[row_order]
-    facecolors = _resolve_gene_bar_colors(
+    facecolors = _resolve_label_bar_colors(
         values=values,
         row_ids=list(row_ids),
         mode=mode,
@@ -144,7 +144,7 @@ def render_gene_bar_track(
         vmax=payload.get("vmax"),
         missing_color=missing_color,
     )
-    _draw_gene_bar_cells(
+    _draw_label_bar_cells(
         ax=ax,
         x0=x0,
         width=width,

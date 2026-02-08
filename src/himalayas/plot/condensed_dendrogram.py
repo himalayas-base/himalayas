@@ -112,20 +112,20 @@ def _resolve_cluster_order(
 
     Returns:
         Tuple[list[int], Dict[Hashable, int]]: Ordered list of cluster ids and
-            mapping gene label -> cluster id.
+            mapping row label -> cluster id.
 
     Raises:
         ValueError: If no cluster ids could be mapped from master leaf order.
     """
     # Map master leaf order to cluster ids
     row_labels = results.matrix.labels
-    c2g = getattr(clusters, "cluster_to_labels", None) or {}
-    gene_to_cluster = {g: int(cid) for cid, genes in c2g.items() for g in genes}
+    cluster_to_rows = getattr(clusters, "cluster_to_labels", None) or {}
+    row_to_cluster = {row_id: int(cid) for cid, rows in cluster_to_rows.items() for row_id in rows}
     ordered_cluster_ids: list[int] = []
     seen: set[int] = set()
     # Scan master leaf order and collect cluster ids
     for i in leaves_list(Z_master):
-        cid = gene_to_cluster.get(row_labels[int(i)], None)
+        cid = row_to_cluster.get(row_labels[int(i)], None)
         if cid is None or cid in seen:
             continue
         ordered_cluster_ids.append(cid)
@@ -134,7 +134,7 @@ def _resolve_cluster_order(
     if not ordered_cluster_ids:
         raise ValueError("No cluster ids could be mapped from master leaf order")
 
-    return ordered_cluster_ids, gene_to_cluster
+    return ordered_cluster_ids, row_to_cluster
 
 
 def _prepare_cluster_labels(
@@ -229,7 +229,7 @@ def _prepare_cluster_labels(
 
 def _compute_condensed_dendrogram(
     Z_master: np.ndarray,
-    gene_to_cluster: Dict[Hashable, int],
+    row_to_cluster: Dict[Hashable, int],
     cluster_ids: Sequence[int],
     row_labels: Sequence[Hashable],
 ) -> DendrogramData:
@@ -238,21 +238,21 @@ def _compute_condensed_dendrogram(
 
     Args:
         Z_master (np.ndarray): Master linkage matrix.
-        gene_to_cluster (Dict[Hashable, int]): Mapping gene label -> cluster id.
+        row_to_cluster (Dict[Hashable, int]): Mapping row label -> cluster id.
         cluster_ids (Sequence[int]): Ordered list of cluster ids.
-        row_labels (Sequence[Hashable]): Gene labels corresponding to master linkage.
+        row_labels (Sequence[Hashable]): Row labels corresponding to master linkage.
 
     Returns:
         DendrogramData: Condensed dendrogram data.
     """
     # Build condensed linkage matrix
     n_master = Z_master.shape[0] + 1
-    gene_to_cluster_index = {
-        i: gene_to_cluster[row_labels[int(i)]]
+    row_index_to_cluster = {
+        i: row_to_cluster[row_labels[int(i)]]
         for i in range(n_master)
-        if row_labels[int(i)] in gene_to_cluster
+        if row_labels[int(i)] in row_to_cluster
     }
-    Zc = _condense_linkage_to_clusters(Z_master, gene_to_cluster_index, cluster_ids)
+    Zc = _condense_linkage_to_clusters(Z_master, row_index_to_cluster, cluster_ids)
     return dendrogram(Zc, orientation="left", no_labels=True, no_plot=True)
 
 
@@ -304,7 +304,7 @@ def _finalize_axes(*axes: plt.Axes) -> None:
 
 def _condense_linkage_to_clusters(
     Z_master: np.ndarray,
-    gene_to_cluster: Dict[int, int],
+    row_index_to_cluster: Dict[int, int],
     cluster_ids: Sequence[int],
 ) -> np.ndarray:
     """
@@ -314,7 +314,7 @@ def _condense_linkage_to_clusters(
 
     Args:
         Z_master (np.ndarray): Master linkage matrix (n-1, 4).
-        gene_to_cluster (Dict[int, int]): Mapping gene index -> cluster id.
+        row_index_to_cluster (Dict[int, int]): Mapping row index -> cluster id.
         cluster_ids (Sequence[int]): Ordered list of cluster ids to include.
 
     Returns:
@@ -328,7 +328,7 @@ def _condense_linkage_to_clusters(
     n_master = Z_master.shape[0] + 1
     leaf_groups: list[Optional[int]] = []
     for i in range(n_master):
-        cid = gene_to_cluster.get(i, None)
+        cid = row_index_to_cluster.get(i, None)
         if cid is None or cid not in cluster_index:
             leaf_groups.append(None)
             continue
@@ -415,9 +415,9 @@ def _get_cluster_size(
             return int(n0)
     if cluster_sizes is not None and cluster_id in cluster_sizes:
         return int(cluster_sizes[cluster_id])
-    genes = cluster_to_labels.get(cluster_id, None)
-    if genes is not None:
-        return int(len(genes))
+    cluster_members = cluster_to_labels.get(cluster_id, None)
+    if cluster_members is not None:
+        return int(len(cluster_members))
     return None
 
 
@@ -511,7 +511,7 @@ def plot_dendrogram_condensed(
     )
     # Get master linkage and clusters
     Z_master, clusters = _get_master_linkage(results)
-    cluster_ids, gene_to_cluster = _resolve_cluster_order(Z_master, results, clusters)
+    cluster_ids, row_to_cluster = _resolve_cluster_order(Z_master, results, clusters)
     label_overrides = label_overrides or {}
     labels, pvals, lab_map, cluster_sizes, y = _prepare_cluster_labels(
         cluster_ids,
@@ -526,7 +526,7 @@ def plot_dendrogram_condensed(
     )
     d = _compute_condensed_dendrogram(
         Z_master,
-        gene_to_cluster,
+        row_to_cluster,
         cluster_ids,
         results.matrix.labels,
     )
@@ -577,8 +577,8 @@ def plot_dendrogram_condensed(
         )
     # Render text labels
     ax_txt.set(xlim=(0, 1), ylim=(k * 10, 0))
-    # c2g is needed for _get_cluster_size
-    c2g = getattr(clusters, "cluster_to_labels", None) or {}
+    # Mapping cluster -> row ids is needed for _get_cluster_size.
+    cluster_to_rows = getattr(clusters, "cluster_to_labels", None) or {}
     # Format and place per-cluster label text
     for cid, yi, lab, p in zip(cluster_ids, y, labels, pvals):
         n = None
@@ -587,7 +587,7 @@ def plot_dendrogram_condensed(
                 int(cid),
                 label_map=lab_map,
                 cluster_sizes=cluster_sizes,
-                cluster_to_labels=c2g,
+                cluster_to_labels=cluster_to_rows,
             )
         pval_value = p if np.isfinite(p) else None
         has_label, stats = collect_label_stats(

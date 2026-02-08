@@ -206,9 +206,9 @@ def test_plot_cluster_labels_accepts_override_mapper(toy_results):
 
 
 @pytest.mark.api
-def test_plot_cluster_labels_summary_max_words_controls_generation(toy_results):
+def test_plot_cluster_labels_summary_max_words_controls_label_building(toy_results):
     """
-    Ensures summary_max_words controls compressed label generation.
+    Ensures summary_max_words controls compressed label building.
 
     Args:
         toy_results (Results): Results fixture with clusters and layout.

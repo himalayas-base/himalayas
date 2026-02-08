@@ -208,9 +208,9 @@ def test_dendrogram_condensed_unmapped_clusters_raises(toy_results):
 
 
 @pytest.mark.api
-def test_dendrogram_condensed_summary_max_words_controls_generation(toy_results):
+def test_dendrogram_condensed_summary_max_words_controls_label_building(toy_results):
     """
-    Ensures summary_max_words controls compressed label generation.
+    Ensures summary_max_words controls compressed label building.
 
     Args:
         toy_results (Results): Results fixture with clusters and layout.

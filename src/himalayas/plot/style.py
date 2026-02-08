@@ -44,8 +44,8 @@ class StyleDefaults(TypedDict):
     label_gutter_color: str
     ylabel_pad: float
     matrix_gutter_color: Optional[str]
-    gene_bar_width: float
-    gene_bar_missing_color: str
+    label_bar_width: float
+    label_bar_missing_color: str
     sigbar_width: float
     sigbar_cmap: Union[str, Colormap]
     sigbar_min_logp: float
@@ -99,11 +99,11 @@ DEFAULT_STYLE: StyleDefaults = {
     "ylabel_pad": 0.015,
     # Matrix panel background (used to mask edge artifacts if desired)
     "matrix_gutter_color": None,
-    # Gene-level annotation bar (row-level, label-panel track)
-    "gene_bar_width": 0.012,
-    "gene_bar_missing_color": "#eeeeee",
+    # Row-level annotation bar (label-panel track)
+    "label_bar_width": 0.012,
+    "label_bar_missing_color": "#eeeeee",
     # Bars rendered inside the label panel (to the left of text)
-    # (Label_bar_default_width, label_bar_default_gap removed)
+    # (label_bar_default_width, label_bar_default_gap removed)
     # Default settings for cluster p-value bars (e.g., sigbar)
     # NOTE: scaling is controlled by an explicit `norm` passed to plot_cluster_bar
     # `sigbar_min_logp` / `sigbar_max_logp` are defaults used only for the legend

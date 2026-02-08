@@ -423,7 +423,7 @@ class Clusters:
     @property
     def cluster_to_labels(self) -> Dict[int, Set[Any]]:
         """
-        Maps cluster ID to set of labels (e.g., genes).
+        Maps cluster ID to set of labels (e.g., matrix rows).
 
         Returns:
             Dict[int, Set[Any]]: Mapping from cluster ID to set of labels.

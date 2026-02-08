@@ -19,7 +19,7 @@ from .renderers import (
     render_cluster_bar_track,
     SigbarLegendRenderer,
 )
-from .renderers.gene_bar import render_gene_bar_track
+from .renderers.label_bar import render_label_bar_track
 from .style import StyleConfig
 from .track_layout import TrackLayoutManager
 from ..core.results import Results
@@ -385,7 +385,7 @@ class Plotter:
             vmax (float): Color scale maximum (continuous mode). Defaults to None.
             missing_color (str): Color for missing values. Defaults to None.
             left_pad (float): Left padding for the label bar track. Defaults to 0.0.
-            width (float): Track width. Defaults to style gene_bar_width.
+            width (float): Track width. Defaults to style label_bar_width.
             right_pad (float): Right padding for the label bar track. Defaults to 0.0.
 
         Returns:
@@ -403,7 +403,7 @@ class Plotter:
 
         # Always register as an explicit track in the label panel
         kwargs.pop("placement", None)
-        width = kwargs.pop("width", self._style.get("gene_bar_width", 0.015))
+        width = kwargs.pop("width", self._style.get("label_bar_width", 0.015))
         left_pad = kwargs.pop("left_pad", 0.0)
         right_pad = kwargs.pop("right_pad", 0.0)
         enabled = kwargs.get("enabled", True)
@@ -411,7 +411,7 @@ class Plotter:
             self._track_layout.register_track(
                 name=kwargs.get("name", "label_bar"),
                 kind="row",
-                renderer=render_gene_bar_track,
+                renderer=render_label_bar_track,
                 left_pad=left_pad,
                 width=width,
                 right_pad=right_pad if right_pad is not None else 0.0,
