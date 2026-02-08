@@ -9,7 +9,6 @@ from typing import Any, Dict, Optional, Sequence, Tuple, TYPE_CHECKING
 
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 from matplotlib.colors import Normalize
 
 if TYPE_CHECKING:
@@ -19,34 +18,28 @@ if TYPE_CHECKING:
 def _resolve_cluster_values(
     *,
     cluster_spans: Sequence[Tuple[int, int, int]],
-    payload: Dict[str, Any],
     label_map: Dict[int, Tuple[str, Optional[float]]],
 ) -> np.ndarray:
     """
-    Resolves raw values per cluster.
+    Resolves raw p-values per cluster from the internal cluster label map.
 
     Kwargs:
         cluster_spans (Sequence[Tuple[int, int, int]]): Iterable of (cluster_id, start, end).
-        payload (Dict[str, Any]): Track payload.
         label_map (Dict[int, Tuple[str, Optional[float]]]): Mapping cluster_id -> (label, pval).
 
     Returns:
         np.ndarray: Raw values per cluster (float, NaN allowed).
     """
-    source = payload.get("source", None)
-    value_map = payload.get("value_map", {})
-    # Extract values per cluster
+    # Extract p-values per cluster.
     values = np.full(len(cluster_spans), np.nan, dtype=float)
-    if source == "cluster_labels_pval":
-        for i, (cid, _s, _e) in enumerate(cluster_spans):
-            _label, pval = label_map.get(cid, (None, np.nan))
-            if pval is not None and not pd.isna(pval):
-                values[i] = float(pval)
-    else:
-        for i, (cid, _s, _e) in enumerate(cluster_spans):
-            v = value_map.get(cid, np.nan)
-            if v is not None and not pd.isna(v):
-                values[i] = float(v)
+    for i, (cid, _s, _e) in enumerate(cluster_spans):
+        _label, pval = label_map.get(cid, (None, np.nan))
+        try:
+            p = float(pval)
+        except (TypeError, ValueError):
+            continue
+        if np.isfinite(p):
+            values[i] = p
 
     return values
 
@@ -119,7 +112,6 @@ def render_cluster_bar_track(
     # Resolve raw values and scale
     raw_values = _resolve_cluster_values(
         cluster_spans=cluster_spans,
-        payload=payload,
         label_map=label_map,
     )
     scaled = _scale_cluster_values(

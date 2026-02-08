@@ -23,7 +23,11 @@ import pandas as pd
 from matplotlib.colors import Colormap, Normalize
 from scipy.cluster.hierarchy import dendrogram, leaves_list
 
-from .renderers._label_format import collect_label_stats
+from .renderers._label_format import (
+    apply_label_text_policy,
+    collect_label_stats,
+    compose_label_text,
+)
 
 if TYPE_CHECKING:
     from ..core.clustering import Clusters
@@ -206,7 +210,7 @@ def _prepare_cluster_labels(
         if cid in label_overrides:
             lab = str(label_overrides[cid])
         labels.append(
-            _format_cluster_label(
+            apply_label_text_policy(
                 lab,
                 omit_words=omit_words,
                 max_words=max_words,
@@ -380,63 +384,6 @@ def _condense_linkage_to_clusters(
         )
 
     return np.asarray(Zc_rows, dtype=float)
-
-
-def _format_cluster_label(
-    raw_label: str,
-    *,
-    omit_words: Optional[Sequence[str]] = None,
-    max_words: Optional[int] = None,
-    overflow: str = "wrap",
-    wrap_text: bool = True,
-    wrap_width: Optional[int] = None,
-) -> str:
-    """
-    Applies text policy to cluster label in the following order: omit words -> truncate -> wrap.
-
-    Args:
-        raw_label (str): Original cluster label.
-
-    Kwargs:
-        omit_words (Optional[Sequence[str]]): Words to omit (case-insensitive). Defaults to None.
-        max_words (Optional[int]): Maximum number of words to keep. Defaults to None.
-        overflow (str): Overflow handling when truncating ("wrap" or "ellipsis"). Defaults to "wrap".
-        wrap_text (bool): Whether to apply text wrapping. Defaults to True.
-        wrap_width (Optional[int]): Maximum characters per line when wrapping. Defaults to None.
-
-    Returns:
-        str: Formatted cluster label.
-    """
-    label = str(raw_label)
-    # Omit words
-    if omit_words:
-        omit = {w.lower() for w in omit_words}
-        words = [w for w in label.split() if w.lower() not in omit]
-        label = " ".join(words) if words else label
-    # Truncate to max words
-    if max_words is not None:
-        words = label.split()
-        if len(words) > max_words:
-            if overflow == "ellipsis" and max_words > 0:
-                label = " ".join(words[: max_words - 1]) + "…"
-            else:
-                label = " ".join(words[:max_words])
-    # Wrap text
-    if wrap_text and wrap_width is not None and wrap_width > 0:
-        wrapped_lines = []
-        line = ""
-        for word in label.split():
-            if len(line) + len(word) + (1 if line else 0) <= wrap_width:
-                line = f"{line} {word}".strip()
-            else:
-                if line:
-                    wrapped_lines.append(line)
-                line = word
-        if line:
-            wrapped_lines.append(line)
-        label = "\n".join(wrapped_lines)
-
-    return label
 
 
 def _get_cluster_size(
@@ -648,25 +595,13 @@ def plot_dendrogram_condensed(
             n_members=n,
             pval=pval_value,
         )
-        if has_label:
-            if stats:
-                stat_tail = "(" + ", ".join(stats) + ")"
-                if wrap_text and wrap_width is not None and wrap_width > 0:
-                    lines = lab.split("\n") if lab else [""]
-                    if len(lines[-1]) + 1 + len(stat_tail) <= wrap_width:
-                        lines[-1] = (lines[-1] + " " + stat_tail).strip()
-                        txt = "\n".join(lines)
-                    else:
-                        txt = (lab + "\n" + stat_tail) if lab else stat_tail
-                else:
-                    txt = f"{lab} {stat_tail}"
-            else:
-                txt = lab
-        else:
-            if stats:
-                txt = "(" + ", ".join(stats) + ")"
-            else:
-                txt = ""
+        txt = compose_label_text(
+            lab,
+            has_label=has_label,
+            stats=stats,
+            wrap_text=wrap_text,
+            wrap_width=wrap_width,
+        )
         ax_txt.text(
             0.0,
             yi,

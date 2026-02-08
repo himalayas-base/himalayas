@@ -5,7 +5,6 @@ himalayas/plot/renderers/cluster_labels
 
 from __future__ import annotations
 
-import textwrap
 from typing import (
     Any,
     Optional,
@@ -23,7 +22,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from ._label_format import collect_label_stats
+from ._label_format import apply_label_text_policy, collect_label_stats, compose_label_text
 
 if TYPE_CHECKING:
     from ..style import StyleConfig
@@ -550,42 +549,37 @@ def _format_cluster_label(
     else:
         effective_fields = label_fields
 
-    # Assemble label parts for requested fields
+    # Assemble stats for requested fields.
     pval_value = pval if pval is not None and not pd.isna(pval) else None
     has_label, stats = collect_label_stats(
         effective_fields,
         n_members=n_members,
         pval=pval_value,
     )
-    # Join parts into display text
-    if has_label:
-        if stats:
-            text = f"{label} ({', '.join(stats)})"
-        else:
-            text = label
-    else:
-        if stats:
-            text = f"({', '.join(stats)})"
-        else:
-            text = label
 
-    # Apply truncation and wrapping options
+    # Apply label-only text policy, then append stats in a stable format.
     max_words = kwargs.get("max_words", None)
+    omit_words = kwargs.get("omit_words", style.get("label_omit_words", None))
     wrap_text = kwargs.get("wrap_text", True)
     wrap_width = kwargs.get("wrap_width", style.get("label_wrap_width", None))
     overflow = kwargs.get("overflow", "wrap")
-    # Truncate text if needed
-    words = text.split()
-    if max_words is not None and len(words) > max_words:
-        if overflow == "ellipsis":
-            text = " ".join(words[:max_words]) + "\u2026"
-        else:
-            text = " ".join(words[:max_words])
-    # Wrap long labels to the configured width
-    if wrap_text and wrap_width is not None:
-        text = "\n".join(textwrap.wrap(text, width=wrap_width))
-
-    return text
+    label_text = apply_label_text_policy(
+        label,
+        omit_words=omit_words,
+        max_words=max_words,
+        overflow=overflow,
+        wrap_text=wrap_text,
+        wrap_width=wrap_width,
+    )
+    if not has_label and not stats:
+        return label_text
+    return compose_label_text(
+        label_text,
+        has_label=has_label,
+        stats=stats,
+        wrap_text=wrap_text,
+        wrap_width=wrap_width,
+    )
 
 
 class ClusterLabelsRenderer:
