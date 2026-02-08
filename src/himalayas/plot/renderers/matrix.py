@@ -122,6 +122,9 @@ def _draw_matrix(
     """
     if gutter_color is not None:
         ax.set_facecolor(gutter_color)
+    else:
+        # Inherit figure background to avoid edge halos on dark canvases.
+        ax.set_facecolor(ax.figure.get_facecolor())
     # Draw matrix heatmap and set axis limits
     extent = (-0.5, n_cols - 0.5, n_rows - 0.5, -0.5)
     ax.imshow(
