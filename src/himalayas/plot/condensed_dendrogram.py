@@ -48,7 +48,6 @@ def _validate_condensed_inputs(
     results: Results,
     label_fields: Sequence[str],
     label_overrides: Optional[Dict[int, Union[str, Dict[str, str]]]] = None,
-    sigbar_height: float = 0.8,
 ) -> None:
     """
     Validates inputs for condensed dendrogram plotting.
@@ -59,11 +58,10 @@ def _validate_condensed_inputs(
         label_overrides (Optional[Dict[int, Union[str, Dict[str, str]]]]): Mapping cluster_id
             -> custom label. Values may be a label string or dict with key "label".
             Defaults to None.
-        sigbar_height (float): Significance-bar height as a fraction of row pitch. Defaults to 0.8.
 
     Raises:
         AttributeError: If required attributes are missing from results.
-        ValueError: If no clusters are available, label_fields is invalid, or sigbar_height is out of range.
+        ValueError: If no clusters are available or label_fields is invalid.
         TypeError: If label_overrides is not a dict.
     """
     # Validation
@@ -93,8 +91,6 @@ def _validate_condensed_inputs(
             raise TypeError(
                 "label_overrides values must be strings or dicts containing only 'label'"
             )
-    if not np.isfinite(sigbar_height) or sigbar_height <= 0 or sigbar_height > 1:
-        raise ValueError("sigbar_height must be in the range (0, 1]")
     if not list(results.cluster_layout().cluster_spans):
         raise ValueError("No clusters found")
 
@@ -536,7 +532,7 @@ def plot_dendrogram_condensed(
         TypeError: If label_overrides is not a dict.
     """
     # Validation
-    _validate_condensed_inputs(results, label_fields, label_overrides, sigbar_height)
+    _validate_condensed_inputs(results, label_fields, label_overrides)
     cluster_labels = results.cluster_labels(
         term_col=term_col,
         cluster_col=cluster_col,
@@ -587,6 +583,8 @@ def plot_dendrogram_condensed(
     # Render significance bar
     cmap = plt.get_cmap(sigbar_cmap)
     ax_sig.set(xlim=(0, 1), ylim=(k * 10, 0))
+    if not np.isfinite(sigbar_height) or sigbar_height <= 0 or sigbar_height > 1:
+        raise ValueError("sigbar_height must be in the range (0, 1]")
     norm = sigbar_norm
     denom = sigbar_max_logp - sigbar_min_logp
     row_pitch = float(np.mean(np.diff(y))) if len(y) > 1 else 10.0
