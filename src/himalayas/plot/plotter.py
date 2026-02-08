@@ -231,17 +231,8 @@ class Plotter:
             Plotter: Self for chaining.
 
         Raises:
-            TypeError: If unsupported external-value kwargs are provided.
             NotImplementedError: If kind is not "pvalue".
         """
-        # Reject external-data args: bar values come from internal labels only.
-        forbidden = {"values", "cluster_col", "pval_col"}
-        passed = sorted(forbidden.intersection(kwargs))
-        if passed:
-            raise TypeError(
-                "plot_cluster_bar no longer accepts external value inputs "
-                f"({', '.join(passed)}). Values are derived from Results.cluster_labels()."
-            )
         kind = kwargs.get("kind", "pvalue")
         if kind != "pvalue":
             raise NotImplementedError("Only kind='pvalue' is implemented for cluster bar")
@@ -442,8 +433,8 @@ class Plotter:
 
         Kwargs:
             overrides (dict[int, Any]): Per-cluster label overrides keyed by cluster id.
-                Values may be a label string or a dict with keys
-                {"label", "pval", "hide_stats"}.
+                Values may be a label string or a dict containing only {"label"}.
+                Override labels do not change bar values.
             term_col (str): Term id column for label generation. Defaults to "term".
             cluster_col (str): Cluster id column for label generation. Defaults to "cluster".
             weight_col (str): Weight/p-value column for label generation. Defaults to "pval".

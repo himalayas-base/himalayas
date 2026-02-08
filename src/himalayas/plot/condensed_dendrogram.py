@@ -47,7 +47,8 @@ class DendrogramData(TypedDict):
 def _validate_condensed_inputs(
     results: Results,
     label_fields: Sequence[str],
-    label_overrides: Optional[Dict[int, str]] = None,
+    label_overrides: Optional[Dict[int, Union[str, Dict[str, str]]]] = None,
+    sigbar_height: float = 0.8,
 ) -> None:
     """
     Validates inputs for condensed dendrogram plotting.
@@ -55,11 +56,14 @@ def _validate_condensed_inputs(
     Args:
         results (Results): Enrichment results exposing cluster_layout() and clusters.
         label_fields (Sequence[str]): Fields to include in labels ("label", "n", "p").
-        label_overrides (Optional[Dict[int, str]]): Mapping cluster_id -> custom label. Defaults to None.
+        label_overrides (Optional[Dict[int, Union[str, Dict[str, str]]]]): Mapping cluster_id
+            -> custom label. Values may be a label string or dict with key "label".
+            Defaults to None.
+        sigbar_height (float): Significance-bar height as a fraction of row pitch. Defaults to 0.8.
 
     Raises:
         AttributeError: If required attributes are missing from results.
-        ValueError: If no clusters are available or label_fields is invalid.
+        ValueError: If no clusters are available, label_fields is invalid, or sigbar_height is out of range.
         TypeError: If label_overrides is not a dict.
     """
     # Validation
@@ -69,7 +73,28 @@ def _validate_condensed_inputs(
     if not set(label_fields).issubset(allowed):
         raise ValueError(f"label_fields must be a subset of {allowed}")
     if label_overrides is not None and not isinstance(label_overrides, dict):
-        raise TypeError("label_overrides must be a dict mapping cluster_id -> label string")
+        raise TypeError("label_overrides must be a dict mapping cluster_id -> label override")
+    if label_overrides is not None:
+        for cid, value in label_overrides.items():
+            _ = int(cid)
+            if isinstance(value, str):
+                continue
+            if isinstance(value, dict):
+                unknown = set(value.keys()) - {"label"}
+                if unknown:
+                    raise ValueError(
+                        "label_overrides dict values may only include key 'label'; "
+                        f"got {sorted(unknown)}"
+                    )
+                label = value.get("label", None)
+                if not isinstance(label, str) or not label:
+                    raise TypeError("label_overrides dict values must include non-empty 'label'")
+                continue
+            raise TypeError(
+                "label_overrides values must be strings or dicts containing only 'label'"
+            )
+    if not np.isfinite(sigbar_height) or sigbar_height <= 0 or sigbar_height > 1:
+        raise ValueError("sigbar_height must be in the range (0, 1]")
     if not list(results.cluster_layout().cluster_spans):
         raise ValueError("No clusters found")
 
@@ -142,7 +167,7 @@ def _prepare_cluster_labels(
     cluster_labels: pd.DataFrame,
     clusters: Clusters,
     *,
-    label_overrides: Optional[Dict[int, str]] = None,
+    label_overrides: Optional[Dict[int, Union[str, Dict[str, str]]]] = None,
     omit_words: Optional[Sequence[str]] = None,
     max_words: Optional[int] = None,
     wrap_text: bool = True,
@@ -164,7 +189,9 @@ def _prepare_cluster_labels(
         clusters (Clusters): Clusters instance.
 
     Kwargs:
-        label_overrides (Optional[Dict[int, str]]): Mapping cluster_id -> custom label. Defaults to None.
+        label_overrides (Optional[Dict[int, Union[str, Dict[str, str]]]]): Mapping cluster_id
+            -> custom label. Values may be a label string or dict with key "label".
+            Defaults to None.
         omit_words (Optional[Sequence[str]]): Words to omit from cluster labels. Defaults to None.
         max_words (Optional[int]): Maximum words in cluster labels. Defaults to None.
         wrap_text (bool): Whether to wrap cluster labels. Defaults to True.
@@ -208,7 +235,11 @@ def _prepare_cluster_labels(
         # Apply overrides and formatting, then collect
         lab, p, _ = lab_map[cid]
         if cid in label_overrides:
-            lab = str(label_overrides[cid])
+            override_value = label_overrides[cid]
+            if isinstance(override_value, dict):
+                lab = override_value["label"]
+            else:
+                lab = override_value
         labels.append(
             apply_label_text_policy(
                 lab,
@@ -436,7 +467,8 @@ def plot_dendrogram_condensed(
     sigbar_max_logp: float = 10.0,
     sigbar_norm: Optional[Normalize] = None,
     sigbar_width: float = 0.06,
-    sigbar_alpha: float = 0.9,
+    sigbar_height: float = 0.8,
+    sigbar_alpha: float = 1.0,
     font: str = "Helvetica",
     fontsize: float = 9,
     max_words: Optional[int] = None,
@@ -445,7 +477,7 @@ def plot_dendrogram_condensed(
     overflow: str = "wrap",
     omit_words: Optional[Sequence[str]] = None,
     label_fields: Sequence[str] = ("label", "n", "p"),
-    label_overrides: Optional[Dict[int, str]] = None,
+    label_overrides: Optional[Dict[int, Union[str, Dict[str, str]]]] = None,
     label_color: str = "black",
     label_alpha: float = 1.0,
     label_fontweight: str = "normal",
@@ -475,7 +507,9 @@ def plot_dendrogram_condensed(
         sigbar_max_logp (float): Maximum -log10(p) for significance bar scaling. Defaults to 10.0.
         sigbar_norm (Optional[Normalize]): Optional normalization for significance bar. Defaults to None.
         sigbar_width (float): Width of significance bar (axes fraction). Defaults to 0.06.
-        sigbar_alpha (float): Alpha for significance bar. Defaults to 0.9.
+        sigbar_height (float): Height of each significance bar as a fraction of row pitch.
+            Defaults to 0.8.
+        sigbar_alpha (float): Alpha for significance bar. Defaults to 1.0.
         font (str): Font family for labels. Defaults to "Helvetica".
         fontsize (float): Font size for labels. Defaults to 9.
         max_words (Optional[int]): Maximum words in cluster labels. Defaults to None.
@@ -485,7 +519,9 @@ def plot_dendrogram_condensed(
         omit_words (Optional[Sequence[str]]): Words to omit from cluster labels. Defaults to None.
         label_fields (Sequence[str]): Fields to include in labels ("label", "n", "p").
             Defaults to ("label", "n", "p").
-        label_overrides (Optional[Dict[int, str]]): Mapping cluster_id -> custom label. Defaults to None.
+        label_overrides (Optional[Dict[int, Union[str, Dict[str, str]]]]): Mapping cluster_id
+            -> custom label. Values may be a label string or dict with key "label".
+            Defaults to None.
         label_color (str): Color for cluster labels. Defaults to "black".
         label_alpha (float): Alpha for cluster labels. Defaults to 1.0.
         label_fontweight (str): Font weight for cluster labels. Defaults to "normal".
@@ -500,7 +536,7 @@ def plot_dendrogram_condensed(
         TypeError: If label_overrides is not a dict.
     """
     # Validation
-    _validate_condensed_inputs(results, label_fields, label_overrides)
+    _validate_condensed_inputs(results, label_fields, label_overrides, sigbar_height)
     cluster_labels = results.cluster_labels(
         term_col=term_col,
         cluster_col=cluster_col,
@@ -553,6 +589,8 @@ def plot_dendrogram_condensed(
     ax_sig.set(xlim=(0, 1), ylim=(k * 10, 0))
     norm = sigbar_norm
     denom = sigbar_max_logp - sigbar_min_logp
+    row_pitch = float(np.mean(np.diff(y))) if len(y) > 1 else 10.0
+    bar_height = row_pitch * float(sigbar_height)
     for i, p in enumerate(pvals):
         if not np.isfinite(p) or p <= 0:
             val = 0.0
@@ -567,9 +605,9 @@ def plot_dendrogram_condensed(
                     val = float(norm([lp])[0])
         ax_sig.add_patch(
             plt.Rectangle(
-                (0, y[i] - 4),
+                (0, y[i] - (bar_height / 2.0)),
                 1,
-                8.0,
+                bar_height,
                 facecolor=cmap(val),
                 edgecolor="none",
                 alpha=sigbar_alpha,

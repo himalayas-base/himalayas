@@ -31,26 +31,6 @@ if TYPE_CHECKING:
     from ...core.matrix import Matrix
 
 
-class OverrideInput(TypedDict, total=False):
-    """
-    Type class for input per-cluster label override specifications.
-    """
-
-    label: str
-    hide_stats: bool
-    pval: Optional[float]
-
-
-class OverrideSpec(TypedDict, total=False):
-    """
-    Type class for normalized per-cluster label override specifications.
-    """
-
-    label: str
-    hide_stats: bool
-    pval: Optional[float]
-
-
 class TrackSpec(TypedDict, total=False):
     """
     Type class for resolved label track specifications.
@@ -83,7 +63,6 @@ def _resolve_labels_and_layout(
     List[Tuple[int, int, int]],
     Dict[int, int],
     Dict[int, Tuple[str, Optional[float]]],
-    Dict[int, OverrideSpec],
     float,
     float,
     str,
@@ -111,7 +90,6 @@ def _resolve_labels_and_layout(
             - List[Tuple[int, int, int]]: Iterable of (cluster_id, start, end).
             - Dict[int, int]: Mapping cluster_id -> size.
             - Dict[int, Tuple[str, Optional[float]]]: Mapping cluster_id -> (label, pval).
-            - Dict[int, OverrideSpec]: Mapping cluster_id -> override dict.
             - float: Minimum x-position for separator lines.
             - float: Maximum x-position for separator lines.
             - str: Font name for label text.
@@ -169,7 +147,6 @@ def _resolve_labels_and_layout(
         spans,
         cluster_sizes,
         label_map,
-        override_map,
         sep_xmin,
         sep_xmax,
         font,
@@ -270,7 +247,6 @@ def _render_cluster_text_and_separators(
     spans: Sequence[Tuple[int, int, int]],
     cluster_sizes: Dict[int, int],
     label_map: Dict[int, Tuple[str, Optional[float]]],
-    override_map: Dict[int, OverrideSpec],
     label_text_x: float,
     sep_xmin: float,
     sep_xmax: float,
@@ -291,7 +267,6 @@ def _render_cluster_text_and_separators(
         spans (Sequence[Tuple[int, int, int]]): Iterable of (cluster_id, start, end).
         cluster_sizes (Dict[int, int]): Mapping cluster_id -> size.
         label_map (Dict[int, Tuple[str, Optional[float]]]): Mapping cluster_id -> (label, pval).
-        override_map (Dict[int, OverrideSpec]): Mapping cluster_id -> override dict.
         label_text_x (float): X-position for label text.
         sep_xmin (float): Minimum x-position for separator lines.
         sep_xmax (float): Maximum x-position for separator lines.
@@ -325,7 +300,6 @@ def _render_cluster_text_and_separators(
                 label,
                 pval,
                 n_members,
-                override_map.get(cid),
                 label_fields=label_fields,
                 kwargs=kwargs,
                 style=style,
@@ -363,22 +337,21 @@ def _render_cluster_text_and_separators(
 
 
 def _parse_label_overrides(
-    overrides: Optional[Dict[int, Union[str, OverrideInput]]] = None,
-) -> Dict[int, OverrideSpec]:
+    overrides: Optional[Dict[int, Union[str, Dict[str, str]]]] = None,
+) -> Dict[int, str]:
     """
-    Normalizes and validates per-cluster label overrides. Accepts string or dict overrides and
-    enforces allowed keys and precedence rules.
+    Normalizes and validates per-cluster label overrides.
 
     Args:
-        overrides (Dict[int, Union[str, OverrideInput]] | None): Mapping cluster_id -> label
+        overrides (Dict[int, Union[str, Dict[str, str]]] | None): Mapping cluster_id -> label
             string or override dict. Defaults to None.
 
     Returns:
-        Dict[int, OverrideSpec]: Normalized override map keyed by cluster id.
+        Dict[int, str]: Normalized override map keyed by cluster id.
 
     Raises:
         TypeError: If overrides or entries have invalid types.
-        ValueError: If unknown keys are provided.
+        ValueError: If dict overrides include keys other than "label".
     """
     if overrides is None:
         return {}
@@ -387,30 +360,22 @@ def _parse_label_overrides(
         raise TypeError("overrides must be a dict mapping cluster_id -> label or dict")
 
     # Normalize string and dict overrides into a single map
-    override_map: Dict[int, OverrideSpec] = {}
+    override_map: Dict[int, str] = {}
     for key, value in overrides.items():
         cid = int(key)
         if isinstance(value, str):
-            override_map[cid] = {"label": value}
+            override_map[cid] = value
             continue
         if isinstance(value, dict):
-            # Validate allowed keys and required label
-            allowed = {"label", "pval", "hide_stats"}
-            unknown = set(value.keys()) - allowed
+            unknown = set(value.keys()) - {"label"}
             if unknown:
                 raise ValueError(
-                    "overrides may only include keys " f"{sorted(allowed)}; got {sorted(unknown)}"
+                    "override dict may only include key 'label'; " f"got {sorted(unknown)}"
                 )
             label = value.get("label", None)
             if not isinstance(label, str) or not label:
                 raise TypeError("override dict must include non-empty 'label' string")
-            hide_stats = value.get("hide_stats", False)
-            if not isinstance(hide_stats, bool):
-                raise TypeError("override 'hide_stats' must be a boolean")
-            entry = {"label": label, "hide_stats": hide_stats}
-            if "pval" in value and value["pval"] is not None:
-                entry["pval"] = value["pval"]
-            override_map[cid] = entry
+            override_map[cid] = label
             continue
         raise TypeError("override values must be str or dict")
 
@@ -419,7 +384,7 @@ def _parse_label_overrides(
 
 def _build_label_map(
     df: pd.DataFrame,
-    override_map: Dict[int, OverrideSpec],
+    override_map: Dict[int, str],
 ) -> Dict[int, Tuple[str, Optional[float]]]:
     """
     Resolves final label and p-value per cluster. Combines base labels from the DataFrame
@@ -427,7 +392,7 @@ def _build_label_map(
 
     Args:
         df (pd.DataFrame): Cluster label table with 'cluster', 'label', and optional 'pval'.
-        override_map (Dict[int, OverrideSpec]): Normalized overrides keyed by cluster id.
+        override_map (Dict[int, str]): Normalized overrides keyed by cluster id.
 
     Returns:
         Dict[int, Tuple[str, Optional[float]]]: Mapping cluster id to (label, pval).
@@ -435,19 +400,17 @@ def _build_label_map(
     Raises:
         ValueError: If overrides reference unknown cluster ids.
     """
-    # Build base label map, then apply overrides
+    # Build base label map; overrides are label-only and must not alter p-values.
     label_map: Dict[int, Tuple[str, Optional[float]]] = {}
     for _, row in df.iterrows():
         cid = int(row["cluster"])
         base_label = str(row["label"])
+        base_pval = row.get("pval", None)
         if cid in override_map:
-            override = override_map[cid]
-            label = override["label"]
-            pval = override.get("pval", None)
+            label = override_map[cid]
         else:
             label = base_label
-            pval = row.get("pval", None)
-        label_map[cid] = (label, pval)
+        label_map[cid] = (label, base_pval)
     # Reject overrides that do not match any cluster id
     if override_map:
         unknown = set(override_map) - set(label_map)
@@ -519,21 +482,18 @@ def _format_cluster_label(
     label: str,
     pval: Optional[float] = None,
     n_members: Optional[int] = None,
-    override: Optional[OverrideSpec] = None,
     *,
     label_fields: Tuple[str, ...],
     kwargs: Dict[str, Any],
     style: StyleConfig,
 ) -> str:
     """
-    Formats the cluster label text for display. Applies overrides, selects fields, formats
-    stats, and performs truncation/wrapping.
+    Formats the cluster label text for display.
 
     Args:
         label (str): Base or overridden label.
         pval (float | None): P-value to display, if any. Defaults to None.
         n_members (int | None): Cluster size. Defaults to None.
-        override (OverrideSpec | None): Override entry for the cluster. Defaults to None.
 
     Kwargs:
         label_fields (Tuple[str, ...]): Fields to display.
@@ -543,16 +503,10 @@ def _format_cluster_label(
     Returns:
         str: Final formatted label text.
     """
-    # Resolve fields based on overrides
-    if override and override.get("hide_stats", False):
-        effective_fields = ("label",)
-    else:
-        effective_fields = label_fields
-
     # Assemble stats for requested fields.
     pval_value = pval if pval is not None and not pd.isna(pval) else None
     has_label, stats = collect_label_stats(
-        effective_fields,
+        label_fields,
         n_members=n_members,
         pval=pval_value,
     )
@@ -631,7 +585,6 @@ class ClusterLabelsRenderer:
             spans,
             cluster_sizes,
             label_map,
-            override_map,
             sep_xmin,
             sep_xmax,
             font,
@@ -664,7 +617,6 @@ class ClusterLabelsRenderer:
             spans=spans,
             cluster_sizes=cluster_sizes,
             label_map=label_map,
-            override_map=override_map,
             label_text_x=label_text_x,
             sep_xmin=sep_xmin,
             sep_xmax=sep_xmax,
