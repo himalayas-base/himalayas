@@ -501,11 +501,21 @@ class Plotter:
         Raises:
             RuntimeError: If no plot layers are declared.
             ValueError: If layout orders do not match matrix dimensions.
+            ValueError: If cluster-level tracks are declared without plot_cluster_labels().
             NotImplementedError: If a declared layer type is not supported.
         """
         # Validation
         if not self._layers:
             raise RuntimeError("No plot layers declared.")
+        has_cluster_label_layer = any(layer == "cluster_labels" for layer, _ in self._layers)
+        has_cluster_track = any(
+            track.get("enabled", True) and track.get("kind") == "cluster"
+            for track in self._track_layout.tracks
+        )
+        if has_cluster_track and not has_cluster_label_layer:
+            raise ValueError(
+                "plot_cluster_bar() requires plot_cluster_labels() in the same plotting chain."
+            )
         # Consume authoritative geometry from Results
         layout = self.results.cluster_layout()
         # NOTE:

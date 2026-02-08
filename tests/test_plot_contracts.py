@@ -94,6 +94,27 @@ def test_plot_cluster_bar_rejects_external_values_input(toy_results, legacy_kwar
 
 
 @pytest.mark.api
+def test_plot_cluster_bar_requires_cluster_labels_layer(toy_results):
+    """
+    Ensures cluster bars require the cluster label layer in the same plot chain.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+
+    Raises:
+        ValueError: If plot_cluster_bar is used without plot_cluster_labels.
+    """
+    plt = _use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        with pytest.raises(ValueError, match="plot_cluster_labels"):
+            Plotter(toy_results).plot_matrix().plot_cluster_bar(name="sig").show()
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
 def test_plot_cluster_bar_uses_internal_cluster_labels(toy_results):
     """
     Ensures plot_cluster_bar renders from internally generated cluster labels.
