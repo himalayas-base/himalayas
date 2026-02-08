@@ -424,7 +424,7 @@ class Plotter:
     def plot_cluster_labels(
         self,
         *,
-        overrides: Optional[dict[int, Any]] = None,
+        overrides: Optional[dict[int, str]] = None,
         **kwargs,
     ) -> Plotter:
         """
@@ -432,8 +432,7 @@ class Plotter:
         Labels are generated from attached Results by default.
 
         Kwargs:
-            overrides (dict[int, Any]): Per-cluster label overrides keyed by cluster id.
-                Values may be a label string or a dict containing only {"label"}.
+            overrides (dict[int, str]): Per-cluster label overrides keyed by cluster id.
                 Override labels do not change bar values.
             term_col (str): Term id column for label generation. Defaults to "term".
             cluster_col (str): Cluster id column for label generation. Defaults to "cluster".

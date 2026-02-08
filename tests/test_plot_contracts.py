@@ -309,7 +309,7 @@ def test_plot_cluster_label_override_keeps_deterministic_stats(toy_results):
     df = toy_results.cluster_labels()
     cid = int(df.loc[0, "cluster"])
     base_pval = float(df.loc[df["cluster"] == cid, "pval"].iloc[0])
-    override_map = _parse_label_overrides({cid: {"label": f"Custom-{cid}"}})
+    override_map = _parse_label_overrides({cid: f"Custom-{cid}"})
 
     label_map = _build_label_map(df, override_map)
 

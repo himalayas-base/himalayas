@@ -14,7 +14,6 @@ from typing import (
     Tuple,
     TYPE_CHECKING,
     TypedDict,
-    Union,
 )
 
 import matplotlib.pyplot as plt
@@ -48,7 +47,6 @@ class DendrogramData(TypedDict):
 def _validate_condensed_inputs(
     results: Results,
     label_fields: Sequence[str],
-    label_overrides: Optional[Dict[int, Union[str, Dict[str, str]]]] = None,
 ) -> None:
     """
     Validates inputs for condensed dendrogram plotting.
@@ -56,23 +54,15 @@ def _validate_condensed_inputs(
     Args:
         results (Results): Enrichment results exposing cluster_layout() and clusters.
         label_fields (Sequence[str]): Fields to include in labels ("label", "n", "p").
-        label_overrides (Optional[Dict[int, Union[str, Dict[str, str]]]]): Mapping cluster_id
-            -> custom label. Values may be a label string or dict with key "label".
-            Defaults to None.
 
     Raises:
         AttributeError: If required attributes are missing from results.
         ValueError: If no clusters are available or label_fields is invalid.
-        TypeError: If label_overrides is not a dict.
     """
     # Validation
-    if not hasattr(results, "cluster_layout"):
-        raise AttributeError("results must expose cluster_layout()")
     allowed = {"label", "n", "p"}
     if not set(label_fields).issubset(allowed):
         raise ValueError(f"label_fields must be a subset of {allowed}")
-    if label_overrides is not None and not isinstance(label_overrides, dict):
-        raise TypeError("label_overrides must be a dict mapping cluster_id -> label override")
     if not list(results.cluster_layout().cluster_spans):
         raise ValueError("No clusters found")
 
@@ -90,14 +80,13 @@ def _get_master_linkage(results: Results) -> Tuple[np.ndarray, Clusters]:
     Raises:
         AttributeError: If required attributes are missing from results.
     """
-    clusters = getattr(results, "clusters", None)
-    Z_master = getattr(clusters, "linkage_matrix", None) if clusters is not None else None
-    if Z_master is None or clusters is None:
+    clusters = results.clusters
+    if clusters is None or clusters.linkage_matrix is None:
         raise AttributeError(
             "results.clusters.linkage_matrix is required to preserve the master dendrogram "
             "order/heights"
         )
-    return Z_master, clusters
+    return clusters.linkage_matrix, clusters
 
 
 def _resolve_cluster_order(
@@ -122,7 +111,7 @@ def _resolve_cluster_order(
     """
     # Map master leaf order to cluster ids
     row_labels = results.matrix.labels
-    cluster_to_rows = getattr(clusters, "cluster_to_labels", None) or {}
+    cluster_to_rows = clusters.cluster_to_labels
     row_to_cluster = {row_id: int(cid) for cid, rows in cluster_to_rows.items() for row_id in rows}
     ordered_cluster_ids: list[int] = []
     seen: set[int] = set()
@@ -450,7 +439,7 @@ def plot_dendrogram_condensed(
     overflow: str = "wrap",
     omit_words: Optional[Sequence[str]] = None,
     label_fields: Sequence[str] = ("label", "n", "p"),
-    label_overrides: Optional[Dict[int, Union[str, Dict[str, str]]]] = None,
+    label_overrides: Optional[Dict[int, str]] = None,
     label_color: str = "black",
     label_alpha: float = 1.0,
     label_fontweight: str = "normal",
@@ -492,8 +481,7 @@ def plot_dendrogram_condensed(
         omit_words (Optional[Sequence[str]]): Words to omit from cluster labels. Defaults to None.
         label_fields (Sequence[str]): Fields to include in labels ("label", "n", "p").
             Defaults to ("label", "n", "p").
-        label_overrides (Optional[Dict[int, Union[str, Dict[str, str]]]]): Mapping cluster_id
-            -> custom label. Values may be a label string or dict with key "label".
+        label_overrides (Optional[Dict[int, str]]): Mapping cluster_id -> custom label.
             Defaults to None.
         label_color (str): Color for cluster labels. Defaults to "black".
         label_alpha (float): Alpha for cluster labels. Defaults to 1.0.
@@ -509,7 +497,7 @@ def plot_dendrogram_condensed(
         TypeError: If label_overrides is not a dict.
     """
     # Validation
-    _validate_condensed_inputs(results, label_fields, label_overrides)
+    _validate_condensed_inputs(results, label_fields)
     override_map = _parse_label_overrides(label_overrides)
     cluster_labels = results.cluster_labels(
         term_col=term_col,

@@ -12,7 +12,6 @@ from typing import (
     Tuple,
     List,
     Sequence,
-    Union,
     TypedDict,
     Callable,
     TYPE_CHECKING,
@@ -337,47 +336,34 @@ def _render_cluster_text_and_separators(
 
 
 def _parse_label_overrides(
-    overrides: Optional[Dict[int, Union[str, Dict[str, str]]]] = None,
+    overrides: Optional[Dict[int, str]] = None,
 ) -> Dict[int, str]:
     """
     Normalizes and validates per-cluster label overrides.
 
     Args:
-        overrides (Dict[int, Union[str, Dict[str, str]]] | None): Mapping cluster_id -> label
-            string or override dict. Defaults to None.
+        overrides (Dict[int, str] | None): Mapping cluster_id -> label string.
+            Defaults to None.
 
     Returns:
         Dict[int, str]: Normalized override map keyed by cluster id.
 
     Raises:
         TypeError: If overrides or entries have invalid types.
-        ValueError: If dict overrides include keys other than "label".
     """
     if overrides is None:
         return {}
     # Validation
     if not isinstance(overrides, dict):
-        raise TypeError("overrides must be a dict mapping cluster_id -> label or dict")
+        raise TypeError("overrides must be a dict mapping cluster_id -> label string")
 
-    # Normalize string and dict overrides into a single map
+    # Normalize cluster ids and validate label strings
     override_map: Dict[int, str] = {}
     for key, value in overrides.items():
         cid = int(key)
-        if isinstance(value, str):
-            override_map[cid] = value
-            continue
-        if isinstance(value, dict):
-            unknown = set(value.keys()) - {"label"}
-            if unknown:
-                raise ValueError(
-                    "override dict may only include key 'label'; " f"got {sorted(unknown)}"
-                )
-            label = value.get("label", None)
-            if not isinstance(label, str) or not label:
-                raise TypeError("override dict must include non-empty 'label' string")
-            override_map[cid] = label
-            continue
-        raise TypeError("override values must be str or dict")
+        if not isinstance(value, str) or not value:
+            raise TypeError("override values must be non-empty strings")
+        override_map[cid] = value
 
     return override_map
 
