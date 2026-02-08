@@ -70,18 +70,50 @@ def test_plotter_requires_layout(toy_matrix):
 
 
 @pytest.mark.api
-def test_plot_cluster_bar_rejects_invalid_values(toy_results):
+@pytest.mark.parametrize(
+    "legacy_kwargs",
+    [
+        {"values": [1, 2, 3]},
+        {"pval_col": "pval"},
+        {"cluster_col": "cluster"},
+    ],
+)
+def test_plot_cluster_bar_rejects_external_values_input(toy_results, legacy_kwargs):
     """
-    Ensures plot_cluster_bar enforces supported input types.
+    Ensures plot_cluster_bar rejects legacy external value input.
 
     Args:
         toy_results (Results): Results fixture with clusters and layout.
+        legacy_kwargs (dict[str, object]): Legacy kwargs that are no longer accepted.
 
     Raises:
-        TypeError: If values are not a supported type.
+        TypeError: If external values are passed.
     """
     with pytest.raises(TypeError):
-        Plotter(toy_results).plot_cluster_bar(name="sig", values=[1, 2, 3])
+        Plotter(toy_results).plot_cluster_bar(name="sig", **legacy_kwargs)
+
+
+@pytest.mark.api
+def test_plot_cluster_bar_uses_internal_cluster_labels(toy_results):
+    """
+    Ensures plot_cluster_bar renders from internally generated cluster labels.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = _use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        (
+            Plotter(toy_results)
+            .plot_matrix()
+            .plot_cluster_labels()
+            .plot_cluster_bar(name="sig")
+            .show()
+        )
+    finally:
+        plt.show = plt_show
 
 
 @pytest.mark.api
@@ -172,6 +204,71 @@ def test_plot_cluster_labels_accepts_override_mapper(toy_results):
         fig = plotter._fig
         texts = [t.get_text() for ax in fig.axes for t in ax.texts]
         assert any(custom_label in t for t in texts)
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+def test_plot_cluster_labels_summary_max_words_controls_generation(toy_results):
+    """
+    Ensures summary_max_words controls compressed label generation.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = _use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        plotter = (
+            Plotter(toy_results)
+            .plot_matrix()
+            .plot_cluster_labels(
+                label_mode="compressed",
+                summary_max_words=1,
+                label_fields=("label",),
+                wrap_text=False,
+            )
+        )
+        plotter.show()
+        fig = plotter._fig
+        texts = [t.get_text().strip() for ax in fig.axes for t in ax.texts]
+        cluster_texts = [t for t in texts if t and t != "—"]
+        assert cluster_texts, "Expected generated cluster labels to be rendered."
+        for txt in cluster_texts:
+            assert len(txt.replace("\n", " ").split()) <= 1
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+def test_plot_cluster_labels_max_words_controls_display(toy_results):
+    """
+    Ensures max_words truncates rendered override labels without affecting generation settings.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = _use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        cid = int(toy_results.cluster_layout().cluster_spans[0][0])
+        plotter = (
+            Plotter(toy_results)
+            .plot_matrix()
+            .plot_cluster_labels(
+                overrides={cid: "Alpha Beta Gamma"},
+                label_fields=("label",),
+                max_words=1,
+                wrap_text=False,
+            )
+        )
+        plotter.show()
+        fig = plotter._fig
+        texts = [t.get_text() for ax in fig.axes for t in ax.texts]
+        assert any(t.strip() == "Alpha" for t in texts)
+        assert not any("Alpha Beta" in t for t in texts)
     finally:
         plt.show = plt_show
 

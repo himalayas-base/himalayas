@@ -205,3 +205,62 @@ def test_dendrogram_condensed_unmapped_clusters_raises(toy_results):
     )
     with pytest.raises(ValueError):
         plot_dendrogram_condensed(results)
+
+
+@pytest.mark.api
+def test_dendrogram_condensed_summary_max_words_controls_generation(toy_results):
+    """
+    Ensures summary_max_words controls compressed label generation.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    matplotlib = pytest.importorskip("matplotlib")
+    matplotlib.use("Agg", force=True)
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        plot_dendrogram_condensed(
+            toy_results,
+            label_mode="compressed",
+            summary_max_words=1,
+            label_fields=("label",),
+            wrap_text=False,
+        )
+        fig = plt.gcf()
+        texts = [t.get_text().strip() for ax in fig.axes for t in ax.texts]
+        cluster_texts = [t for t in texts if t and t != "—"]
+        assert cluster_texts, "Expected generated cluster labels to be rendered."
+        for txt in cluster_texts:
+            assert len(txt.replace("\n", " ").split()) <= 1
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+def test_dendrogram_condensed_max_words_controls_display(toy_results):
+    """
+    Ensures max_words truncates rendered override labels.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    matplotlib = pytest.importorskip("matplotlib")
+    matplotlib.use("Agg", force=True)
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        cid = int(toy_results.cluster_layout().cluster_spans[0][0])
+        plot_dendrogram_condensed(
+            toy_results,
+            label_overrides={cid: "Alpha Beta Gamma"},
+            label_fields=("label",),
+            max_words=1,
+            wrap_text=False,
+        )
+        fig = plt.gcf()
+        texts = [t.get_text() for ax in fig.axes for t in ax.texts]
+        assert any(t.strip() == "Alpha" for t in texts)
+        assert not any("Alpha Beta" in t for t in texts)
+    finally:
+        plt.show = plt_show
