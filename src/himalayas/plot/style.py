@@ -51,7 +51,6 @@ class StyleDefaults(TypedDict):
     sigbar_min_logp: float
     sigbar_max_logp: float
     sigbar_alpha: float
-    show_sigbar: bool
     label_bar_pad: float
     boundary_color: str
     boundary_lw: float
@@ -112,7 +111,6 @@ DEFAULT_STYLE: StyleDefaults = {
     "sigbar_min_logp": 2.0,
     "sigbar_max_logp": 10.0,
     "sigbar_alpha": 0.9,
-    "show_sigbar": True,
     # (Sigbar_gap removed)
     # Label panel bar/text spacing
     "label_bar_pad": 0.01,

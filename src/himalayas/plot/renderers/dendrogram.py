@@ -209,7 +209,6 @@ class DendrogramRenderer:
         color: Optional[str] = None,
         linewidth: Optional[float] = None,
         data_pad: float = 0.25,
-        **kwargs: Any,
     ) -> None:
         """
         Initializes the DendrogramRenderer instance.
@@ -219,13 +218,11 @@ class DendrogramRenderer:
             color (Optional[str]): Dendrogram line color. Defaults to None.
             linewidth (Optional[float]): Dendrogram line width. Defaults to None.
             data_pad (float): Padding around data in the y-direction. Defaults to 0.25.
-            **kwargs: Additional keyword arguments. Defaults to {}.
         """
         self.axes = axes
         self.color = color
         self.linewidth = linewidth
         self.data_pad = data_pad
-        self._extra = dict(kwargs)
 
     def render(
         self,

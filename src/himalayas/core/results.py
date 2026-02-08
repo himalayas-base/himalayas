@@ -289,12 +289,9 @@ class Results:
             parent=self,
         )
 
-    def cluster_layout(self, *, strict: bool = True) -> ClusterLayout:
+    def cluster_layout(self) -> ClusterLayout:
         """
         Returns the authoritative clustering layout for downstream plotting.
-
-        Kwargs:
-            strict (bool): If True, requires contiguous clusters. Defaults to True.
 
         Returns:
             ClusterLayout: Attached cluster layout object.
@@ -302,23 +299,18 @@ class Results:
         Raises:
             ValueError: If no ClusterLayout is attached.
         """
-        # NOTE: strict is reserved for future validation; keep API stable.
-        _ = strict
         if self._layout is None:
             raise ValueError("Results has no attached ClusterLayout")
         return self._layout
 
-    def cluster_spans(self, *, strict: bool = True) -> List[Tuple[int, int, int]]:
+    def cluster_spans(self) -> List[Tuple[int, int, int]]:
         """
         Returns cluster spans in dendrogram order.
-
-        Kwargs:
-            strict (bool): If True, requires contiguous clusters. Defaults to True.
 
         Returns:
             List[Tuple[int, int, int]]: List of (cluster_id, start, end) spans.
         """
-        return self.cluster_layout(strict=strict).cluster_spans
+        return self.cluster_layout().cluster_spans
 
     def cluster_labels(
         self,

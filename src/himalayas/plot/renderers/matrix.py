@@ -174,7 +174,6 @@ class MatrixRenderer:
         gutter_color: Optional[str] = None,
         figsize: Optional[tuple[float, float]] = None,
         subplots_adjust: Optional[Dict[str, float]] = None,
-        **kwargs: Any,
     ) -> None:
         """
         Initializes the MatrixRenderer instance.
@@ -193,7 +192,6 @@ class MatrixRenderer:
             gutter_color (Optional[str]): Background gutter color. Defaults to None.
             figsize (Optional[tuple[float, float]]): Figure size override. Defaults to None.
             subplots_adjust (Optional[Dict[str, float]]): Subplots adjust override. Defaults to None.
-            **kwargs: Additional keyword arguments. Defaults to {}.
         """
         self.cmap = cmap
         self.center = center
@@ -208,7 +206,6 @@ class MatrixRenderer:
         self.gutter_color = gutter_color
         self.figsize = figsize
         self.subplots_adjust = subplots_adjust
-        self._extra = dict(kwargs)
 
     def render(
         self,

@@ -14,6 +14,7 @@ from typing import (
     Tuple,
     TYPE_CHECKING,
     TypedDict,
+    Union,
 )
 
 import matplotlib.pyplot as plt
@@ -545,6 +546,7 @@ def plot_dendrogram_condensed(
             mapped.append(cluster_y[int(leaf_order[slot])])
         ax_den.plot(xs, mapped, color=dendrogram_color, lw=dendrogram_lw)
     ax_den.set(xlim=(max_h + x_pad, 0.0), ylim=(k * 10, 0))
+
     # Render significance bar
     cmap = plt.get_cmap(sigbar_cmap)
     ax_sig.set(xlim=(0, 1), ylim=(k * 10, 0))
@@ -576,6 +578,7 @@ def plot_dendrogram_condensed(
                 alpha=sigbar_alpha,
             )
         )
+
     # Render text labels
     ax_txt.set(xlim=(0, 1), ylim=(k * 10, 0))
     # Mapping cluster -> row ids is needed for _get_cluster_size.
