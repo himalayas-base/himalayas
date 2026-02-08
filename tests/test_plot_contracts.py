@@ -10,6 +10,7 @@ from matplotlib.colors import Normalize
 
 from himalayas import Results, cluster
 from himalayas.plot import Plotter
+from himalayas.plot.renderers.cluster_labels import _build_label_map, _parse_label_overrides
 from himalayas.plot.track_layout import TrackLayoutManager
 
 
@@ -219,6 +220,7 @@ def test_plot_cluster_labels_respect_np_order(toy_results):
         plotter.show()
         fig = plotter._fig
         texts = [t.get_text() for ax in fig.axes for t in ax.texts]
+        # Cluster labels are asserted via rendered text fragments rather than data objects.
         label_texts = [t for t in texts if "$p$=" in t and "n=" in t]
         assert label_texts, "Expected cluster label text to be rendered."
         for txt in label_texts:
@@ -262,6 +264,60 @@ def test_plot_cluster_labels_accepts_override_mapper(toy_results):
 
 
 @pytest.mark.api
+def test_plot_cluster_labels_override_respects_np_field_contract(toy_results):
+    """
+    Ensures label_fields controls displayed stats/order even when label overrides are provided.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = _use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        cid = int(toy_results.cluster_layout().cluster_spans[0][0])
+        plotter = (
+            Plotter(toy_results)
+            .plot_matrix()
+            .plot_cluster_labels(
+                overrides={cid: "CustomLabelIgnoredByFields"},
+                label_fields=("n", "p"),
+                wrap_text=False,
+            )
+        )
+        plotter.show()
+        fig = plotter._fig
+        texts = [t.get_text() for ax in fig.axes for t in ax.texts]
+        # Labels are rendered as raw text; this selects n/p-only cluster entries.
+        np_texts = [t for t in texts if t.startswith("(") and "n=" in t and "$p$=" in t]
+        assert np_texts, "Expected n/p-only cluster label text."
+        assert all("CustomLabelIgnoredByFields" not in t for t in np_texts)
+        for txt in np_texts:
+            assert txt.find("n=") < txt.find("$p$=")
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.unit
+def test_plot_cluster_label_override_keeps_deterministic_stats(toy_results):
+    """
+    Ensures label-only overrides preserve deterministic cluster statistics.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    df = toy_results.cluster_labels()
+    cid = int(df.loc[0, "cluster"])
+    base_pval = float(df.loc[df["cluster"] == cid, "pval"].iloc[0])
+    override_map = _parse_label_overrides({cid: {"label": f"Custom-{cid}"}})
+
+    label_map = _build_label_map(df, override_map)
+
+    assert label_map[cid][0] == f"Custom-{cid}"
+    assert float(label_map[cid][1]) == pytest.approx(base_pval)
+
+
+@pytest.mark.api
 def test_plot_cluster_labels_summary_max_words_controls_label_building(toy_results):
     """
     Ensures summary_max_words controls compressed label building.
@@ -286,6 +342,7 @@ def test_plot_cluster_labels_summary_max_words_controls_label_building(toy_resul
         plotter.show()
         fig = plotter._fig
         texts = [t.get_text().strip() for ax in fig.axes for t in ax.texts]
+        # Exclude placeholders to focus on generated cluster label text.
         cluster_texts = [t for t in texts if t and t != "—"]
         assert cluster_texts, "Expected generated cluster labels to be rendered."
         for txt in cluster_texts:
