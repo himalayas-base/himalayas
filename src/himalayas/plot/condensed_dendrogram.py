@@ -28,6 +28,7 @@ from .renderers._label_format import (
     collect_label_stats,
     compose_label_text,
 )
+from .renderers.cluster_labels import _parse_label_overrides
 
 if TYPE_CHECKING:
     from ..core.clustering import Clusters
@@ -72,25 +73,6 @@ def _validate_condensed_inputs(
         raise ValueError(f"label_fields must be a subset of {allowed}")
     if label_overrides is not None and not isinstance(label_overrides, dict):
         raise TypeError("label_overrides must be a dict mapping cluster_id -> label override")
-    if label_overrides is not None:
-        for cid, value in label_overrides.items():
-            _ = int(cid)
-            if isinstance(value, str):
-                continue
-            if isinstance(value, dict):
-                unknown = set(value.keys()) - {"label"}
-                if unknown:
-                    raise ValueError(
-                        "label_overrides dict values may only include key 'label'; "
-                        f"got {sorted(unknown)}"
-                    )
-                label = value.get("label", None)
-                if not isinstance(label, str) or not label:
-                    raise TypeError("label_overrides dict values must include non-empty 'label'")
-                continue
-            raise TypeError(
-                "label_overrides values must be strings or dicts containing only 'label'"
-            )
     if not list(results.cluster_layout().cluster_spans):
         raise ValueError("No clusters found")
 
@@ -163,7 +145,7 @@ def _prepare_cluster_labels(
     cluster_labels: pd.DataFrame,
     clusters: Clusters,
     *,
-    label_overrides: Optional[Dict[int, Union[str, Dict[str, str]]]] = None,
+    label_overrides: Optional[Dict[int, str]] = None,
     omit_words: Optional[Sequence[str]] = None,
     max_words: Optional[int] = None,
     wrap_text: bool = True,
@@ -185,8 +167,7 @@ def _prepare_cluster_labels(
         clusters (Clusters): Clusters instance.
 
     Kwargs:
-        label_overrides (Optional[Dict[int, Union[str, Dict[str, str]]]]): Mapping cluster_id
-            -> custom label. Values may be a label string or dict with key "label".
+        label_overrides (Optional[Dict[int, str]]): Normalized mapping cluster_id -> custom label.
             Defaults to None.
         omit_words (Optional[Sequence[str]]): Words to omit from cluster labels. Defaults to None.
         max_words (Optional[int]): Maximum words in cluster labels. Defaults to None.
@@ -231,11 +212,7 @@ def _prepare_cluster_labels(
         # Apply overrides and formatting, then collect
         lab, p, _ = lab_map[cid]
         if cid in label_overrides:
-            override_value = label_overrides[cid]
-            if isinstance(override_value, dict):
-                lab = override_value["label"]
-            else:
-                lab = override_value
+            lab = label_overrides[cid]
         labels.append(
             apply_label_text_policy(
                 lab,
@@ -533,6 +510,7 @@ def plot_dendrogram_condensed(
     """
     # Validation
     _validate_condensed_inputs(results, label_fields, label_overrides)
+    override_map = _parse_label_overrides(label_overrides)
     cluster_labels = results.cluster_labels(
         term_col=term_col,
         cluster_col=cluster_col,
@@ -544,12 +522,11 @@ def plot_dendrogram_condensed(
     # Get master linkage and clusters
     Z_master, clusters = _get_master_linkage(results)
     cluster_ids, row_to_cluster = _resolve_cluster_order(Z_master, results, clusters)
-    label_overrides = label_overrides or {}
     labels, pvals, lab_map, cluster_sizes, y = _prepare_cluster_labels(
         cluster_ids,
         cluster_labels,
         clusters,
-        label_overrides=label_overrides,
+        label_overrides=override_map,
         omit_words=omit_words,
         max_words=max_words,
         wrap_text=wrap_text,

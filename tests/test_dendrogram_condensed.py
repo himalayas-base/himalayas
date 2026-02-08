@@ -318,7 +318,7 @@ def test_dendrogram_condensed_override_keeps_deterministic_sigbar_source(toy_res
         cluster_ids,
         df,
         toy_results.clusters,
-        label_overrides={cid: {"label": f"Custom-{cid}"}},
+        label_overrides={cid: f"Custom-{cid}"},
         wrap_text=False,
     )
 
