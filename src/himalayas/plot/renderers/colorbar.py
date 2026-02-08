@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.colorbar import ColorbarBase
 from matplotlib.colors import Colormap, Normalize
+from matplotlib.ticker import FuncFormatter
 
 if TYPE_CHECKING:
     from ..style import StyleConfig
@@ -47,6 +48,25 @@ class ColorbarLayout(TypedDict, total=False):
     fontsize: float
     color: str
     font: Optional[str]
+    tick_decimals: Optional[int]
+
+
+def _max_decimal_formatter(max_decimals: int) -> FuncFormatter:
+    """
+    Creates a formatter that caps decimal precision and trims trailing zeros.
+
+    Args:
+        max_decimals (int): Maximum number of decimal places.
+
+    Returns:
+        FuncFormatter: Matplotlib tick formatter.
+    """
+
+    def _format_value(value: float, _pos: int) -> str:
+        text = f"{value:.{max_decimals}f}".rstrip("0").rstrip(".")
+        return "0" if text == "-0" else text
+
+    return FuncFormatter(_format_value)
 
 
 def _resolve_colorbar_layout(
@@ -84,6 +104,7 @@ def _resolve_colorbar_layout(
     colorbar_layout.setdefault("vpad", 0.01)
     colorbar_layout.setdefault("gap", 0.02)
     colorbar_layout.setdefault("label_position", "below")
+    colorbar_layout.setdefault("tick_decimals", None)
     # Resolve border properties
     border_color = colorbar_layout.get("border_color")
     if border_color is None:
@@ -173,6 +194,10 @@ def _render_colorbar_cell(
         orientation="horizontal",
         ticks=cb.get("ticks", None),
     )
+    tick_decimals = layout.get("tick_decimals", None)
+    if tick_decimals is not None:
+        cbar.formatter = _max_decimal_formatter(int(tick_decimals))
+        cbar.update_ticks()
     # Style colorbar outline and ticks
     outline = getattr(cbar, "outline", None)
     if outline is not None:

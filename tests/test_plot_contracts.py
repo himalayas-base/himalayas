@@ -6,6 +6,7 @@ tests/test_plot_contracts
 import matplotlib.pyplot as plt
 import pandas as pd
 import pytest
+from matplotlib.colors import Normalize
 
 from himalayas import Results, cluster
 from himalayas.plot import Plotter
@@ -109,6 +110,61 @@ def test_plot_cluster_bar_uses_internal_cluster_labels(toy_results):
             .plot_cluster_bar(name="sig")
             .show()
         )
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.unit
+def test_plot_colorbars_tick_decimals_validation(toy_results):
+    """
+    Ensures plot_colorbars validates tick_decimals type and range.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+
+    Raises:
+        TypeError: If tick_decimals is not an integer.
+        ValueError: If tick_decimals is negative.
+    """
+    with pytest.raises(TypeError, match="tick_decimals"):
+        Plotter(toy_results).plot_colorbars(tick_decimals=1.5)
+    with pytest.raises(TypeError, match="tick_decimals"):
+        Plotter(toy_results).plot_colorbars(tick_decimals=True)
+    with pytest.raises(ValueError, match="tick_decimals"):
+        Plotter(toy_results).plot_colorbars(tick_decimals=-1)
+
+
+@pytest.mark.api
+def test_plot_colorbars_tick_decimals_caps_display_precision(toy_results):
+    """
+    Ensures colorbar tick labels honor the configured decimal cap.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = _use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        plotter = (
+            Plotter(toy_results)
+            .plot_matrix()
+            .add_colorbar(
+                name="precision",
+                cmap="viridis",
+                norm=Normalize(vmin=0.0, vmax=1.0),
+                ticks=[0.0, 0.1234, 1.0],
+                label="Precision",
+            )
+            .plot_colorbars(tick_decimals=2)
+        )
+        plotter.show()
+        fig = plotter._fig
+        tick_texts = [t.get_text() for ax in fig.axes for t in ax.get_xticklabels()]
+        tick_texts = [txt for txt in tick_texts if txt]
+        assert "0.12" in tick_texts
+        assert "0.1234" not in tick_texts
+        assert all("." not in txt or len(txt.split(".", 1)[1]) <= 2 for txt in tick_texts)
     finally:
         plt.show = plt_show
 

@@ -124,6 +124,7 @@ class Plotter:
         font: Optional[str] = None,
         color: Optional[str] = None,
         label_position: str = "below",
+        tick_decimals: Optional[int] = None,
     ) -> Plotter:
         """
         Declares layout for the bottom colorbar strip.
@@ -142,16 +143,24 @@ class Plotter:
             font (Optional[str]): Tick/label font family. Defaults to None.
             color (Optional[str]): Tick/label color. Defaults to None.
             label_position (str): Label placement ("below" or "above"). Defaults to "below".
+            tick_decimals (Optional[int]): Maximum decimals shown on colorbar ticks.
+                Trailing zeros are trimmed. Defaults to None.
 
         Returns:
             Plotter: Self for chaining.
 
         Raises:
-            ValueError: If label_position is not "below" or "above".
+            TypeError: If tick_decimals is not an integer when provided.
+            ValueError: If label_position is not "below" or "above", or tick_decimals is negative.
         """
         # Validation
         if label_position not in {"below", "above"}:
             raise ValueError("label_position must be 'below' or 'above'")
+        if tick_decimals is not None:
+            if isinstance(tick_decimals, bool) or not isinstance(tick_decimals, int):
+                raise TypeError("tick_decimals must be an int >= 0 or None")
+            if tick_decimals < 0:
+                raise ValueError("tick_decimals must be >= 0")
         self._colorbar_layout = {
             "nrows": nrows,
             "ncols": ncols,
@@ -166,6 +175,7 @@ class Plotter:
             "font": font,
             "color": color,
             "label_position": label_position,
+            "tick_decimals": tick_decimals,
         }
         return self
 
