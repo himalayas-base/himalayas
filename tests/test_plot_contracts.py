@@ -70,30 +70,6 @@ def test_plotter_requires_layout(toy_matrix):
 
 
 @pytest.mark.api
-@pytest.mark.parametrize(
-    "legacy_kwargs",
-    [
-        {"values": [1, 2, 3]},
-        {"pval_col": "pval"},
-        {"cluster_col": "cluster"},
-    ],
-)
-def test_plot_cluster_bar_rejects_external_values_input(toy_results, legacy_kwargs):
-    """
-    Ensures plot_cluster_bar rejects legacy external value input.
-
-    Args:
-        toy_results (Results): Results fixture with clusters and layout.
-        legacy_kwargs (dict[str, object]): Legacy kwargs that are no longer accepted.
-
-    Raises:
-        TypeError: If external values are passed.
-    """
-    with pytest.raises(TypeError):
-        Plotter(toy_results).plot_cluster_bar(name="sig", **legacy_kwargs)
-
-
-@pytest.mark.api
 def test_plot_cluster_bar_requires_cluster_labels_layer(toy_results):
     """
     Ensures cluster bars require the cluster label layer in the same plot chain.
@@ -138,9 +114,9 @@ def test_plot_cluster_bar_uses_internal_cluster_labels(toy_results):
 
 
 @pytest.mark.api
-def test_plot_gene_bar_requires_colors(toy_results):
+def test_plot_label_bar_requires_colors(toy_results):
     """
-    Ensures categorical gene bars require an explicit colors mapping.
+    Ensures categorical label bars require an explicit colors mapping.
 
     Args:
         toy_results (Results): Results fixture with clusters and layout.
@@ -157,7 +133,7 @@ def test_plot_gene_bar_requires_colors(toy_results):
                 Plotter(toy_results)
                 .plot_matrix()
                 .plot_cluster_labels()
-                .plot_gene_bar(values={"a": "hit"}, mode="categorical")
+                .plot_label_bar(values={"a": "hit"}, mode="categorical")
                 .show()
             )
     finally:

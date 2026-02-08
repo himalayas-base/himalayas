@@ -106,7 +106,7 @@ DEFAULT_STYLE: StyleDefaults = {
     # (Label_bar_default_width, label_bar_default_gap removed)
     # Default settings for cluster p-value bars (e.g., sigbar)
     # NOTE: scaling is controlled by an explicit `norm` passed to plot_cluster_bar
-    # `Sigbar_min_logp` / `sigbar_max_logp` are legacy defaults used only for the legend
+    # `sigbar_min_logp` / `sigbar_max_logp` are defaults used only for the legend
     "sigbar_width": 0.015,
     "sigbar_cmap": "YlOrBr",
     "sigbar_min_logp": 2.0,

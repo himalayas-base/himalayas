@@ -221,10 +221,10 @@ class Plotter:
             Plotter: Self for chaining.
 
         Raises:
-            TypeError: If legacy external-value kwargs are provided.
+            TypeError: If unsupported external-value kwargs are provided.
             NotImplementedError: If kind is not "pvalue".
         """
-        # Hard reject legacy external-data args: bar values come from internal labels only.
+        # Reject external-data args: bar values come from internal labels only.
         forbidden = {"values", "cluster_col", "pval_col"}
         passed = sorted(forbidden.intersection(kwargs))
         if passed:
@@ -367,13 +367,13 @@ class Plotter:
         self._layers.append(("dendrogram", kwargs))
         return self
 
-    def plot_gene_bar(self, values: Mapping[Hashable, Any], **kwargs) -> Plotter:
+    def plot_label_bar(self, values: Mapping[Hashable, Any], **kwargs) -> Plotter:
         """
-        Declares a single row-level gene annotation bar in the label panel. Preserves clustering and
+        Declares a single row-level annotation bar in the label panel. Preserves clustering and
         ordering because it is purely visual.
 
         Args:
-            values (Mapping): Mapping from gene identifier (row index label) to either:
+            values (Mapping): Mapping from row identifier (matrix index label) to either:
                 - categorical value (mode="categorical")
                 - numeric value (mode="continuous")
 
@@ -384,9 +384,9 @@ class Plotter:
             vmin (float): Color scale minimum (continuous mode). Defaults to None.
             vmax (float): Color scale maximum (continuous mode). Defaults to None.
             missing_color (str): Color for missing values. Defaults to None.
-            left_pad (float): Left padding for the gene bar track. Defaults to 0.0.
+            left_pad (float): Left padding for the label bar track. Defaults to 0.0.
             width (float): Track width. Defaults to style gene_bar_width.
-            right_pad (float): Right padding for the gene bar track. Defaults to 0.0.
+            right_pad (float): Right padding for the label bar track. Defaults to 0.0.
 
         Returns:
             Plotter: Self for chaining.
@@ -399,7 +399,7 @@ class Plotter:
             try:
                 values = dict(values)
             except Exception as exc:
-                raise TypeError("plot_gene_bar expects values convertible to dict") from exc
+                raise TypeError("plot_label_bar expects values convertible to dict") from exc
 
         # Always register as an explicit track in the label panel
         kwargs.pop("placement", None)
@@ -409,7 +409,7 @@ class Plotter:
         enabled = kwargs.get("enabled", True)
         if enabled:
             self._track_layout.register_track(
-                name=kwargs.get("name", "gene_bar"),
+                name=kwargs.get("name", "label_bar"),
                 kind="row",
                 renderer=render_gene_bar_track,
                 left_pad=left_pad,
@@ -548,6 +548,7 @@ class Plotter:
                 cluster_boundary_kwargs = _kwargs
 
         boundary_registry = BoundaryRegistry()
+
         # Minor row gridlines (internal only; suppress axis extremes)
         if matrix_kwargs is not None and matrix_kwargs.get("show_minor_rows", True):
             step = matrix_kwargs.get("minor_row_step", 1)
