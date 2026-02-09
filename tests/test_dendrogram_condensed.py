@@ -8,8 +8,16 @@ import pytest
 
 from himalayas.core.clustering import Clusters
 from himalayas.core.results import Results
-from himalayas.plot import plot_dendrogram_condensed
+from himalayas.plot import CondensedDendrogramPlot, plot_dendrogram_condensed
 from himalayas.plot.condensed_dendrogram import _prepare_cluster_labels
+
+
+def _use_agg_backend() -> None:
+    """
+    Configures Matplotlib to use the Agg backend for tests.
+    """
+    matplotlib = pytest.importorskip("matplotlib")
+    matplotlib.use("Agg", force=True)
 
 
 @pytest.mark.api
@@ -82,15 +90,70 @@ def test_dendrogram_condensed_smoke(toy_results):
     Args:
         toy_results (Results): Results fixture with clusters and layout.
     """
-    matplotlib = pytest.importorskip("matplotlib")
-    matplotlib.use("Agg", force=True)
-    # Suppress GUI rendering during tests
+    _use_agg_backend()
+    plot = plot_dendrogram_condensed(toy_results)
+    assert isinstance(plot, CondensedDendrogramPlot)
+    assert plot.fig.axes
+    plt.close(plot.fig)
+
+
+@pytest.mark.api
+def test_dendrogram_condensed_does_not_auto_show(toy_results):
+    """
+    Ensures condensed dendrogram rendering has no implicit display side effect.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    _use_agg_backend()
+    show_calls = []
+    plot = None
     plt_show = plt.show
-    plt.show = lambda *args, **kwargs: None
+    plt.show = lambda *args, **kwargs: show_calls.append((args, kwargs))
     try:
-        plot_dendrogram_condensed(toy_results)
+        plot = plot_dendrogram_condensed(toy_results)
+        assert not show_calls
     finally:
         plt.show = plt_show
+        if plot is not None:
+            plt.close(plot.fig)
+
+
+@pytest.mark.api
+def test_dendrogram_condensed_plot_handle_save_supports_kwargs(toy_results, tmp_path):
+    """
+    Ensures the condensed plot handle supports explicit savefig kwargs.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+        tmp_path (Path): Temporary output directory.
+    """
+    _use_agg_backend()
+    out = tmp_path / "condensed.png"
+    plot = plot_dendrogram_condensed(toy_results)
+    try:
+        plot.save(out, dpi=150, bbox_inches="tight")
+        assert out.exists()
+        assert out.stat().st_size > 0
+    finally:
+        plt.close(plot.fig)
+
+
+@pytest.mark.api
+def test_dendrogram_condensed_plot_handle_rejects_closed_figure(toy_results):
+    """
+    Ensures the condensed plot handle errors after the backing figure is closed.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    _use_agg_backend()
+    plot = plot_dendrogram_condensed(toy_results)
+    plt.close(plot.fig)
+    with pytest.raises(RuntimeError, match="figure is closed"):
+        plot.show()
+    with pytest.raises(RuntimeError, match="figure is closed"):
+        plot.save("unused.png")
 
 
 @pytest.mark.api
@@ -102,18 +165,14 @@ def test_dendrogram_condensed_label_fields_respect_np_order(toy_results):
     Args:
         toy_results (Results): Results fixture with clusters and layout.
     """
-    matplotlib = pytest.importorskip("matplotlib")
-    matplotlib.use("Agg", force=True)
-    # Suppress GUI rendering during tests
-    plt_show = plt.show
-    plt.show = lambda *args, **kwargs: None
+    _use_agg_backend()
+    plot = None
     try:
-        plot_dendrogram_condensed(
+        plot = plot_dendrogram_condensed(
             toy_results,
             label_fields=("label", "p", "n"),
         )
-        fig = plt.gcf()
-        texts = [t.get_text() for ax in fig.axes for t in ax.texts]
+        texts = [t.get_text() for ax in plot.fig.axes for t in ax.texts]
         # Cluster labels are asserted via rendered text fragments rather than data objects.
         label_texts = [t for t in texts if "$p$=" in t and "n=" in t]
         assert label_texts, "Expected cluster label text to be rendered."
@@ -124,7 +183,8 @@ def test_dendrogram_condensed_label_fields_respect_np_order(toy_results):
             assert "n=" in txt
             assert txt.find("$p$=") < txt.find("n=")
     finally:
-        plt.show = plt_show
+        if plot is not None:
+            plt.close(plot.fig)
 
 
 @pytest.mark.api
@@ -217,27 +277,25 @@ def test_dendrogram_condensed_summary_max_words_controls_label_building(toy_resu
     Args:
         toy_results (Results): Results fixture with clusters and layout.
     """
-    matplotlib = pytest.importorskip("matplotlib")
-    matplotlib.use("Agg", force=True)
-    plt_show = plt.show
-    plt.show = lambda *args, **kwargs: None
+    _use_agg_backend()
+    plot = None
     try:
-        plot_dendrogram_condensed(
+        plot = plot_dendrogram_condensed(
             toy_results,
             label_mode="compressed",
             summary_max_words=1,
             label_fields=("label",),
             wrap_text=False,
         )
-        fig = plt.gcf()
-        texts = [t.get_text().strip() for ax in fig.axes for t in ax.texts]
+        texts = [t.get_text().strip() for ax in plot.fig.axes for t in ax.texts]
         # Exclude placeholders to focus on generated cluster label text.
         cluster_texts = [t for t in texts if t and t != "—"]
         assert cluster_texts, "Expected generated cluster labels to be rendered."
         for txt in cluster_texts:
             assert len(txt.replace("\n", " ").split()) <= 1
     finally:
-        plt.show = plt_show
+        if plot is not None:
+            plt.close(plot.fig)
 
 
 @pytest.mark.api
@@ -248,25 +306,23 @@ def test_dendrogram_condensed_max_words_controls_display(toy_results):
     Args:
         toy_results (Results): Results fixture with clusters and layout.
     """
-    matplotlib = pytest.importorskip("matplotlib")
-    matplotlib.use("Agg", force=True)
-    plt_show = plt.show
-    plt.show = lambda *args, **kwargs: None
+    _use_agg_backend()
+    plot = None
     try:
         cid = int(toy_results.cluster_layout().cluster_spans[0][0])
-        plot_dendrogram_condensed(
+        plot = plot_dendrogram_condensed(
             toy_results,
             label_overrides={cid: "Alpha Beta Gamma"},
             label_fields=("label",),
             max_words=1,
             wrap_text=False,
         )
-        fig = plt.gcf()
-        texts = [t.get_text() for ax in fig.axes for t in ax.texts]
+        texts = [t.get_text() for ax in plot.fig.axes for t in ax.texts]
         assert any(t.strip() == "Alpha" for t in texts)
         assert not any("Alpha Beta" in t for t in texts)
     finally:
-        plt.show = plt_show
+        if plot is not None:
+            plt.close(plot.fig)
 
 
 @pytest.mark.api
@@ -277,20 +333,17 @@ def test_dendrogram_condensed_override_respects_np_field_contract(toy_results):
     Args:
         toy_results (Results): Results fixture with clusters and layout.
     """
-    matplotlib = pytest.importorskip("matplotlib")
-    matplotlib.use("Agg", force=True)
-    plt_show = plt.show
-    plt.show = lambda *args, **kwargs: None
+    _use_agg_backend()
+    plot = None
     try:
         cid = int(toy_results.cluster_layout().cluster_spans[0][0])
-        plot_dendrogram_condensed(
+        plot = plot_dendrogram_condensed(
             toy_results,
             label_overrides={cid: "CustomLabelIgnoredByFields"},
             label_fields=("n", "p"),
             wrap_text=False,
         )
-        fig = plt.gcf()
-        texts = [t.get_text() for ax in fig.axes for t in ax.texts]
+        texts = [t.get_text() for ax in plot.fig.axes for t in ax.texts]
         # Labels are rendered as raw text; this selects n/p-only cluster entries.
         np_texts = [t for t in texts if t.startswith("(") and "n=" in t and "$p$=" in t]
         assert np_texts, "Expected n/p-only condensed cluster label text."
@@ -298,7 +351,8 @@ def test_dendrogram_condensed_override_respects_np_field_contract(toy_results):
         for txt in np_texts:
             assert txt.find("n=") < txt.find("$p$=")
     finally:
-        plt.show = plt_show
+        if plot is not None:
+            plt.close(plot.fig)
 
 
 @pytest.mark.unit
