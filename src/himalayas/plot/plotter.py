@@ -5,7 +5,8 @@ himalayas/plot/plotter
 
 from __future__ import annotations
 
-from typing import Any, Hashable, Mapping, Optional, Sequence
+from os import PathLike
+from typing import Any, Hashable, Mapping, Optional, Sequence, Union
 
 import matplotlib.pyplot as plt
 
@@ -680,12 +681,12 @@ class Plotter:
         except (AttributeError, RuntimeError, ValueError):
             return False
 
-    def save(self, path: str, **kwargs) -> None:
+    def save(self, path: Union[str, PathLike[str]], **kwargs: Any) -> None:
         """
         Saves the last rendered figure with correct background handling.
 
         Args:
-            path (str): Output path for the figure.
+            path (Union[str, PathLike[str]]): Output path for the figure.
 
         Kwargs:
             **kwargs: Additional matplotlib savefig options. Defaults to {}.
