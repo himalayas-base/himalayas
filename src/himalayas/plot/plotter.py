@@ -5,8 +5,9 @@ himalayas/plot/plotter
 
 from __future__ import annotations
 
+from collections.abc import Hashable
 from os import PathLike
-from typing import Any, Hashable, Mapping, Optional, Sequence, Union
+from typing import Any, Mapping, Optional, Sequence, Union
 
 import matplotlib.pyplot as plt
 
@@ -65,6 +66,9 @@ class Plotter:
         # Figure-level configuration (explicit, opt-in)
         self._background = None
         self._fig = None
+        # Render metadata (attached after first render)
+        self.layout_ = None
+        self.colorbar_layout_ = None
 
     def add_colorbar(
         self,
@@ -629,8 +633,8 @@ class Plotter:
                 renderer.render(fig, ax, self.matrix, layout, self._style)
             elif layer == "cluster_labels":
                 bar_kwargs = None
-                for l, kw in self._layers:
-                    if l == "bar_labels":
+                for layer_name, kw in self._layers:
+                    if layer_name == "bar_labels":
                         bar_kwargs = kw  # last one wins
                 # Prepare cluster label renderer inputs and render label panel
                 renderer_kwargs = dict(kwargs)

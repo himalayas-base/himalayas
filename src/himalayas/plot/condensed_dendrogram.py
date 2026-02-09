@@ -5,12 +5,12 @@ himalayas/plot/condensed_dendrogram
 
 from __future__ import annotations
 
+from collections.abc import Hashable
 from os import PathLike
 from typing import (
     Any,
     Collection,
     Dict,
-    Hashable,
     Optional,
     Sequence,
     Tuple,

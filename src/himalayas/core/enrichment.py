@@ -112,7 +112,10 @@ def _encode_terms(
     term_items: List[Tuple[str, np.ndarray, int]] = []  # (term, idx_array, K)
     for term, term_labels in annotations.term_to_labels.items():
         # Term_labels already overlaps matrix labels by construction
-        idx = np.fromiter((label_to_idx[l] for l in term_labels), dtype=np.int32)
+        idx = np.fromiter(
+            (label_to_idx[label] for label in term_labels),
+            dtype=np.int32,
+        )
         idx.sort()
         # De-dup defensively (should already be unique)
         if idx.size > 1:
@@ -154,7 +157,10 @@ def _encode_clusters(
             continue
 
         # Build and de-duplicate cluster index list
-        cidx = np.fromiter((label_to_idx[l] for l in cluster_labels), dtype=np.int32)
+        cidx = np.fromiter(
+            (label_to_idx[label] for label in cluster_labels),
+            dtype=np.int32,
+        )
         cidx.sort()
         if cidx.size > 1:
             cidx = np.unique(cidx)
