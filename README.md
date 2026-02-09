@@ -54,7 +54,7 @@ Dendrogram-defined clusters were tested for Gene Ontology Biological Process
 (GO BP; Ashburner _et al_., 2000) enrichment, revealing hierarchical
 organization of biological processes.
 
-[![HiMaLAYAS workflow overview](https://i.imgur.com/mninW8a.jpeg)](https://i.imgur.com/mninW8a.jpeg)
+[![HiMaLAYAS workflow overview](https://imgur.com/FHNttCz.jpeg)](https://imgur.com/FHNttCz.jpeg)
 **HiMaLAYAS workflow and application to a hierarchically clustered yeast
 genetic interaction profile similarity matrix (Costanzo _et al_., 2016).**
 A real-valued matrix and categorical annotations serve as inputs. The matrix is
