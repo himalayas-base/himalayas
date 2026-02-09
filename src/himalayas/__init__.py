@@ -2,7 +2,8 @@
 himalayas
 ~~~~~~~~~
 
-HiMaLAYAS: enrichment-based annotation of hierarchically clustered matrices
+Hierarchical Matrix Layout and Annotation Software (HiMaLAYAS)
+Enrichment-based annotation of hierarchically clustered matrices
 """
 
 from .core.matrix import Matrix
@@ -19,4 +20,4 @@ __all__ = [
     "Results",
 ]
 
-__version__ = "0.0.4"
+__version__ = "0.0.5"
