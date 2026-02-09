@@ -5,7 +5,9 @@ himalayas/plot/condensed_dendrogram
 
 from __future__ import annotations
 
+from os import PathLike
 from typing import (
+    Any,
     Collection,
     Dict,
     Hashable,
@@ -43,6 +45,78 @@ class DendrogramData(TypedDict):
     icoord: Sequence[Sequence[float]]
     dcoord: Sequence[Sequence[float]]
     leaves: Sequence[int]
+
+
+class CondensedDendrogramPlot:
+    """
+    Class for rendered condensed dendrogram figure.
+    """
+
+    def __init__(
+        self,
+        *,
+        fig: plt.Figure,
+        ax_den: plt.Axes,
+        ax_sig: plt.Axes,
+        ax_txt: plt.Axes,
+    ) -> None:
+        """
+        Initializes the CondensedDendrogramPlot handle.
+
+        Kwargs:
+            fig (plt.Figure): Rendered figure.
+            ax_den (plt.Axes): Dendrogram axis.
+            ax_sig (plt.Axes): Significance bar axis.
+            ax_txt (plt.Axes): Label text axis.
+        """
+        self.fig = fig
+        self.ax_den = ax_den
+        self.ax_sig = ax_sig
+        self.ax_txt = ax_txt
+
+    def _figure_is_open(self) -> bool:
+        """
+        Checks whether the figure handle is still open.
+
+        Returns:
+            bool: True if the figure exists and is open, False otherwise.
+        """
+        try:
+            return self.fig.number in plt.get_fignums()
+        except (AttributeError, RuntimeError, ValueError):
+            return False
+
+    def save(self, path: Union[str, PathLike[str]], **kwargs: Any) -> None:
+        """
+        Saves the rendered condensed dendrogram figure.
+
+        Args:
+            path (Union[str, PathLike[str]]): Output path for the figure.
+
+        Kwargs:
+            **kwargs: Additional matplotlib savefig options. Defaults to {}.
+
+        Raises:
+            RuntimeError: If the figure has been closed.
+        """
+        if not self._figure_is_open():
+            raise RuntimeError("Cannot save condensed dendrogram: figure is closed.")
+        self.fig.savefig(
+            path,
+            facecolor=self.fig.get_facecolor(),
+            **kwargs,
+        )
+
+    def show(self) -> None:
+        """
+        Shows the rendered condensed dendrogram figure.
+
+        Raises:
+            RuntimeError: If the figure has been closed.
+        """
+        if not self._figure_is_open():
+            raise RuntimeError("Cannot show condensed dendrogram: figure is closed.")
+        plt.show()
 
 
 def _validate_condensed_inputs(
@@ -293,7 +367,6 @@ def _finalize_axes(*axes: plt.Axes) -> None:
         ax.set(xticks=[], yticks=[])
         for sp in ax.spines.values():
             sp.set_visible(False)
-    plt.show()
 
 
 def _condense_linkage_to_clusters(
@@ -448,11 +521,11 @@ def plot_dendrogram_condensed(
     dendrogram_lw: float = 1.0,
     label_left_pad: float = 0.02,
     background_color: Optional[str] = None,
-) -> None:
+) -> CondensedDendrogramPlot:
     """
-    Plots cluster-level dendrogram using condensed master linkage. Leaf order and branch
-    heights are preserved from the master dendrogram by condensing the master linkage
-    matrix at the cluster level.
+    Builds and returns a cluster-level condensed dendrogram plot.
+    Leaf order and branch heights are preserved from the master dendrogram by condensing
+    the master linkage matrix at the cluster level.
 
     Args:
         results (Results): Enrichment results exposing cluster_layout() and clusters.
@@ -496,6 +569,9 @@ def plot_dendrogram_condensed(
         AttributeError: If required attributes are missing from results.
         ValueError: If no clusters are found or plotting options are invalid.
         TypeError: If label_overrides is not a dict.
+
+    Returns:
+        CondensedDendrogramPlot: Rendered condensed dendrogram figure handle.
     """
     # Validation
     _validate_condensed_inputs(results, label_fields)
@@ -618,5 +694,12 @@ def plot_dendrogram_condensed(
             alpha=label_alpha,
             fontweight=label_fontweight,
         )
-    # Clean axes and display the figure
+
+    # Clean axes and return rendered figure handle
     _finalize_axes(ax_den, ax_sig, ax_txt)
+    return CondensedDendrogramPlot(
+        fig=_fig,
+        ax_den=ax_den,
+        ax_sig=ax_sig,
+        ax_txt=ax_txt,
+    )
