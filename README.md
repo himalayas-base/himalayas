@@ -11,12 +11,14 @@ evaluates annotation enrichment, and renders significant annotations alongside
 their matrix regions. HiMaLAYAS supports both biological and non-biological domains.
 
 For a full description of HiMaLAYAS and its applications, see:
-<br>
-Horecka, I., and Röst, H. (unpublished)
+
+Horecka, I., and Röst, H. (2026)
 <br>
 _HiMaLAYAS: enrichment-based annotation of hierarchically clustered matrices_
 <br>
-Manuscript in preparation.
+_bioRxiv_. https://doi.org/10.1101/2026.xx.xx.xxxxxx
+<br>
+Under review at _Bioinformatics_.
 
 ## Documentation and Tutorial
 
@@ -67,15 +69,19 @@ for GO BP enrichment.
 
 ### Primary citation
 
-Horecka, I., and Röst, H. (unpublished)
+Horecka, I., and Röst, H. (2026)
 <br>
 _HiMaLAYAS: enrichment-based annotation of hierarchically clustered matrices_
 <br>
-Manuscript in preparation.
+_bioRxiv_. https://doi.org/10.1101/2026.xx.xx.xxxxxx
+<br>
+Under review at _Bioinformatics_.
 
 ### Software archive
 
-No Zenodo archive is available yet.
+HiMaLAYAS software for the manuscript.
+<br>
+Zenodo. https://doi.org/10.5281/zenodo.xxxxxxxx
 
 ## Contributing
 
