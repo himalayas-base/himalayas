@@ -65,8 +65,10 @@ for GO BP enrichment.
 
 ### Primary citation
 
-**Horecka, I. and Rost, H. (unpublished)**
-_HiMaLAYAS: enrichment-based annotation of hierarchically clustered matrices_.
+Horecka, I., and Röst, H. (2026)
+<br>
+_HiMaLAYAS: enrichment-based annotation of hierarchically clustered matrices_
+<br>
 Manuscript in preparation.
 
 ### Software archive
