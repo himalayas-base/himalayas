@@ -11,7 +11,7 @@ evaluates annotation enrichment, and renders significant annotations alongside
 their matrix regions. HiMaLAYAS supports both biological and non-biological domains.
 
 For a full description of HiMaLAYAS and its applications, see:
-
+<br>
 Horecka, I., and Röst, H. (2026)
 <br>
 _HiMaLAYAS: enrichment-based annotation of hierarchically clustered matrices_
