@@ -1,4 +1,7 @@
-"""Core APIs for advanced usage."""
+"""
+himalayas/core
+~~~~~~~~~~~~~~
+"""
 
 from .annotations import Annotations
 from .analysis import Analysis

@@ -1,6 +1,6 @@
 """
 himalayas/plot/renderers/label_bar
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 """
 
 from __future__ import annotations
