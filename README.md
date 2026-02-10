@@ -12,8 +12,10 @@ their matrix regions. HiMaLAYAS supports both biological and non-biological doma
 
 For a full description of HiMaLAYAS and its applications, see:
 <br>
-**Horecka, I. and Rost, H. (unpublished)**.
-_HiMaLAYAS: enrichment-based annotation of hierarchically clustered matrices_.
+Horecka, I., and Röst, H. (unpublished)
+<br>
+_HiMaLAYAS: enrichment-based annotation of hierarchically clustered matrices_
+<br>
 Manuscript in preparation.
 
 ## Documentation and Tutorial
@@ -65,7 +67,7 @@ for GO BP enrichment.
 
 ### Primary citation
 
-Horecka, I., and Röst, H. (2026)
+Horecka, I., and Röst, H. (unpublished)
 <br>
 _HiMaLAYAS: enrichment-based annotation of hierarchically clustered matrices_
 <br>
