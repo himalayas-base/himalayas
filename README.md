@@ -22,8 +22,6 @@ Under review at _Bioinformatics_.
 
 ## Documentation and Tutorial
 
-Full documentation is available at:
-
 - **Full Documentation**: [himalayas-base.github.io/himalayas-docs](https://himalayas-base.github.io/himalayas-docs)
 - **Try in Browser (Binder)**: [![Launch in Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/himalayas-base/himalayas-docs/HEAD?filepath=notebooks/quickstart.ipynb)
 - **Documentation Repository**: [github.com/himalayas-base/himalayas-docs](https://github.com/himalayas-base/himalayas-docs)
