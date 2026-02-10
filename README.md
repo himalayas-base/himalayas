@@ -24,8 +24,18 @@ Under review at _Bioinformatics_.
 
 Full documentation is available at:
 
-- **Docs:** [himalayas-base.github.io/himalayas-docs](https://himalayas-base.github.io/himalayas-docs)
-- **Tutorial Jupyter Notebook Repository:** [github.com/himalayas-base/himalayas-docs](https://github.com/himalayas-base/himalayas-docs)
+- **Full Documentation**: [himalayas-base.github.io/himalayas-docs](https://himalayas-base.github.io/himalayas-docs)
+- **Try in Browser (Binder)**: [![Launch in Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/himalayas-base/himalayas-docs/HEAD?filepath=notebooks/quickstart.ipynb)
+- **Documentation Repository**: [github.com/himalayas-base/himalayas-docs](https://github.com/himalayas-base/himalayas-docs)
+
+## Installation
+
+HiMaLAYAS is compatible with Python 3.8 or later and runs on major operating
+systems. To install the latest version, run:
+
+```bash
+pip install himalayas --upgrade
+```
 
 ## Key Features of HiMaLAYAS
 
@@ -39,15 +49,6 @@ Full documentation is available at:
   rate (FDR) correction for cluster-term tests.
 - **Annotation Mapping and Rendering**: Maps significant annotations onto the
   clustered matrix and supports publication-ready matrix visualizations.
-
-## Installation
-
-HiMaLAYAS is compatible with Python 3.8 or later and runs on major operating
-systems. To install the latest version, run:
-
-```bash
-pip install himalayas --upgrade
-```
 
 ## Example Usage
 
