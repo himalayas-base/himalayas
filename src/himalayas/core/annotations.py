@@ -14,7 +14,7 @@ from ..util.warnings import warn
 
 class Annotations:
     """
-    Class for storing term-to-label annotations aligned to a matrix and filtering to present labels.
+    Class for storing term-to-labels annotations aligned to a matrix and filtering to labels present in the matrix.
     """
 
     def __init__(self, term_to_labels: Dict[str, Iterable[str]], matrix: Matrix) -> None:
@@ -86,7 +86,7 @@ class Annotations:
     def rebind(self, matrix: Matrix) -> Annotations:
         """
         Returns a new Annotations object filtered to labels present in `matrix`. This
-        is intended for explicit zoom / subset workflows. The original Annotations object
+        is intended for explicit zoom/subset workflows. The original Annotations object
         is not mutated.
 
         Args:

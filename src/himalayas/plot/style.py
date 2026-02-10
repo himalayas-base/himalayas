@@ -30,7 +30,7 @@ StyleValue: TypeAlias = Union[
 
 class StyleDefaults(TypedDict):
     """
-    Type class for plot style defaults.
+    Typed dictionary for plot style defaults.
     """
 
     figsize: tuple[float, float]

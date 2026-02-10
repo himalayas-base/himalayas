@@ -66,7 +66,7 @@ def _count_intersection_sorted(a: np.ndarray, b: np.ndarray) -> int:
 
 def _validate_background(matrix: Matrix, background: Optional[Matrix]) -> Tuple[np.ndarray, int]:
     """
-    Validates background matrix and determine universe labels and size.
+    Validates background matrix and determines universe labels and size.
 
     Args:
         matrix (Matrix): Analysis matrix.
@@ -111,7 +111,7 @@ def _encode_terms(
     """
     term_items: List[Tuple[str, np.ndarray, int]] = []  # (term, idx_array, K)
     for term, term_labels in annotations.term_to_labels.items():
-        # Term_labels already overlaps matrix labels by construction
+        # term_labels already overlap matrix labels by construction
         idx = np.fromiter(
             (label_to_idx[label] for label in term_labels),
             dtype=np.int32,
@@ -182,7 +182,7 @@ def run_cluster_hypergeom(
     background: Optional[Matrix] = None,
 ) -> Results:
     """
-    Performs cluster x term enrichment using the hypergeometric test. If `background` is provided,
+    Performs cluster-by-term enrichment using the hypergeometric test. If `background` is provided,
     it defines the enrichment universe (N). Otherwise, the universe defaults to the analysis matrix.
 
     Args:
@@ -220,7 +220,7 @@ def run_cluster_hypergeom(
     for cid_int, (cidx, n) in cluster_dict.items():
         # Cache hypergeom.sf for this cluster (N and n fixed)
         sf_cache: Dict[Tuple[int, int], float] = {}
-        #  Test all terms
+        # Test all terms
         for term, tidx, K in term_items:
             # Fast intersection size; skip if below min_overlap
             k = _count_intersection_sorted(cidx, tidx)

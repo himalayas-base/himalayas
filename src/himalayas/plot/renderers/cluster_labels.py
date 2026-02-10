@@ -32,7 +32,7 @@ if TYPE_CHECKING:
 
 class TrackSpec(TypedDict, total=False):
     """
-    Type class for resolved label track specifications.
+    Typed dictionary of resolved label track specifications.
     """
 
     name: str

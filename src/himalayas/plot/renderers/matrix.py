@@ -24,7 +24,7 @@ def _resolve_matrix_data(
     layout: ClusterLayout,
 ) -> Tuple[np.ndarray, int, int]:
     """
-    Resolves and reorder matrix data for rendering.
+    Resolves and reorders matrix data for rendering.
 
     Args:
         matrix (Matrix): Matrix object with DataFrame `df`.

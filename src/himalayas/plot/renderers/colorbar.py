@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 
 class ColorbarSpec(TypedDict, total=False):
     """
-    Type class for specifying a colorbar.
+    Typed dictionary for colorbar specifications.
     """
 
     name: str
@@ -32,7 +32,7 @@ class ColorbarSpec(TypedDict, total=False):
 
 class ColorbarLayout(TypedDict, total=False):
     """
-    Type class for specifying colorbar layout parameters.
+    Typed dictionary for colorbar layout parameters.
     """
 
     nrows: int

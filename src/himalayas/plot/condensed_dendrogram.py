@@ -39,7 +39,7 @@ if TYPE_CHECKING:
 
 class DendrogramData(TypedDict):
     """
-    Type class for condensed dendrogram data.
+    Typed dictionary for condensed dendrogram data.
     """
 
     icoord: Sequence[Sequence[float]]
@@ -49,7 +49,7 @@ class DendrogramData(TypedDict):
 
 class CondensedDendrogramPlot:
     """
-    Class for rendered condensed dendrogram figure.
+    Class for a rendered condensed dendrogram figure.
     """
 
     def __init__(
