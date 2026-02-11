@@ -61,7 +61,7 @@ organization of biological processes.
 
 [![HiMaLAYAS workflow overview](https://imgur.com/SMDInVs.png)](https://imgur.com/SMDInVs.png)
 **HiMaLAYAS workflow and application to a hierarchically clustered yeast
-genetic interaction profile similarity matrix (Costanzo _et al_., 2016).**
+genetic interaction profile similarity matrix (Costanzo _et al_., 2016)**.
 A real-valued matrix and categorical annotations serve as inputs. The matrix is
 cut at a user-defined depth, and each dendrogram-defined cluster is evaluated
 for GO BP enrichment.
