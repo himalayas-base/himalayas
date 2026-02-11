@@ -440,8 +440,6 @@ class Plotter:
             label_mode (str): Label mode, one of {"top_term", "compressed"}.
                 Defaults to "top_term".
             label_col (Optional[str]): Optional display-name column. Defaults to "term_name".
-            summary_max_words (int): Maximum words for compressed label generation.
-                Defaults to 6.
             max_words (Optional[int]): Maximum words in rendered display labels.
                 Defaults to None.
             label_fields (tuple[str]): Fields to include: "label", "n", "p".
@@ -457,14 +455,14 @@ class Plotter:
             "weight_col",
             "label_mode",
             "label_col",
-            "summary_max_words",
+            "max_words",
         }
         label_options = {}
         for key in tuple(kwargs):
             if key in label_option_keys:
-                label_options[key] = kwargs.pop(key)
-        if "summary_max_words" in label_options:
-            label_options["max_words"] = label_options.pop("summary_max_words")
+                label_options[key] = kwargs[key]
+                if key != "max_words":
+                    kwargs.pop(key)
 
         self._layers.append(
             (

@@ -318,9 +318,9 @@ def test_plot_cluster_label_override_keeps_deterministic_stats(toy_results):
 
 
 @pytest.mark.api
-def test_plot_cluster_labels_summary_max_words_controls_label_building(toy_results):
+def test_plot_cluster_labels_max_words_controls_label_building_compressed(toy_results):
     """
-    Ensures summary_max_words controls compressed label building.
+    Ensures max_words controls compressed label building.
 
     Args:
         toy_results (Results): Results fixture with clusters and layout.
@@ -334,7 +334,7 @@ def test_plot_cluster_labels_summary_max_words_controls_label_building(toy_resul
             .plot_matrix()
             .plot_cluster_labels(
                 label_mode="compressed",
-                summary_max_words=1,
+                max_words=1,
                 label_fields=("label",),
                 wrap_text=False,
             )

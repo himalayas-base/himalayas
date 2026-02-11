@@ -496,7 +496,6 @@ def plot_dendrogram_condensed(
     weight_col: str = "pval",
     label_mode: str = "top_term",
     label_col: Optional[str] = "term_name",
-    summary_max_words: int = 6,
     figsize: Sequence[float] = (10, 10),
     sigbar_cmap: Union[str, Colormap] = "YlOrBr",
     sigbar_min_logp: float = 2.0,
@@ -536,7 +535,6 @@ def plot_dendrogram_condensed(
         weight_col (str): P-value/weight column used for label generation. Defaults to "pval".
         label_mode (str): Label mode, one of {"top_term", "compressed"}. Defaults to "top_term".
         label_col (Optional[str]): Optional display-name column. Defaults to "term_name".
-        summary_max_words (int): Max words for compressed label summarization. Defaults to 6.
         figsize (Sequence[float]): Figure size (width, height). Defaults to (10, 10).
         sigbar_cmap (Union[str, Colormap]): Colormap for significance bar. Defaults to "YlOrBr".
         sigbar_min_logp (float): Minimum -log10(p) for significance bar scaling. Defaults to 2.0.
@@ -582,7 +580,7 @@ def plot_dendrogram_condensed(
         weight_col=weight_col,
         label_mode=label_mode,
         label_col=label_col,
-        max_words=summary_max_words,
+        max_words=max_words,
     )
     # Get master linkage and clusters
     Z_master, clusters = _get_master_linkage(results)
