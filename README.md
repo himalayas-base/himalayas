@@ -80,7 +80,7 @@ Under review at _Bioinformatics_.
 
 HiMaLAYAS software for the manuscript.
 <br>
-Zenodo. https://doi.org/10.5281/zenodo.xxxxxxxx
+Zenodo. https://doi.org/10.5281/zenodo.18610373
 
 ## Contributing
 
