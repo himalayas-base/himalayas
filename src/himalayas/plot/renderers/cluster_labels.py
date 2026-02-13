@@ -114,7 +114,7 @@ def _resolve_labels_and_layout(
     # Resolve spans, sizes, and label axis layout
     spans = layout.cluster_spans
     cluster_sizes = layout.cluster_sizes
-    ax_lab, label_text_x, tracks = _setup_label_axis(fig, matrix, style, track_layout, kwargs)
+    ax_lab, label_text_x, tracks = _setup_label_axis(fig, matrix, style, track_layout)
     # Resolve separator line positions
     sep_xmin = kwargs.get("label_sep_xmin", style.get("label_sep_xmin"))
     sep_xmax = kwargs.get("label_sep_xmax", style.get("label_sep_xmax"))
@@ -415,7 +415,6 @@ def _setup_label_axis(
     matrix: Matrix,
     style: StyleConfig,
     track_layout: TrackLayoutManager,
-    kwargs: Dict[str, Any],
 ) -> Tuple[plt.Axes, float, List[TrackSpec]]:
     """
     Creates and configures the label axis and computes track layout. Initializes the label panel,
@@ -426,14 +425,13 @@ def _setup_label_axis(
         matrix (Matrix): Matrix object providing row count.
         style (StyleConfig): Style configuration.
         track_layout (TrackLayoutManager): Track layout manager.
-        kwargs (Dict[str, Any]): Renderer keyword arguments.
 
     Returns:
         Tuple[plt.Axes, float, List[TrackSpec]]: (label axis, text x-position, resolved tracks).
     """
     n_rows = matrix.df.shape[0]
     # Set up label axis
-    label_axes = kwargs.get("axes", style["label_axes"])
+    label_axes = style["label_axes"]
     ax_lab = fig.add_axes(label_axes, frameon=False)
     ax_lab.set_xlim(0, 1)
     ax_lab.set_ylim(-0.5, n_rows - 0.5)  # align with matrix row indices
@@ -441,8 +439,8 @@ def _setup_label_axis(
     ax_lab.set_xticks([])
     ax_lab.set_yticks([])
     # Set up label gutter
-    gutter_w = kwargs.get("label_gutter_width", style["label_gutter_width"])
-    gutter_color = kwargs.get("label_gutter_color", style["label_gutter_color"])
+    gutter_w = style["label_gutter_width"]
+    gutter_color = style["label_gutter_color"]
     ax_lab.add_patch(
         plt.Rectangle(
             (0.0, -0.5),
@@ -454,8 +452,8 @@ def _setup_label_axis(
         )
     )
     # Compute track layout
-    label_text_pad = kwargs.get("label_text_pad", style.get("label_bar_pad", 0.01))
-    base_x = kwargs.get("label_x", style["label_x"])
+    label_text_pad = style.get("label_bar_pad", 0.01)
+    base_x = style["label_x"]
     track_layout.compute_layout(base_x, gutter_w)
     tracks = track_layout.get_tracks()
     end_x = track_layout.get_end_x()
