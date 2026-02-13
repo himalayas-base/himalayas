@@ -357,12 +357,14 @@ def _parse_label_overrides(
     if not isinstance(overrides, dict):
         raise TypeError("overrides must be a dict mapping cluster_id -> label string")
 
-    # Normalize cluster ids and validate label strings
+    # Normalize cluster ids and validate label strings.
+    # Empty strings are allowed so callers can intentionally suppress label text
+    # for selected clusters without affecting bar tracks.
     override_map: Dict[int, str] = {}
     for key, value in overrides.items():
         cid = int(key)
-        if not isinstance(value, str) or not value:
-            raise TypeError("override values must be non-empty strings")
+        if not isinstance(value, str):
+            raise TypeError("override values must be strings")
         override_map[cid] = value
 
     return override_map

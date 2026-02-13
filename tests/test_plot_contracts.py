@@ -259,6 +259,19 @@ def test_plot_cluster_labels_accepts_override_mapper(toy_results):
         fig = plotter._fig
         texts = [t.get_text() for ax in fig.axes for t in ax.texts]
         assert any(custom_label in t for t in texts)
+
+        # Empty-string override is a valid way to suppress one cluster label and
+        # must not break rendering of cluster-level bars.
+        plotter2 = (
+            Plotter(toy_results)
+            .plot_matrix()
+            .plot_cluster_labels(overrides={cid: ""}, label_fields=("label",))
+            .plot_cluster_bar(name="sig")
+        )
+        plotter2.show()
+        fig2 = plotter2._fig
+        patch_counts = [len(ax.patches) for ax in fig2.axes]
+        assert max(patch_counts) > 1
     finally:
         plt.show = plt_show
 
