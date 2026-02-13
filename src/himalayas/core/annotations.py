@@ -74,12 +74,13 @@ class Annotations:
                 RuntimeWarning,
             )
 
-    def terms(self) -> list:
+    @property
+    def terms(self) -> list[str]:
         """
-        Returns the list of annotation terms.
+        Returns annotation terms.
 
         Returns:
-            list: List of annotation terms.
+            list[str]: List of annotation terms.
         """
         return list(self.term_to_labels.keys())
 

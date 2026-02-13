@@ -10,6 +10,7 @@ from os import PathLike
 from typing import Any, Mapping, Optional, Sequence, Union
 
 import matplotlib.pyplot as plt
+import pandas as pd
 
 from .renderers import (
     AxesRenderer,
@@ -212,6 +213,163 @@ class Plotter:
         self._track_layout.set_order(order)
         return self
 
+    def set_label_panel(
+        self,
+        *,
+        axes: Optional[Sequence[float]] = None,
+        track_x: Optional[float] = None,
+        gutter_width: Optional[float] = None,
+        gutter_color: Optional[str] = None,
+        text_pad: Optional[float] = None,
+    ) -> Plotter:
+        """
+        Configures label-panel geometry shared by cluster labels and bar tracks.
+
+        Kwargs:
+            axes (Optional[Sequence[float]]): Label panel axes [x, y, w, h]. Defaults to None.
+            track_x (Optional[float]): X start (axes coordinates) for tracks. Defaults to None.
+            gutter_width (Optional[float]): Width of the matrix-adjacent gutter. Defaults to None.
+            gutter_color (Optional[str]): Color of the label-panel gutter. Defaults to None.
+            text_pad (Optional[float]): Padding between tracks and label text. Defaults to None.
+
+        Returns:
+            Plotter: Self for chaining.
+
+        Raises:
+            TypeError: If axes is not a numeric sequence of length 4.
+            ValueError: If gutter_width/text_pad are negative.
+        """
+        if axes is not None:
+            if not isinstance(axes, (list, tuple)) or len(axes) != 4:
+                raise TypeError("set_label_panel(axes=...) expects a sequence of length 4")
+            self._style.set("label_axes", [float(v) for v in axes])
+        if track_x is not None:
+            self._style.set("label_x", float(track_x))
+        if gutter_width is not None:
+            gw = float(gutter_width)
+            if gw < 0:
+                raise ValueError("set_label_panel(gutter_width=...) must be >= 0")
+            self._style.set("label_gutter_width", gw)
+        if gutter_color is not None:
+            self._style.set("label_gutter_color", str(gutter_color))
+        if text_pad is not None:
+            tp = float(text_pad)
+            if tp < 0:
+                raise ValueError("set_label_panel(text_pad=...) must be >= 0")
+            self._style.set("label_bar_pad", tp)
+        return self
+
+    def _register_label_track(
+        self,
+        *,
+        name: str,
+        kind: str,
+        renderer,
+        left_pad: float,
+        width: float,
+        right_pad: float,
+        enabled: bool,
+        payload: dict[str, Any],
+    ) -> None:
+        """
+        Registers a label-panel track if enabled.
+
+        Args:
+            name (str): Track name.
+            kind (str): Track kind ("cluster" or "row").
+            renderer: Track renderer callable.
+            left_pad (float): Left padding.
+            width (float): Track width.
+            right_pad (float): Right padding.
+            enabled (bool): Whether to register.
+            payload (dict[str, Any]): Renderer payload.
+        """
+        if not enabled:
+            return
+        self._track_layout.register_track(
+            name=name,
+            kind=kind,
+            renderer=renderer,
+            left_pad=left_pad,
+            width=width,
+            right_pad=right_pad,
+            enabled=True,
+            payload=payload,
+        )
+
+    def _has_track_kind(self, kind: str) -> bool:
+        """
+        Checks whether any enabled track of a given kind is registered.
+
+        Args:
+            kind (str): Track kind to check.
+
+        Returns:
+            bool: True if at least one enabled track matches kind.
+        """
+        return any(
+            track.get("enabled", True) and track.get("kind") == kind
+            for track in self._track_layout.tracks
+        )
+
+    def _collect_layer_kwargs(
+        self,
+    ) -> tuple[Optional[dict[str, Any]], Optional[dict[str, Any]], Optional[dict[str, Any]]]:
+        """
+        Collects frequently used layer kwargs, using last-one-wins semantics.
+
+        Returns:
+            tuple[Optional[dict[str, Any]], Optional[dict[str, Any]], Optional[dict[str, Any]]]:
+                Matrix kwargs, cluster-label kwargs, and bar-label kwargs.
+        """
+        matrix_kwargs = None
+        cluster_label_kwargs = None
+        bar_label_kwargs = None
+        for layer_name, kwargs in self._layers:
+            if layer_name == "matrix":
+                matrix_kwargs = kwargs
+            elif layer_name == "cluster_labels":
+                cluster_label_kwargs = kwargs
+            elif layer_name == "bar_labels":
+                bar_label_kwargs = kwargs
+        return matrix_kwargs, cluster_label_kwargs, bar_label_kwargs
+
+    def _render_label_panel(
+        self,
+        fig,
+        layout,
+        *,
+        bar_kwargs: Optional[dict[str, Any]],
+        cluster_kwargs: Optional[dict[str, Any]] = None,
+    ) -> None:
+        """
+        Renders the shared label panel with optional cluster labels.
+
+        Args:
+            fig: Matplotlib figure.
+            layout: Cluster layout object.
+            bar_kwargs (Optional[dict[str, Any]]): Bar-label renderer kwargs.
+            cluster_kwargs (Optional[dict[str, Any]]): Cluster-label layer kwargs.
+                If None, renders tracks only without cluster text.
+        """
+        if cluster_kwargs is None:
+            df = pd.DataFrame(columns=["cluster", "label", "pval"])
+            renderer = ClusterLabelsRenderer(df, skip_unlabeled=True)
+        else:
+            renderer_kwargs = dict(cluster_kwargs)
+            label_options = renderer_kwargs.pop("_label_options", {})
+            df = self.results.cluster_labels(**label_options)
+            renderer = ClusterLabelsRenderer(df, **renderer_kwargs)
+
+        renderer.render(
+            fig,
+            self.matrix,
+            layout,
+            self._style,
+            self._track_layout,
+            bar_labels_kwargs=bar_kwargs,
+        )
+
     def plot_cluster_bar(self, name: str, **kwargs) -> Plotter:
         """
         Declares a cluster-level label-panel bar from internal cluster labels.
@@ -243,23 +401,21 @@ class Plotter:
         alpha = kwargs.get("alpha", self._style.get("sigbar_alpha", 0.9))
         enabled = kwargs.get("enabled", True)
         title = kwargs.get("title", None)
-        # Enable cluster bar track registration
-        if enabled:
-            self._track_layout.register_track(
-                name=name,
-                kind="cluster",
-                renderer=render_cluster_bar_track,
-                left_pad=left_pad,
-                width=width,
-                right_pad=right_pad,
-                enabled=enabled,
-                payload={
-                    "cmap": cmap,
-                    "norm": norm,
-                    "alpha": alpha,
-                    "title": title,
-                },
-            )
+        self._register_label_track(
+            name=name,
+            kind="cluster",
+            renderer=render_cluster_bar_track,
+            left_pad=left_pad,
+            width=width,
+            right_pad=right_pad,
+            enabled=enabled,
+            payload={
+                "cmap": cmap,
+                "norm": norm,
+                "alpha": alpha,
+                "title": title,
+            },
+        )
         return self
 
     def plot_sigbar_legend(self, **kwargs) -> Plotter:
@@ -408,17 +564,16 @@ class Plotter:
         left_pad = kwargs.pop("left_pad", 0.0)
         right_pad = kwargs.pop("right_pad", 0.0)
         enabled = kwargs.get("enabled", True)
-        if enabled:
-            self._track_layout.register_track(
-                name=kwargs.get("name", "label_bar"),
-                kind="row",
-                renderer=render_label_bar_track,
-                left_pad=left_pad,
-                width=width,
-                right_pad=right_pad if right_pad is not None else 0.0,
-                enabled=enabled,
-                payload={**kwargs, "values": values, "title": kwargs.get("title", None)},
-            )
+        self._register_label_track(
+            name=kwargs.get("name", "label_bar"),
+            kind="row",
+            renderer=render_label_bar_track,
+            left_pad=left_pad,
+            width=width,
+            right_pad=right_pad if right_pad is not None else 0.0,
+            enabled=enabled,
+            payload={**kwargs, "values": values, "title": kwargs.get("title", None)},
+        )
         return self
 
     def plot_cluster_labels(
@@ -448,6 +603,9 @@ class Plotter:
 
         Returns:
             Plotter: Self for chaining.
+
+        Raises:
+            TypeError: If unknown keyword arguments are provided.
         """
         label_option_keys = {
             "term_col",
@@ -457,6 +615,39 @@ class Plotter:
             "label_col",
             "max_words",
         }
+        renderer_option_keys = {
+            "font",
+            "fontsize",
+            "color",
+            "alpha",
+            "skip_unlabeled",
+            "label_fields",
+            "placeholder_text",
+            "placeholder_color",
+            "label_sep_xmin",
+            "label_sep_xmax",
+            "label_sep_color",
+            "label_sep_lw",
+            "label_sep_alpha",
+            "boundary_color",
+            "boundary_lw",
+            "boundary_alpha",
+            "dendro_boundary_color",
+            "dendro_boundary_lw",
+            "dendro_boundary_alpha",
+            "omit_words",
+            "wrap_text",
+            "wrap_width",
+            "overflow",
+        }
+        allowed_keys = label_option_keys | renderer_option_keys
+        unknown_keys = sorted(set(kwargs) - allowed_keys)
+        if unknown_keys:
+            unknown_str = ", ".join(repr(k) for k in unknown_keys)
+            raise TypeError(
+                f"plot_cluster_labels() got unexpected keyword argument(s): {unknown_str}"
+            )
+
         label_options = {}
         for key in tuple(kwargs):
             if key in label_option_keys:
@@ -506,14 +697,13 @@ class Plotter:
         if not self._layers:
             raise RuntimeError("No plot layers declared.")
         has_cluster_label_layer = any(layer == "cluster_labels" for layer, _ in self._layers)
-        has_cluster_track = any(
-            track.get("enabled", True) and track.get("kind") == "cluster"
-            for track in self._track_layout.tracks
-        )
+        has_row_track = self._has_track_kind("row")
+        has_cluster_track = self._has_track_kind("cluster")
         if has_cluster_track and not has_cluster_label_layer:
             raise ValueError(
                 "plot_cluster_bar() requires plot_cluster_labels() in the same plotting chain."
             )
+        matrix_kwargs, cluster_boundary_kwargs, bar_kwargs = self._collect_layer_kwargs()
         # Consume authoritative geometry from Results
         layout = self.results.cluster_layout()
         # NOTE:
@@ -537,14 +727,6 @@ class Plotter:
             fig.patch.set_facecolor(self._background)
 
         # Single-ownership boundary registry (matrix-aligned horizontals)
-        matrix_kwargs = None
-        cluster_boundary_kwargs = None
-        for _layer, _kwargs in self._layers:
-            if _layer == "matrix":
-                matrix_kwargs = _kwargs
-            elif _layer == "cluster_labels":
-                cluster_boundary_kwargs = _kwargs
-
         boundary_registry = BoundaryRegistry()
 
         # Minor row gridlines (internal only; suppress axis extremes)
@@ -630,23 +812,7 @@ class Plotter:
                 renderer = AxesRenderer("title", **kwargs)
                 renderer.render(fig, ax, self.matrix, layout, self._style)
             elif layer == "cluster_labels":
-                bar_kwargs = None
-                for layer_name, kw in self._layers:
-                    if layer_name == "bar_labels":
-                        bar_kwargs = kw  # last one wins
-                # Prepare cluster label renderer inputs and render label panel
-                renderer_kwargs = dict(kwargs)
-                label_options = renderer_kwargs.pop("_label_options", {})
-                df = self.results.cluster_labels(**label_options)
-                renderer = ClusterLabelsRenderer(df, **renderer_kwargs)
-                renderer.render(
-                    fig,
-                    self.matrix,
-                    layout,
-                    self._style,
-                    self._track_layout,
-                    bar_labels_kwargs=bar_kwargs,
-                )
+                self._render_label_panel(fig, layout, bar_kwargs=bar_kwargs, cluster_kwargs=kwargs)
             elif layer == "sigbar_legend":
                 renderer = SigbarLegendRenderer(**kwargs)
                 renderer.render(fig, self._style)
@@ -655,6 +821,9 @@ class Plotter:
                 continue
             else:
                 raise NotImplementedError(f"Unknown plot layer: {layer}")
+        # Row-level label tracks can render without cluster label text.
+        if has_row_track and not has_cluster_label_layer:
+            self._render_label_panel(fig, layout, bar_kwargs=bar_kwargs)
 
         # Render bottom colorbar strip (global legends)
         colorbar_layout = None

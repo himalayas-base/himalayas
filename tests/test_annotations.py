@@ -26,6 +26,7 @@ def test_annotations_filtering_warns():
         annotations = Annotations(term_to_labels, matrix)
 
     assert set(annotations.term_to_labels.keys()) == {"t1"}
+    assert annotations.terms == ["t1"]
     assert any("Dropped" in str(w.message) for w in caught)
 
 
