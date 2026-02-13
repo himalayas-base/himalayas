@@ -23,7 +23,16 @@ def test_plotter_smoke(toy_results):
     plt_show = plt.show
     plt.show = lambda *args, **kwargs: None
     try:
-        Plotter(toy_results).plot_matrix().plot_cluster_labels().show()
+        (
+            Plotter(toy_results)
+            .set_label_panel(
+                axes=[0.70, 0.05, 0.29, 0.90],
+                text_pad=0.01,
+            )
+            .plot_matrix()
+            .plot_cluster_labels()
+            .show()
+        )
     finally:
         plt.show = plt_show
 
@@ -44,6 +53,12 @@ def test_plotter_stacked_defaults_smoke(toy_results):
     try:
         (
             Plotter(toy_results)
+            .set_label_panel(
+                axes=[0.70, 0.05, 0.29, 0.90],
+                track_x=0.02,
+                gutter_width=0.01,
+                text_pad=0.01,
+            )
             .plot_dendrogram()
             .plot_matrix()
             .plot_matrix_axis_labels()

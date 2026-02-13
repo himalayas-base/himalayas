@@ -189,7 +189,6 @@ def test_plot_label_bar_requires_colors(toy_results):
             (
                 Plotter(toy_results)
                 .plot_matrix()
-                .plot_cluster_labels()
                 .plot_label_bar(values={"a": "hit"}, mode="categorical")
                 .show()
             )
@@ -249,6 +248,10 @@ def test_plot_cluster_labels_accepts_override_mapper(toy_results):
         custom_label = f"Custom-{cid}"
         plotter = (
             Plotter(toy_results)
+            .set_label_panel(
+                axes=[0.70, 0.05, 0.29, 0.90],
+                text_pad=0.01,
+            )
             .plot_matrix()
             .plot_cluster_labels(
                 overrides={cid: custom_label},
@@ -272,6 +275,9 @@ def test_plot_cluster_labels_accepts_override_mapper(toy_results):
         fig2 = plotter2._fig
         patch_counts = [len(ax.patches) for ax in fig2.axes]
         assert max(patch_counts) > 1
+
+        with pytest.raises(TypeError, match="unexpected keyword argument"):
+            Plotter(toy_results).plot_cluster_labels(typo_key=True)
     finally:
         plt.show = plt_show
 
