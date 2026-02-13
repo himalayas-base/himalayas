@@ -212,6 +212,7 @@ def _prepare_cluster_labels(
     label_overrides: Optional[Dict[int, str]] = None,
     omit_words: Optional[Sequence[str]] = None,
     max_words: Optional[int] = None,
+    placeholder_text: str = "—",
     wrap_text: bool = True,
     wrap_width: Optional[int] = None,
     overflow: str = "wrap",
@@ -235,6 +236,7 @@ def _prepare_cluster_labels(
             Defaults to None.
         omit_words (Optional[Sequence[str]]): Words to omit from cluster labels. Defaults to None.
         max_words (Optional[int]): Maximum words in cluster labels. Defaults to None.
+        placeholder_text (str): Text for clusters without generated labels. Defaults to "—".
         wrap_text (bool): Whether to wrap cluster labels. Defaults to True.
         wrap_width (Optional[int]): Maximum characters per line when wrapping. Defaults to None.
         overflow (str): Overflow handling when truncating ("wrap" or "ellipsis"). Defaults to "wrap".
@@ -270,7 +272,7 @@ def _prepare_cluster_labels(
     pvals: list[float] = []
     for cid in cluster_ids:
         if cid not in lab_map:
-            labels.append("—")
+            labels.append(placeholder_text)
             pvals.append(np.nan)
             continue
         # Apply overrides and formatting, then collect
@@ -293,6 +295,78 @@ def _prepare_cluster_labels(
     y = np.arange(len(cluster_ids)) * 10.0 + 5.0
 
     return labels, pvals_arr, lab_map, cluster_sizes, y
+
+
+def _resolve_condensed_label_style(
+    *,
+    is_placeholder: bool,
+    label_color: str,
+    label_alpha: float,
+    placeholder_color: Optional[str],
+    placeholder_alpha: Optional[float],
+) -> Tuple[str, float]:
+    """
+    Resolves color/alpha for condensed label text, with placeholder-specific overrides.
+
+    Args:
+        is_placeholder (bool): Whether the current cluster label is a placeholder.
+        label_color (str): Base label color.
+        label_alpha (float): Base label alpha.
+        placeholder_color (Optional[str]): Optional placeholder color override.
+        placeholder_alpha (Optional[float]): Optional placeholder alpha override.
+
+    Returns:
+        Tuple[str, float]: Resolved (color, alpha) pair.
+    """
+    if is_placeholder:
+        return (
+            placeholder_color if placeholder_color is not None else label_color,
+            placeholder_alpha if placeholder_alpha is not None else label_alpha,
+        )
+
+    return label_color, label_alpha
+
+
+def _compose_condensed_cluster_text(
+    *,
+    label: str,
+    is_placeholder: bool,
+    label_fields: Sequence[str],
+    n_members: Optional[int],
+    pval: Optional[float],
+    wrap_text: bool,
+    wrap_width: Optional[int],
+) -> str:
+    """
+    Composes rendered text for one condensed cluster label.
+
+    Args:
+        label (str): Base text label.
+        is_placeholder (bool): Whether the current cluster label is a placeholder.
+        label_fields (Sequence[str]): Fields to include in non-placeholder labels.
+        n_members (Optional[int]): Cluster size.
+        pval (Optional[float]): Cluster p-value.
+        wrap_text (bool): Whether to wrap label text.
+        wrap_width (Optional[int]): Maximum characters per wrapped line.
+
+    Returns:
+        str: Final rendered label text.
+    """
+    if is_placeholder:
+        return label
+
+    has_label, stats = collect_label_stats(
+        label_fields,
+        n_members=n_members,
+        pval=pval,
+    )
+    return compose_label_text(
+        label,
+        has_label=has_label,
+        stats=stats,
+        wrap_text=wrap_text,
+        wrap_width=wrap_width,
+    )
 
 
 def _compute_condensed_dendrogram(
@@ -515,6 +589,10 @@ def plot_dendrogram_condensed(
     label_overrides: Optional[Dict[int, str]] = None,
     label_color: str = "black",
     label_alpha: float = 1.0,
+    placeholder_text: str = "—",
+    placeholder_color: Optional[str] = None,
+    placeholder_alpha: Optional[float] = None,
+    skip_unlabeled: bool = False,
     label_fontweight: str = "normal",
     dendrogram_color: str = "black",
     dendrogram_lw: float = 1.0,
@@ -557,6 +635,13 @@ def plot_dendrogram_condensed(
             Defaults to None.
         label_color (str): Color for cluster labels. Defaults to "black".
         label_alpha (float): Alpha for cluster labels. Defaults to 1.0.
+        placeholder_text (str): Text for unlabeled clusters. Defaults to "—".
+        placeholder_color (Optional[str]): Color override for placeholder labels.
+            If None, falls back to `label_color`.
+        placeholder_alpha (Optional[float]): Alpha override for placeholder labels.
+            If None, falls back to `label_alpha`.
+        skip_unlabeled (bool): Whether placeholder labels should be skipped.
+            Defaults to False.
         label_fontweight (str): Font weight for cluster labels. Defaults to "normal".
         dendrogram_color (str): Color for dendrogram lines. Defaults to "black".
         dendrogram_lw (float): Line width for dendrogram lines. Defaults to 1.0.
@@ -592,6 +677,7 @@ def plot_dendrogram_condensed(
         label_overrides=override_map,
         omit_words=omit_words,
         max_words=max_words,
+        placeholder_text=placeholder_text,
         wrap_text=wrap_text,
         wrap_width=wrap_width,
         overflow=overflow,
@@ -659,8 +745,12 @@ def plot_dendrogram_condensed(
     cluster_to_rows = getattr(clusters, "cluster_to_labels", None) or {}
     # Format and place per-cluster label text
     for cid, yi, lab, p in zip(cluster_ids, y, labels, pvals):
+        is_placeholder = int(cid) not in lab_map
+        if is_placeholder and skip_unlabeled:
+            continue
+
         n = None
-        if "n" in label_fields:
+        if not is_placeholder and "n" in label_fields:
             n = _get_cluster_size(
                 int(cid),
                 label_map=lab_map,
@@ -668,17 +758,21 @@ def plot_dendrogram_condensed(
                 cluster_to_labels=cluster_to_rows,
             )
         pval_value = p if np.isfinite(p) else None
-        has_label, stats = collect_label_stats(
-            label_fields,
+        txt = _compose_condensed_cluster_text(
+            label=lab,
+            is_placeholder=is_placeholder,
+            label_fields=label_fields,
             n_members=n,
             pval=pval_value,
-        )
-        txt = compose_label_text(
-            lab,
-            has_label=has_label,
-            stats=stats,
             wrap_text=wrap_text,
             wrap_width=wrap_width,
+        )
+        text_color, text_alpha = _resolve_condensed_label_style(
+            is_placeholder=is_placeholder,
+            label_color=label_color,
+            label_alpha=label_alpha,
+            placeholder_color=placeholder_color,
+            placeholder_alpha=placeholder_alpha,
         )
         ax_txt.text(
             0.0,
@@ -688,8 +782,8 @@ def plot_dendrogram_condensed(
             ha="left",
             font=font,
             fontsize=fontsize,
-            color=label_color,
-            alpha=label_alpha,
+            color=text_color,
+            alpha=text_alpha,
             fontweight=label_fontweight,
         )
 

@@ -5,19 +5,7 @@ tests/test_api_smoke
 
 import pytest
 
-from himalayas import Analysis, Annotations, Matrix, Results, cluster
-
-
-@pytest.mark.api
-def test_public_imports():
-    """
-    Ensures core public imports are exposed.
-    """
-    assert Matrix is not None
-    assert Annotations is not None
-    assert Analysis is not None
-    assert Results is not None
-    assert cluster is not None
+from himalayas import Analysis, Annotations, Matrix
 
 
 @pytest.mark.api

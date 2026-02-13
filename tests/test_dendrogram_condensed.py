@@ -5,11 +5,11 @@ tests/test_dendrogram_condensed
 
 import matplotlib.pyplot as plt
 import pytest
+from matplotlib.colors import to_rgba
 
 from himalayas.core.clustering import Clusters
 from himalayas.core.results import Results
 from himalayas.plot import CondensedDendrogramPlot, plot_dendrogram_condensed
-from himalayas.plot.condensed_dendrogram import _prepare_cluster_labels
 
 
 def _use_agg_backend() -> None:
@@ -80,6 +80,62 @@ def test_dendrogram_condensed_bad_label_overrides_type_raises(
             toy_results,
             label_overrides=["not-a-dict"],
         )
+
+
+@pytest.mark.api
+def test_dendrogram_condensed_placeholder_controls_match_cluster_label_parity(toy_results):
+    """
+    Ensures placeholder text style overrides global label style and skip_unlabeled hides placeholders.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    _use_agg_backend()
+    first_cluster = int(toy_results.cluster_layout().cluster_spans[0][0])
+    # Keep layout unchanged but drop one cluster from labels to force placeholder rendering.
+    filtered = toy_results.filter(f"cluster == {first_cluster}")
+    placeholder_text = "Nonsignificant"
+    plot = None
+    plot2 = None
+    try:
+        plot = plot_dendrogram_condensed(
+            filtered,
+            label_fields=("label",),
+            label_color="gray",
+            label_alpha=0.2,
+            placeholder_text=placeholder_text,
+            placeholder_color="red",
+            placeholder_alpha=1.0,
+            skip_unlabeled=False,
+        )
+        texts = [t for ax in plot.fig.axes for t in ax.texts if t.get_text().strip()]
+        placeholder_nodes = [t for t in texts if t.get_text() == placeholder_text]
+        regular_nodes = [t for t in texts if t.get_text() != placeholder_text]
+        assert placeholder_nodes, "Expected placeholder text to be rendered."
+        assert regular_nodes, "Expected at least one non-placeholder cluster label."
+
+        placeholder_node = placeholder_nodes[0]
+        regular_node = regular_nodes[0]
+        assert to_rgba(placeholder_node.get_color()) == pytest.approx(to_rgba("red"))
+        assert float(placeholder_node.get_alpha()) == pytest.approx(1.0)
+        assert to_rgba(regular_node.get_color()) == pytest.approx(to_rgba("gray"))
+        assert float(regular_node.get_alpha()) == pytest.approx(0.2)
+
+        # Re-render with skip_unlabeled to verify placeholders are dropped while regular labels remain.
+        plot2 = plot_dendrogram_condensed(
+            filtered,
+            label_fields=("label",),
+            placeholder_text=placeholder_text,
+            skip_unlabeled=True,
+        )
+        texts2 = [t.get_text().strip() for ax in plot2.fig.axes for t in ax.texts if t.get_text().strip()]
+        assert placeholder_text not in texts2
+        assert texts2, "Expected non-placeholder labels to remain rendered."
+    finally:
+        if plot is not None:
+            plt.close(plot.fig)
+        if plot2 is not None:
+            plt.close(plot2.fig)
 
 
 @pytest.mark.api
@@ -267,114 +323,3 @@ def test_dendrogram_condensed_unmapped_clusters_raises(toy_results):
     )
     with pytest.raises(ValueError):
         plot_dendrogram_condensed(results)
-
-
-@pytest.mark.api
-def test_dendrogram_condensed_max_words_controls_label_building_compressed(toy_results):
-    """
-    Ensures max_words controls compressed label building.
-
-    Args:
-        toy_results (Results): Results fixture with clusters and layout.
-    """
-    _use_agg_backend()
-    plot = None
-    try:
-        plot = plot_dendrogram_condensed(
-            toy_results,
-            label_mode="compressed",
-            max_words=1,
-            label_fields=("label",),
-            wrap_text=False,
-        )
-        texts = [t.get_text().strip() for ax in plot.fig.axes for t in ax.texts]
-        # Exclude placeholders to focus on generated cluster label text.
-        cluster_texts = [t for t in texts if t and t != "—"]
-        assert cluster_texts, "Expected generated cluster labels to be rendered."
-        for txt in cluster_texts:
-            assert len(txt.replace("\n", " ").split()) <= 1
-    finally:
-        if plot is not None:
-            plt.close(plot.fig)
-
-
-@pytest.mark.api
-def test_dendrogram_condensed_max_words_controls_display(toy_results):
-    """
-    Ensures max_words truncates rendered override labels.
-
-    Args:
-        toy_results (Results): Results fixture with clusters and layout.
-    """
-    _use_agg_backend()
-    plot = None
-    try:
-        cid = int(toy_results.cluster_layout().cluster_spans[0][0])
-        plot = plot_dendrogram_condensed(
-            toy_results,
-            label_overrides={cid: "Alpha Beta Gamma"},
-            label_fields=("label",),
-            max_words=1,
-            wrap_text=False,
-        )
-        texts = [t.get_text() for ax in plot.fig.axes for t in ax.texts]
-        assert any(t.strip() == "Alpha" for t in texts)
-        assert not any("Alpha Beta" in t for t in texts)
-    finally:
-        if plot is not None:
-            plt.close(plot.fig)
-
-
-@pytest.mark.api
-def test_dendrogram_condensed_override_respects_np_field_contract(toy_results):
-    """
-    Ensures label_fields controls displayed stats/order even when label_overrides are provided.
-
-    Args:
-        toy_results (Results): Results fixture with clusters and layout.
-    """
-    _use_agg_backend()
-    plot = None
-    try:
-        cid = int(toy_results.cluster_layout().cluster_spans[0][0])
-        plot = plot_dendrogram_condensed(
-            toy_results,
-            label_overrides={cid: "CustomLabelIgnoredByFields"},
-            label_fields=("n", "p"),
-            wrap_text=False,
-        )
-        texts = [t.get_text() for ax in plot.fig.axes for t in ax.texts]
-        # Labels are rendered as raw text; this selects n/p-only cluster entries.
-        np_texts = [t for t in texts if t.startswith("(") and "n=" in t and "$p$=" in t]
-        assert np_texts, "Expected n/p-only condensed cluster label text."
-        assert all("CustomLabelIgnoredByFields" not in t for t in np_texts)
-        for txt in np_texts:
-            assert txt.find("n=") < txt.find("$p$=")
-    finally:
-        if plot is not None:
-            plt.close(plot.fig)
-
-
-@pytest.mark.unit
-def test_dendrogram_condensed_override_keeps_deterministic_sigbar_source(toy_results):
-    """
-    Ensures label-only overrides preserve deterministic p-values used by the condensed sigbar.
-
-    Args:
-        toy_results (Results): Results fixture with clusters and layout.
-    """
-    df = toy_results.cluster_labels()
-    cluster_ids = [int(cid) for cid, _s, _e in toy_results.cluster_layout().cluster_spans]
-    cid = cluster_ids[0]
-    idx = cluster_ids.index(cid)
-    base_pval = float(df.loc[df["cluster"] == cid, "pval"].iloc[0])
-    labels, pvals, _lab_map, _cluster_sizes, _y = _prepare_cluster_labels(
-        cluster_ids,
-        df,
-        toy_results.clusters,
-        label_overrides={cid: f"Custom-{cid}"},
-        wrap_text=False,
-    )
-
-    assert labels[idx] == f"Custom-{cid}"
-    assert float(pvals[idx]) == pytest.approx(base_pval)

@@ -6,8 +6,9 @@ tests/test_enrichment
 import pandas as pd
 import pytest
 
-from himalayas import Annotations, Matrix, cluster
+from himalayas import Annotations, Matrix
 from himalayas.core import run_cluster_hypergeom
+from himalayas.core.clustering import cluster
 
 
 @pytest.mark.api

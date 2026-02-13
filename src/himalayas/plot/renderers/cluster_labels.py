@@ -287,10 +287,13 @@ def _render_cluster_text_and_separators(
                 "font": font,
                 "fontsize": fontsize,
                 "color": kwargs.get(
-                    "color",
-                    kwargs.get("placeholder_color", style["placeholder_color"]),
+                    "placeholder_color",
+                    kwargs.get("color", style["placeholder_color"]),
                 ),
-                "alpha": kwargs.get("alpha", style["placeholder_alpha"]),
+                "alpha": kwargs.get(
+                    "placeholder_alpha",
+                    kwargs.get("alpha", style["placeholder_alpha"]),
+                ),
             }
         else:
             label, pval = label_map[cid]

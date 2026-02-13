@@ -624,6 +624,7 @@ class Plotter:
             "label_fields",
             "placeholder_text",
             "placeholder_color",
+            "placeholder_alpha",
             "label_sep_xmin",
             "label_sep_xmax",
             "label_sep_color",

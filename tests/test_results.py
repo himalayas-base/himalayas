@@ -7,7 +7,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from himalayas import Matrix, Results, cluster
+from himalayas import Matrix, Results
+from himalayas.core.clustering import cluster
 
 
 @pytest.mark.api
