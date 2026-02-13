@@ -116,10 +116,10 @@ def test_plot_cluster_bar_uses_internal_cluster_labels(toy_results):
         plt.show = plt_show
 
 
-@pytest.mark.unit
-def test_plot_colorbars_tick_decimals_validation(toy_results):
+@pytest.mark.api
+def test_plot_colorbars_tick_decimals_contract(toy_results):
     """
-    Ensures plot_colorbars validates tick_decimals type and range.
+    Ensures tick_decimals validation and display precision behavior are consistent.
 
     Args:
         toy_results (Results): Results fixture with clusters and layout.
@@ -135,15 +135,6 @@ def test_plot_colorbars_tick_decimals_validation(toy_results):
     with pytest.raises(ValueError, match="tick_decimals"):
         Plotter(toy_results).plot_colorbars(tick_decimals=-1)
 
-
-@pytest.mark.api
-def test_plot_colorbars_tick_decimals_caps_display_precision(toy_results):
-    """
-    Ensures colorbar tick labels honor the configured decimal cap.
-
-    Args:
-        toy_results (Results): Results fixture with clusters and layout.
-    """
     plt = _use_agg_backend()
     plt_show = plt.show
     plt.show = lambda *args, **kwargs: None
@@ -311,6 +302,7 @@ def test_plot_cluster_labels_placeholder_style_overrides_global_style(toy_result
                 placeholder_color="red",
                 placeholder_alpha=1.0,
             )
+            .plot_cluster_bar(name="sig")
         )
         plotter.show()
         fig = plotter._fig
@@ -327,6 +319,16 @@ def test_plot_cluster_labels_placeholder_style_overrides_global_style(toy_result
         assert float(placeholder_node.get_alpha()) == pytest.approx(1.0)
         assert to_rgba(regular_node.get_color()) == pytest.approx(to_rgba("gray"))
         assert float(regular_node.get_alpha()) == pytest.approx(0.2)
+
+        # Cluster bars should render for both clusters; unlabeled clusters use min cmap color.
+        cmap = plt.get_cmap(plotter._style["sigbar_cmap"])
+        min_rgb = to_rgba(cmap(0.0))[:3]
+        max_rgb = to_rgba(cmap(1.0))[:3]
+        bar_patches = [p for ax in fig.axes for p in ax.patches if p.get_alpha() is not None]
+        assert len(bar_patches) == 2, "Expected one sigbar patch per cluster span."
+        bar_colors = [to_rgba(p.get_facecolor())[:3] for p in bar_patches]
+        assert any(c == pytest.approx(min_rgb) for c in bar_colors)
+        assert any(c == pytest.approx(max_rgb) for c in bar_colors)
     finally:
         plt.show = plt_show
 
