@@ -5,6 +5,7 @@ tests/test_dendrogram_condensed
 
 import matplotlib.pyplot as plt
 import pytest
+from matplotlib.colors import to_rgba
 
 from himalayas.core.clustering import Clusters
 from himalayas.core.results import Results
@@ -80,6 +81,62 @@ def test_dendrogram_condensed_bad_label_overrides_type_raises(
             toy_results,
             label_overrides=["not-a-dict"],
         )
+
+
+@pytest.mark.api
+def test_dendrogram_condensed_placeholder_controls_match_cluster_label_parity(toy_results):
+    """
+    Ensures placeholder text style overrides global label style and skip_unlabeled hides placeholders.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    _use_agg_backend()
+    first_cluster = int(toy_results.cluster_layout().cluster_spans[0][0])
+    # Keep layout unchanged but drop one cluster from labels to force placeholder rendering.
+    filtered = toy_results.filter(f"cluster == {first_cluster}")
+    placeholder_text = "Nonsignificant"
+    plot = None
+    plot2 = None
+    try:
+        plot = plot_dendrogram_condensed(
+            filtered,
+            label_fields=("label",),
+            label_color="gray",
+            label_alpha=0.2,
+            placeholder_text=placeholder_text,
+            placeholder_color="red",
+            placeholder_alpha=1.0,
+            skip_unlabeled=False,
+        )
+        texts = [t for ax in plot.fig.axes for t in ax.texts if t.get_text().strip()]
+        placeholder_nodes = [t for t in texts if t.get_text() == placeholder_text]
+        regular_nodes = [t for t in texts if t.get_text() != placeholder_text]
+        assert placeholder_nodes, "Expected placeholder text to be rendered."
+        assert regular_nodes, "Expected at least one non-placeholder cluster label."
+
+        placeholder_node = placeholder_nodes[0]
+        regular_node = regular_nodes[0]
+        assert to_rgba(placeholder_node.get_color()) == pytest.approx(to_rgba("red"))
+        assert float(placeholder_node.get_alpha()) == pytest.approx(1.0)
+        assert to_rgba(regular_node.get_color()) == pytest.approx(to_rgba("gray"))
+        assert float(regular_node.get_alpha()) == pytest.approx(0.2)
+
+        # Re-render with skip_unlabeled to verify placeholders are dropped while regular labels remain.
+        plot2 = plot_dendrogram_condensed(
+            filtered,
+            label_fields=("label",),
+            placeholder_text=placeholder_text,
+            skip_unlabeled=True,
+        )
+        texts2 = [t.get_text().strip() for ax in plot2.fig.axes for t in ax.texts if t.get_text().strip()]
+        assert placeholder_text not in texts2
+        assert texts2, "Expected non-placeholder labels to remain rendered."
+    finally:
+        if plot is not None:
+            plt.close(plot.fig)
+        if plot2 is not None:
+            plt.close(plot2.fig)
 
 
 @pytest.mark.api

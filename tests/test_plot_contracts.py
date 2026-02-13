@@ -320,6 +320,7 @@ def test_plot_cluster_labels_placeholder_style_overrides_global_style(toy_result
         assert placeholder_nodes, "Expected placeholder text to be rendered."
         assert regular_nodes, "Expected at least one non-placeholder cluster label."
 
+        # Placeholder text uses placeholder_* style, while labeled clusters keep global color/alpha.
         placeholder_node = placeholder_nodes[0]
         regular_node = regular_nodes[0]
         assert to_rgba(placeholder_node.get_color()) == pytest.approx(to_rgba("red"))
