@@ -5,7 +5,7 @@ tests/test_clustering
 
 import pytest
 
-from himalayas import cluster
+from himalayas.core.clustering import cluster
 
 
 @pytest.mark.api

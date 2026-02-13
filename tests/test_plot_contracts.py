@@ -6,9 +6,10 @@ tests/test_plot_contracts
 import matplotlib.pyplot as plt
 import pandas as pd
 import pytest
-from matplotlib.colors import Normalize
+from matplotlib.colors import Normalize, to_rgba
 
-from himalayas import Results, cluster
+from himalayas import Results
+from himalayas.core.clustering import cluster
 from himalayas.plot import Plotter
 from himalayas.plot.renderers.cluster_labels import _build_label_map, _parse_label_overrides
 from himalayas.plot.track_layout import TrackLayoutManager
@@ -278,6 +279,53 @@ def test_plot_cluster_labels_accepts_override_mapper(toy_results):
 
         with pytest.raises(TypeError, match="unexpected keyword argument"):
             Plotter(toy_results).plot_cluster_labels(typo_key=True)
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+def test_plot_cluster_labels_placeholder_style_overrides_global_style(toy_results):
+    """
+    Ensures placeholder labels use placeholder_color/placeholder_alpha over global color/alpha.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = _use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        first_cluster = int(toy_results.cluster_layout().cluster_spans[0][0])
+        # Keep layout unchanged but drop one cluster from labels to force placeholder rendering.
+        filtered = toy_results.filter(f"cluster == {first_cluster}")
+        placeholder_text = "Nonsignificant"
+        plotter = (
+            Plotter(filtered)
+            .plot_matrix()
+            .plot_cluster_labels(
+                label_fields=("label",),
+                skip_unlabeled=False,
+                color="gray",
+                alpha=0.2,
+                placeholder_text=placeholder_text,
+                placeholder_color="red",
+                placeholder_alpha=1.0,
+            )
+        )
+        plotter.show()
+        fig = plotter._fig
+        texts = [t for ax in fig.axes for t in ax.texts if t.get_text().strip()]
+        placeholder_nodes = [t for t in texts if t.get_text() == placeholder_text]
+        regular_nodes = [t for t in texts if t.get_text() != placeholder_text]
+        assert placeholder_nodes, "Expected placeholder text to be rendered."
+        assert regular_nodes, "Expected at least one non-placeholder cluster label."
+
+        placeholder_node = placeholder_nodes[0]
+        regular_node = regular_nodes[0]
+        assert to_rgba(placeholder_node.get_color()) == pytest.approx(to_rgba("red"))
+        assert float(placeholder_node.get_alpha()) == pytest.approx(1.0)
+        assert to_rgba(regular_node.get_color()) == pytest.approx(to_rgba("gray"))
+        assert float(regular_node.get_alpha()) == pytest.approx(0.2)
     finally:
         plt.show = plt_show
 

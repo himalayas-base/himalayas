@@ -5,7 +5,7 @@ tests/test_api_smoke
 
 import pytest
 
-from himalayas import Analysis, Annotations, Matrix, Results, cluster
+from himalayas import Analysis, Annotations, Matrix, Results
 
 
 @pytest.mark.api
@@ -17,7 +17,6 @@ def test_public_imports():
     assert Annotations is not None
     assert Analysis is not None
     assert Results is not None
-    assert cluster is not None
 
 
 @pytest.mark.api
