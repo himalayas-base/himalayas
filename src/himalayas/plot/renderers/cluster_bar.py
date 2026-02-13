@@ -120,9 +120,11 @@ def render_cluster_bar_track(
     )
     # Render bars per cluster
     for (_cid, s, e), sv in zip(cluster_spans, scaled):
-        if not np.isfinite(sv):
-            continue
-        bar_color = cmap(sv)
+        # Keep condensed/main sigbar semantics aligned:
+        # unlabeled clusters (NaN scale) render at minimum colormap value.
+        bar_value = float(sv) if np.isfinite(sv) else 0.0
+        bar_value = float(np.clip(bar_value, 0.0, 1.0))
+        bar_color = cmap(bar_value)
         ax.add_patch(
             plt.Rectangle(
                 (x0, s - 0.5),
