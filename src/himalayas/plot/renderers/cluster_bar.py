@@ -11,6 +11,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.colors import Normalize
 
+from ._cluster_label_types import ClusterLabelStats
+
 if TYPE_CHECKING:
     from ..style import StyleConfig
 
@@ -18,24 +20,24 @@ if TYPE_CHECKING:
 def _resolve_cluster_values(
     *,
     cluster_spans: Sequence[Tuple[int, int, int]],
-    label_map: Dict[int, Tuple[str, Optional[float]]],
+    label_map: Dict[int, ClusterLabelStats],
 ) -> np.ndarray:
     """
-    Resolves raw p-values per cluster from the internal cluster label map.
+    Resolves raw ranking scores per cluster from the internal cluster label map.
 
     Kwargs:
         cluster_spans (Sequence[Tuple[int, int, int]]): Iterable of (cluster_id, start, end).
-        label_map (Dict[int, Tuple[str, Optional[float]]]): Mapping cluster_id -> (label, pval).
+        label_map (Dict[int, ClusterLabelStats]): Mapping cluster_id -> (label, pval, qval, score).
 
     Returns:
         np.ndarray: Raw values per cluster (float, NaN allowed).
     """
-    # Extract p-values per cluster.
+    # Extract ranked score per cluster.
     values = np.full(len(cluster_spans), np.nan, dtype=float)
     for i, (cid, _s, _e) in enumerate(cluster_spans):
-        _label, pval = label_map.get(cid, (None, np.nan))
+        _label, _pval, _qval, score = label_map.get(cid, (None, np.nan, np.nan, np.nan))
         try:
-            p = float(pval)
+            p = float(score)
         except (TypeError, ValueError):
             continue
         if np.isfinite(p):
@@ -90,11 +92,11 @@ def render_cluster_bar_track(
     width: float,
     payload: Dict[str, Any],
     cluster_spans: Sequence[Tuple[int, int, int]],
-    label_map: Dict[int, Tuple[str, Optional[float]]],
+    label_map: Dict[int, ClusterLabelStats],
     style: StyleConfig,
 ) -> None:
     """
-    Renders a cluster-level bar track (e.g., -log10 p-values).
+    Renders a cluster-level bar track (e.g., -log10 ranked score).
 
     Args:
         ax (plt.Axes): Matplotlib Axes to draw on.
@@ -102,7 +104,7 @@ def render_cluster_bar_track(
         width (float): Width of the bar track.
         payload (Dict[str, Any]): Track payload.
         cluster_spans (Sequence[Tuple[int, int, int]]): Iterable of (cluster_id, start, end).
-        label_map (Dict[int, Tuple[str, Optional[float]]]): Mapping cluster_id -> (label, pval).
+        label_map (Dict[int, ClusterLabelStats]): Mapping cluster_id -> (label, pval, qval, score).
         style (StyleConfig): Style configuration.
     """
     cmap_in = payload.get("cmap", style["sigbar_cmap"])

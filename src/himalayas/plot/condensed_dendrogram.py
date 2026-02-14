@@ -11,6 +11,7 @@ from typing import (
     Any,
     Collection,
     Dict,
+    NamedTuple,
     Optional,
     Sequence,
     Tuple,
@@ -45,6 +46,18 @@ class DendrogramData(TypedDict):
     icoord: Sequence[Sequence[float]]
     dcoord: Sequence[Sequence[float]]
     leaves: Sequence[int]
+
+
+class ClusterLabelInfo(NamedTuple):
+    """
+    Canonical per-cluster label payload used by condensed plotting.
+    """
+
+    label: str
+    pval: float
+    qval: float
+    n_members: Optional[float]
+    score: float
 
 
 class CondensedDendrogramPlot:
@@ -128,14 +141,14 @@ def _validate_condensed_inputs(
 
     Args:
         results (Results): Enrichment results exposing cluster_layout() and clusters.
-        label_fields (Sequence[str]): Fields to include in labels ("label", "n", "p").
+        label_fields (Sequence[str]): Fields to include in labels ("label", "n", "p", "q").
 
     Raises:
         AttributeError: If required attributes are missing from results.
         ValueError: If no clusters are available or label_fields is invalid.
     """
     # Validation
-    allowed = {"label", "n", "p"}
+    allowed = {"label", "n", "p", "q"}
     if not set(label_fields).issubset(allowed):
         raise ValueError(f"label_fields must be a subset of {allowed}")
     if not list(results.cluster_layout().cluster_spans):
@@ -219,16 +232,17 @@ def _prepare_cluster_labels(
 ) -> Tuple[
     list[str],
     np.ndarray,
-    Dict[int, Tuple[str, float, Optional[float]]],
+    Dict[int, ClusterLabelInfo],
     Optional[Dict[int, int]],
     np.ndarray,
 ]:
     """
-    Prepares cluster labels and p-values for condensed dendrogram plotting.
+    Prepares cluster labels and ranking scores for condensed dendrogram plotting.
 
     Args:
         cluster_ids (Sequence[int]): Ordered list of cluster ids.
-        cluster_labels (pd.DataFrame): DataFrame with columns: cluster, label, pval.
+        cluster_labels (pd.DataFrame): DataFrame with columns: cluster, label,
+            and optional pval/qval/score/n.
         clusters (Clusters): Clusters instance.
 
     Kwargs:
@@ -245,13 +259,13 @@ def _prepare_cluster_labels(
         Tuple[
             list[str],
             np.ndarray,
-            Dict[int, Tuple[str, float, Optional[float]]],
+            Dict[int, ClusterLabelInfo],
             Optional[Dict[int, int]],
             np.ndarray,
         ]: (
             List of formatted cluster labels,
-            Array of p-values per cluster,
-            Mapping cluster_id -> (label, pval, n),
+            Array of ranking scores per cluster,
+            Mapping cluster_id -> ClusterLabelInfo,
             Optional mapping cluster_id -> size,
             Y positions for cluster labels,
         )
@@ -259,24 +273,35 @@ def _prepare_cluster_labels(
     if label_overrides is None:
         label_overrides = {}
     # Build label map from DataFrame
-    lab_map: Dict[int, Tuple[str, float, Optional[float]]] = {}
+    lab_map: Dict[int, ClusterLabelInfo] = {}
     for _, row in cluster_labels.iterrows():
         pval_raw = row.get("pval", np.nan)
+        qval_raw = row.get("qval", np.nan)
+        score_raw = row.get("score", pval_raw if not pd.isna(pval_raw) else qval_raw)
         pval = float(pval_raw) if pval_raw is not None and not pd.isna(pval_raw) else np.nan
-        lab_map[int(row["cluster"])] = (str(row["label"]), pval, row.get("n", None))
+        qval = float(qval_raw) if qval_raw is not None and not pd.isna(qval_raw) else np.nan
+        score = float(score_raw) if score_raw is not None and not pd.isna(score_raw) else np.nan
+        lab_map[int(row["cluster"])] = ClusterLabelInfo(
+            label=str(row["label"]),
+            pval=pval,
+            qval=qval,
+            n_members=row.get("n", None),
+            score=score,
+        )
     cluster_sizes = getattr(clusters, "cluster_sizes", None) if clusters is not None else None
     cluster_sizes = dict(cluster_sizes) if cluster_sizes is not None else None
 
-    # Prepare labels and p-values in order
+    # Prepare labels and ranking scores in order
     labels: list[str] = []
-    pvals: list[float] = []
+    scores: list[float] = []
     for cid in cluster_ids:
         if cid not in lab_map:
             labels.append(placeholder_text)
-            pvals.append(np.nan)
+            scores.append(np.nan)
             continue
         # Apply overrides and formatting, then collect
-        lab, p, _ = lab_map[cid]
+        lab_info = lab_map[cid]
+        lab = lab_info.label
         if cid in label_overrides:
             lab = label_overrides[cid]
         labels.append(
@@ -289,12 +314,12 @@ def _prepare_cluster_labels(
                 wrap_width=wrap_width,
             )
         )
-        pvals.append(p)
-    # Convert p-values to array
-    pvals_arr = np.asarray(pvals, float)
+        scores.append(lab_info.score)
+    # Convert ranking scores to array
+    score_arr = np.asarray(scores, float)
     y = np.arange(len(cluster_ids)) * 10.0 + 5.0
 
-    return labels, pvals_arr, lab_map, cluster_sizes, y
+    return labels, score_arr, lab_map, cluster_sizes, y
 
 
 def _resolve_condensed_label_style(
@@ -334,6 +359,7 @@ def _compose_condensed_cluster_text(
     label_fields: Sequence[str],
     n_members: Optional[int],
     pval: Optional[float],
+    qval: Optional[float],
     wrap_text: bool,
     wrap_width: Optional[int],
 ) -> str:
@@ -346,6 +372,7 @@ def _compose_condensed_cluster_text(
         label_fields (Sequence[str]): Fields to include in non-placeholder labels.
         n_members (Optional[int]): Cluster size.
         pval (Optional[float]): Cluster p-value.
+        qval (Optional[float]): Cluster q-value.
         wrap_text (bool): Whether to wrap label text.
         wrap_width (Optional[int]): Maximum characters per wrapped line.
 
@@ -359,6 +386,7 @@ def _compose_condensed_cluster_text(
         label_fields,
         n_members=n_members,
         pval=pval,
+        qval=qval,
     )
     return compose_label_text(
         label,
@@ -530,7 +558,7 @@ def _condense_linkage_to_clusters(
 def _get_cluster_size(
     cluster_id: int,
     *,
-    label_map: Dict[int, Tuple[str, float, Optional[float]]],
+    label_map: Dict[int, ClusterLabelInfo],
     cluster_sizes: Optional[Dict[int, int]] = None,
     cluster_to_labels: Dict[int, Collection[Hashable]],
 ) -> Optional[int]:
@@ -541,8 +569,7 @@ def _get_cluster_size(
         cluster_id (int): Cluster id.
 
     Kwargs:
-        label_map (Dict[int, Tuple[str, float, Optional[float]]]): Mapping cluster_id ->
-            (label, pval, n).
+        label_map (Dict[int, ClusterLabelInfo]): Mapping cluster_id -> ClusterLabelInfo.
         cluster_sizes (Optional[Dict[int, int]]): Pre-computed cluster sizes. Defaults to None.
         cluster_to_labels (Dict[int, Collection[Hashable]]): Mapping cluster_id -> labels
 
@@ -551,9 +578,13 @@ def _get_cluster_size(
     """
     # Check label map first, then cluster_sizes, then compute from cluster_to_labels
     if cluster_id in label_map:
-        n0 = label_map[cluster_id][2]
-        if n0 is not None and np.isfinite(n0):
-            return int(n0)
+        n0 = label_map[cluster_id].n_members
+        if n0 is not None:
+            try:
+                if np.isfinite(n0):
+                    return int(n0)
+            except TypeError:
+                pass
     if cluster_sizes is not None and cluster_id in cluster_sizes:
         return int(cluster_sizes[cluster_id])
     cluster_members = cluster_to_labels.get(cluster_id, None)
@@ -565,11 +596,8 @@ def _get_cluster_size(
 def plot_dendrogram_condensed(
     results: Results,
     *,
-    term_col: str = "term",
-    cluster_col: str = "cluster",
-    weight_col: str = "pval",
+    rank_by: str = "p",
     label_mode: str = "top_term",
-    label_col: Optional[str] = "term_name",
     figsize: Sequence[float] = (10, 10),
     sigbar_cmap: Union[str, Colormap] = "YlOrBr",
     sigbar_min_logp: float = 2.0,
@@ -608,15 +636,15 @@ def plot_dendrogram_condensed(
         results (Results): Enrichment results exposing cluster_layout() and clusters.
 
     Kwargs:
-        term_col (str): Term id column used for label generation. Defaults to "term".
-        cluster_col (str): Cluster id column used for label generation. Defaults to "cluster".
-        weight_col (str): P-value/weight column used for label generation. Defaults to "pval".
+        rank_by (str): Ranking statistic for representative terms, one of {"p", "q"}.
+            Defaults to "p".
         label_mode (str): Label mode, one of {"top_term", "compressed"}. Defaults to "top_term".
-        label_col (Optional[str]): Optional display-name column. Defaults to "term_name".
         figsize (Sequence[float]): Figure size (width, height). Defaults to (10, 10).
         sigbar_cmap (Union[str, Colormap]): Colormap for significance bar. Defaults to "YlOrBr".
-        sigbar_min_logp (float): Minimum -log10(p) for significance bar scaling. Defaults to 2.0.
-        sigbar_max_logp (float): Maximum -log10(p) for significance bar scaling. Defaults to 10.0.
+        sigbar_min_logp (float): Minimum -log10(score) for significance bar scaling.
+            Defaults to 2.0.
+        sigbar_max_logp (float): Maximum -log10(score) for significance bar scaling.
+            Defaults to 10.0.
         sigbar_norm (Optional[Normalize]): Optional normalization for significance bar. Defaults to None.
         sigbar_width (float): Width of significance bar (axes fraction). Defaults to 0.06.
         sigbar_height (float): Height of each significance bar as a fraction of row pitch.
@@ -629,7 +657,7 @@ def plot_dendrogram_condensed(
         wrap_width (Optional[int]): Maximum characters per line when wrapping. Defaults to None.
         overflow (str): Overflow handling when truncating ("wrap" or "ellipsis"). Defaults to "wrap".
         omit_words (Optional[Sequence[str]]): Words to omit from cluster labels. Defaults to None.
-        label_fields (Sequence[str]): Fields to include in labels ("label", "n", "p").
+        label_fields (Sequence[str]): Fields to include in labels ("label", "n", "p", "q").
             Defaults to ("label", "n", "p").
         label_overrides (Optional[Dict[int, str]]): Mapping cluster_id -> custom label.
             Defaults to None.
@@ -660,17 +688,14 @@ def plot_dendrogram_condensed(
     _validate_condensed_inputs(results, label_fields)
     override_map = _parse_label_overrides(label_overrides)
     cluster_labels = results.cluster_labels(
-        term_col=term_col,
-        cluster_col=cluster_col,
-        weight_col=weight_col,
+        rank_by=rank_by,
         label_mode=label_mode,
-        label_col=label_col,
         max_words=max_words,
     )
     # Get master linkage and clusters
     Z_master, clusters = _get_master_linkage(results)
     cluster_ids, row_to_cluster = _resolve_cluster_order(Z_master, results, clusters)
-    labels, pvals, lab_map, cluster_sizes, y = _prepare_cluster_labels(
+    labels, scores, lab_map, cluster_sizes, y = _prepare_cluster_labels(
         cluster_ids,
         cluster_labels,
         clusters,
@@ -716,11 +741,11 @@ def plot_dendrogram_condensed(
     denom = sigbar_max_logp - sigbar_min_logp
     row_pitch = float(np.mean(np.diff(y))) if len(y) > 1 else 10.0
     bar_height = row_pitch * float(sigbar_height)
-    for i, p in enumerate(pvals):
-        if not np.isfinite(p) or p <= 0:
+    for i, score in enumerate(scores):
+        if not np.isfinite(score) or score <= 0:
             val = 0.0
         else:
-            lp = -np.log10(p)
+            lp = -np.log10(score)
             if norm is None:
                 val = np.clip((lp - sigbar_min_logp) / denom, 0, 1)
             else:
@@ -744,12 +769,14 @@ def plot_dendrogram_condensed(
     # Mapping cluster -> row ids is needed for _get_cluster_size.
     cluster_to_rows = getattr(clusters, "cluster_to_labels", None) or {}
     # Format and place per-cluster label text
-    for cid, yi, lab, p in zip(cluster_ids, y, labels, pvals):
+    for cid, yi, lab in zip(cluster_ids, y, labels):
         is_placeholder = int(cid) not in lab_map
         if is_placeholder and skip_unlabeled:
             continue
 
         n = None
+        pval_value = None
+        qval_value = None
         if not is_placeholder and "n" in label_fields:
             n = _get_cluster_size(
                 int(cid),
@@ -757,13 +784,17 @@ def plot_dendrogram_condensed(
                 cluster_sizes=cluster_sizes,
                 cluster_to_labels=cluster_to_rows,
             )
-        pval_value = p if np.isfinite(p) else None
+        if not is_placeholder:
+            label_info = lab_map[int(cid)]
+            pval_value = label_info.pval if np.isfinite(label_info.pval) else None
+            qval_value = label_info.qval if np.isfinite(label_info.qval) else None
         txt = _compose_condensed_cluster_text(
             label=lab,
             is_placeholder=is_placeholder,
             label_fields=label_fields,
             n_members=n,
             pval=pval_value,
+            qval=qval_value,
             wrap_text=wrap_text,
             wrap_width=wrap_width,
         )

@@ -14,6 +14,7 @@ def collect_label_stats(
     *,
     n_members: Optional[int] = None,
     pval: Optional[float] = None,
+    qval: Optional[float] = None,
 ) -> Tuple[bool, List[str]]:
     """
     Collects ordered label stats based on label_fields.
@@ -24,6 +25,7 @@ def collect_label_stats(
     Kwargs:
         n_members (Optional[int]): Cluster size for "n". Defaults to None.
         pval (Optional[float]): P-value for "p". Defaults to None.
+        qval (Optional[float]): Q-value for "q". Defaults to None.
 
     Returns:
         Tuple[bool, List[str]]: (has_label, ordered_stats_list).
@@ -37,6 +39,8 @@ def collect_label_stats(
             stats.append(f"n={n_members}")
         elif field == "p" and pval is not None:
             stats.append(rf"$p$={pval:.2e}")
+        elif field == "q" and qval is not None:
+            stats.append(rf"$q$={qval:.2e}")
     return has_label, stats
 
 

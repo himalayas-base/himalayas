@@ -141,7 +141,7 @@ DEFAULT_STYLE: StyleDefaults = {
     # Words to omit from displayed cluster labels
     "label_omit_words": None,
     # Which fields to show in cluster labels, in order
-    # Allowed values: "label", "n", "p"
+    # Allowed values: "label", "n", "p", "q"
     "label_fields": ("label", "n", "p"),
     # Optional label wrapping (characters per line); None = disabled
     "label_wrap_width": None,
