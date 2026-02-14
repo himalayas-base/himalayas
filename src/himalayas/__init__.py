@@ -18,4 +18,4 @@ __all__ = [
     "Results",
 ]
 
-__version__ = "0.0.10a0"
+__version__ = "0.0.10"
