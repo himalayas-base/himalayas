@@ -53,7 +53,7 @@ class SigbarLegendRenderer:
         ax_leg.imshow(grad, aspect="auto", cmap=cmap, origin="lower")
         ax_leg.set_yticks([0, 255])
         ax_leg.set_yticklabels([f"{lo:g}", f"{hi:g}"])
-        ax_leg.set_ylabel("-log10(p)", fontsize=8)
+        ax_leg.set_ylabel("-log10(score)", fontsize=8)
         ax_leg.set_xticks([])
         ax_leg.tick_params(axis="y", labelsize=7)
         for spine in ax_leg.spines.values():

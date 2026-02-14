@@ -9,6 +9,7 @@ import pytest
 
 from himalayas import Matrix, Results
 from himalayas.core.clustering import cluster
+from himalayas.core.results import _resolve_rank_spec
 
 
 @pytest.mark.api
@@ -133,7 +134,7 @@ def test_results_cluster_labels_top_term_defaults():
     res = Results(df, method="test")
     out = res.cluster_labels()
 
-    assert list(out.columns) == ["cluster", "label", "pval", "n", "term"]
+    assert list(out.columns) == ["cluster", "label", "pval", "qval", "score", "n", "term"]
     c1 = out.loc[out["cluster"] == 1].iloc[0]
     c2 = out.loc[out["cluster"] == 2].iloc[0]
 
@@ -141,15 +142,22 @@ def test_results_cluster_labels_top_term_defaults():
     assert c1["label"] == "t_b"
     assert c1["term"] == "t_b"
     assert c1["pval"] == pytest.approx(0.01)
+    assert c1["qval"] is None
+    assert c1["score"] == pytest.approx(0.01)
     assert c1["n"] == 7
     assert c2["label"] == "Term C"
     assert c2["term"] == "t_c"
+    assert c2["qval"] is None
+    assert c2["score"] == pytest.approx(0.4)
 
 
 @pytest.mark.api
-def test_results_cluster_labels_compressed_works_without_pvals():
+def test_results_cluster_labels_compressed_requires_rank_column():
     """
-    Ensures compressed labels work without a p-value column.
+    Ensures compressed labels require the selected ranking column.
+
+    Raises:
+        KeyError: If the selected ranking column is missing.
     """
     df = pd.DataFrame(
         {
@@ -158,11 +166,59 @@ def test_results_cluster_labels_compressed_works_without_pvals():
         }
     )
     res = Results(df, method="test")
-    out = res.cluster_labels(label_mode="compressed", max_words=1)
+    with pytest.raises(KeyError):
+        res.cluster_labels(label_mode="compressed", max_words=1)
 
-    assert out.loc[0, "cluster"] == 1
-    assert out.loc[0, "label"] == "alpha"
-    assert out.loc[0, "pval"] is None
+
+@pytest.mark.api
+def test_results_cluster_labels_compressed_rank_by_q_requires_qval():
+    """
+    Ensures compressed labels with rank_by='q' require a q-value column.
+
+    Raises:
+        KeyError: If q-values are missing when rank_by='q'.
+    """
+    df = pd.DataFrame(
+        {
+            "cluster": [1, 1],
+            "term": ["Alpha Beta", "Alpha Gamma"],
+            "pval": [0.2, 0.05],
+        }
+    )
+    res = Results(df, method="test")
+    with pytest.raises(KeyError):
+        res.cluster_labels(label_mode="compressed", rank_by="q", max_words=1)
+
+
+@pytest.mark.api
+def test_results_cluster_labels_rank_by_q_changes_top_term_and_score():
+    """
+    Ensures rank_by='q' uses q-values for representative-term ranking and score output.
+    """
+    df = pd.DataFrame(
+        {
+            "cluster": [1, 1],
+            "term": ["t_a", "t_b"],
+            "term_name": ["Term A", "Term B"],
+            "pval": [0.01, 0.02],
+            "qval": [0.20, 0.05],
+            "n": [5, 5],
+        }
+    )
+    res = Results(df, method="test")
+    out_p = res.cluster_labels(rank_by="p")
+    out_q = res.cluster_labels(rank_by="q")
+
+    row_p = out_p.iloc[0]
+    row_q = out_q.iloc[0]
+
+    assert row_p["term"] == "t_a"
+    assert row_p["score"] == pytest.approx(0.01)
+    assert row_q["term"] == "t_b"
+    assert row_q["score"] == pytest.approx(0.05)
+    # Display stats remain semantically named regardless of ranking signal.
+    assert row_q["pval"] == pytest.approx(0.02)
+    assert row_q["qval"] == pytest.approx(0.05)
 
 
 @pytest.mark.api
@@ -205,3 +261,32 @@ def test_results_cluster_labels_top_term_requires_pval():
     res = Results(df, method="test")
     with pytest.raises(KeyError):
         res.cluster_labels(label_mode="top_term")
+
+
+@pytest.mark.unit
+def test_resolve_rank_spec_supports_rank_by_values():
+    """
+    Ensures rank specification resolves cleanly for supported semantic selectors.
+
+    Raises:
+        ValueError: If rank_by is outside the supported set.
+    """
+    assert _resolve_rank_spec(rank_by="p") == "pval"
+    assert _resolve_rank_spec(rank_by="q") == "qval"
+
+    with pytest.raises(ValueError):
+        _resolve_rank_spec(rank_by="bad")
+
+
+@pytest.mark.api
+def test_results_cluster_labels_rejects_unknown_kwargs():
+    """
+    Ensures unknown keyword arguments are rejected.
+
+    Raises:
+        TypeError: If unknown keyword arguments are provided.
+    """
+    df = pd.DataFrame({"cluster": [1], "term": ["t1"], "pval": [0.1]})
+    res = Results(df, method="test")
+    with pytest.raises(TypeError, match="unknown_kwarg"):
+        res.cluster_labels(unknown_kwarg=True)

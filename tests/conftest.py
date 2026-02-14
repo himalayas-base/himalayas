@@ -68,7 +68,7 @@ def toy_analysis(toy_matrix, toy_annotations):
         Analysis(toy_matrix, toy_annotations)
         .cluster(linkage_threshold=1.0)
         .enrich()
-        .finalize(add_qvalues=False, col_cluster=False)
+        .finalize(col_cluster=False)
     )
 
 

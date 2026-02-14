@@ -103,7 +103,7 @@ DEFAULT_STYLE: StyleDefaults = {
     "label_bar_missing_color": "#eeeeee",
     # Bars rendered inside the label panel (to the left of text)
     # (label_bar_default_width, label_bar_default_gap removed)
-    # Default settings for cluster p-value bars (e.g., sigbar)
+    # Default settings for cluster score bars (e.g., sigbar)
     # NOTE: scaling is controlled by an explicit `norm` passed to plot_cluster_bar
     # `sigbar_min_logp` / `sigbar_max_logp` are defaults used only for the legend
     "sigbar_width": 0.015,
@@ -141,7 +141,7 @@ DEFAULT_STYLE: StyleDefaults = {
     # Words to omit from displayed cluster labels
     "label_omit_words": None,
     # Which fields to show in cluster labels, in order
-    # Allowed values: "label", "n", "p"
+    # Allowed values: "label", "n", "p", "q"
     "label_fields": ("label", "n", "p"),
     # Optional label wrapping (characters per line); None = disabled
     "label_wrap_width": None,

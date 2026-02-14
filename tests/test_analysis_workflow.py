@@ -3,9 +3,11 @@ tests/test_analysis_workflow
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 """
 
+import numpy as np
 import pytest
 
 from himalayas import Analysis
+from himalayas.core import analysis as analysis_module
 
 
 @pytest.mark.api
@@ -45,7 +47,7 @@ def test_analysis_requires_cluster_and_enrich_before_finalize(toy_matrix, toy_an
 @pytest.mark.api
 def test_finalize_attaches_layout_and_qvalues(toy_matrix, toy_annotations):
     """
-    Ensures finalize() attaches layout and q-values when requested.
+    Ensures finalize() attaches layout and q-values.
 
     Args:
         toy_matrix (Matrix): Toy matrix fixture.
@@ -55,7 +57,7 @@ def test_finalize_attaches_layout_and_qvalues(toy_matrix, toy_annotations):
         Analysis(toy_matrix, toy_annotations)
         .cluster(linkage_threshold=1.0)
         .enrich()
-        .finalize(add_qvalues=True, col_cluster=True)
+        .finalize(col_cluster=True)
     )
     results = analysis.results
 
@@ -66,9 +68,9 @@ def test_finalize_attaches_layout_and_qvalues(toy_matrix, toy_annotations):
 
 
 @pytest.mark.api
-def test_finalize_without_qvalues(toy_matrix, toy_annotations):
+def test_finalize_attaches_qvalues_without_col_clustering(toy_matrix, toy_annotations):
     """
-    Ensures finalize(add_qvalues=False) leaves q-values absent.
+    Ensures finalize() adds q-values even when column clustering is disabled.
 
     Args:
         toy_matrix (Matrix): Toy matrix fixture.
@@ -78,11 +80,11 @@ def test_finalize_without_qvalues(toy_matrix, toy_annotations):
         Analysis(toy_matrix, toy_annotations)
         .cluster(linkage_threshold=1.0)
         .enrich()
-        .finalize(add_qvalues=False, col_cluster=False)
+        .finalize(col_cluster=False)
     )
     results = analysis.results
 
-    assert "qval" not in results.df.columns
+    assert "qval" in results.df.columns
 
 
 @pytest.mark.api
@@ -100,3 +102,34 @@ def test_cluster_can_be_called_twice(toy_matrix, toy_annotations):
 
     assert analysis.clusters is not None
     assert analysis.clusters is not first_clusters
+
+
+@pytest.mark.api
+def test_finalize_col_cluster_uses_cluster_linkage_kwargs(
+    monkeypatch, toy_matrix, toy_annotations
+):
+    """
+    Ensures finalize(col_cluster=True) uses linkage settings from cluster().
+
+    Args:
+        monkeypatch (pytest.MonkeyPatch): Fixture for replacing module call targets.
+        toy_matrix (Matrix): Toy matrix fixture.
+        toy_annotations (Annotations): Toy annotations fixture.
+    """
+    seen = {}
+
+    def _capture_col_order(matrix, **kwargs):
+        seen["kwargs"] = dict(kwargs)
+        return np.arange(matrix.df.shape[1], dtype=int)
+
+    monkeypatch.setattr(analysis_module, "compute_col_order", _capture_col_order)
+
+    (
+        Analysis(toy_matrix, toy_annotations)
+        .cluster(linkage_method="average", linkage_metric="cosine", linkage_threshold=1.0)
+        .enrich()
+        .finalize(col_cluster=True)
+    )
+
+    assert seen["kwargs"]["linkage_method"] == "average"
+    assert seen["kwargs"]["linkage_metric"] == "cosine"

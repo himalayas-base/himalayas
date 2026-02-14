@@ -16,6 +16,11 @@ from .clustering import Clusters
 from .layout import ClusterLayout
 from .matrix import Matrix
 
+_TERM_FIELD = "term"
+_CLUSTER_FIELD = "cluster"
+_TERM_NAME_FIELD = "term_name"
+_CLUSTER_LABEL_OUTPUT_FIELDS = ["cluster", "label", "pval", "qval", "score", "n", "term"]
+
 
 def _summarize_terms(
     words: Iterable[str],
@@ -114,6 +119,53 @@ def _cluster_size_from_rows(sub: pd.DataFrame) -> Optional[int]:
         return int(n_vals.iloc[0])
     except (TypeError, ValueError):
         return None
+
+
+def _as_optional_float(value: Any) -> Optional[float]:
+    """
+    Converts a scalar value to float when present and numeric.
+
+    Args:
+        value (Any): Input scalar.
+
+    Returns:
+        Optional[float]: Parsed float or None when missing/non-numeric.
+    """
+    if value is None:
+        return None
+    try:
+        if pd.isna(value):
+            return None
+    except TypeError:
+        pass
+    except ValueError:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _resolve_rank_spec(
+    *,
+    rank_by: str = "p",
+) -> str:
+    """
+    Resolves the score column used for ranking cluster terms.
+
+    Kwargs:
+        rank_by (str): Semantic ranking target, one of {"p", "q"}.
+            Defaults to "p".
+
+    Returns:
+        str: Score column name ("pval" or "qval") for ranking.
+
+    Raises:
+        ValueError: If rank_by is unsupported.
+    """
+    if rank_by not in {"p", "q"}:
+        raise ValueError("rank_by must be one of {'p', 'q'}")
+    return "pval" if rank_by == "p" else "qval"
 
 
 class Results:
@@ -314,92 +366,80 @@ class Results:
 
     def cluster_labels(
         self,
-        term_col: str = "term",
-        cluster_col: str = "cluster",
-        weight_col: str = "pval",
         *,
+        rank_by: str = "p",
         label_mode: str = "top_term",
-        label_col: Optional[str] = "term_name",
         max_words: int = 6,
     ) -> pd.DataFrame:
         """
         Builds per-cluster textual labels for plotting.
 
-        Args:
-            term_col (str): Stable term identifier column. Defaults to "term".
-            cluster_col (str): Cluster id column. Defaults to "cluster".
-            weight_col (str): Weight/p-value column. Defaults to "pval".
-
         Kwargs:
+            rank_by (str): Ranking statistic for representative terms, one of {"p", "q"}.
+                Defaults to "p".
             label_mode (str): One of {"top_term", "compressed"}. Defaults to "top_term".
-            label_col (Optional[str]): Optional display-name column. Defaults to "term_name".
             max_words (int): Maximum words for compressed labels. Defaults to 6.
 
         Returns:
-            pd.DataFrame: Columns ["cluster", "label", "pval", "n", "term"].
+            pd.DataFrame: Columns ["cluster", "label", "pval", "qval", "score", "n", "term"].
 
         Raises:
             KeyError: If required columns are missing.
             ValueError: If label_mode is unsupported.
         """
         # Validation
-        if term_col not in self.df.columns:
-            raise KeyError(f"Missing column: {term_col}")
-        if cluster_col not in self.df.columns:
-            raise KeyError(f"Missing column: {cluster_col}")
+        if _TERM_FIELD not in self.df.columns:
+            raise KeyError(f"Missing column: {_TERM_FIELD}")
+        if _CLUSTER_FIELD not in self.df.columns:
+            raise KeyError(f"Missing column: {_CLUSTER_FIELD}")
         if label_mode not in {"top_term", "compressed"}:
             raise ValueError("label_mode must be one of {'top_term', 'compressed'}")
+        score_col = _resolve_rank_spec(rank_by=rank_by)
+        if score_col not in self.df.columns:
+            raise KeyError(f"Missing column required for rank_by={rank_by!r}: {score_col}")
 
         # Resolve display label source with optional human-readable fallback.
-        label_col_present = (
-            label_col is not None and isinstance(label_col, str) and label_col in self.df.columns
-        )
-        if label_col is not None and not label_col_present and label_col != "term_name":
-            raise KeyError(f"Missing column: {label_col}")
-        label_source = label_col if label_col_present else term_col
+        label_source = _TERM_NAME_FIELD if _TERM_NAME_FIELD in self.df.columns else _TERM_FIELD
 
-        # Precompute compressed-mode weights; enforce p-values for top-term mode.
+        # Precompute compressed-mode weights.
         df = self.df.copy()
         if label_mode == "compressed":
-            if weight_col in df.columns:
-                df["_weight"] = -np.log10(df[weight_col].clip(lower=1e-300))
-            else:
-                df["_weight"] = 1.0
-        else:
-            if weight_col not in df.columns:
-                raise KeyError(f"Missing column required for label_mode='top_term': {weight_col}")
+            df["_weight"] = -np.log10(df[score_col].clip(lower=1e-300))
 
         # Build one canonical label row per cluster.
         rows = []
-        for cid, sub in df.groupby(cluster_col, sort=False):
+        for cid, sub in df.groupby(_CLUSTER_FIELD, sort=False):
             cid_int = int(cid)
+            best_idx = None
             if label_mode == "top_term":
-                best_idx = sub[weight_col].astype(float).idxmin()
+                best_idx = sub[score_col].astype(float).idxmin()
                 best_row = df.loc[best_idx]
                 label_val = best_row[label_source]
-                if label_source != term_col and (label_val is None or pd.isna(label_val)):
-                    label_val = best_row[term_col]
+                if label_source != _TERM_FIELD and (label_val is None or pd.isna(label_val)):
+                    label_val = best_row[_TERM_FIELD]
                 label = str(label_val)
-                best_term = str(best_row[term_col])
-                best_pval = float(best_row[weight_col])
+                best_term = str(best_row[_TERM_FIELD])
             else:
-                if label_source != term_col:
-                    labels = sub[label_source].where(pd.notna(sub[label_source]), sub[term_col])
+                if label_source != _TERM_FIELD:
+                    labels = sub[label_source].where(pd.notna(sub[label_source]), sub[_TERM_FIELD])
                     labels = labels.tolist()
                 else:
-                    labels = sub[term_col].tolist()
+                    labels = sub[_TERM_FIELD].tolist()
                 label = _summarize_terms(
                     labels,
                     sub["_weight"].tolist(),
                     max_words=max_words,
                 )
-                if weight_col in sub.columns:
-                    best_idx = sub[weight_col].astype(float).idxmin()
-                    best_pval = float(sub.loc[best_idx, weight_col])
-                    best_term = str(sub.loc[best_idx, term_col])
-                else:
-                    best_pval = None
-                    best_term = None
+                best_idx = sub[score_col].astype(float).idxmin()
+                best_term = str(sub.loc[best_idx, _TERM_FIELD])
+            best_pval = None
+            best_qval = None
+            best_score = None
+            if best_idx is not None:
+                best_row = df.loc[best_idx]
+                best_pval = _as_optional_float(best_row.get("pval", None))
+                best_qval = _as_optional_float(best_row.get("qval", None))
+                best_score = _as_optional_float(best_row.get(score_col, None))
 
             # Prefer explicit enrichment `n`; otherwise infer from attached clusters.
             n_members = _cluster_size_from_rows(sub)
@@ -413,12 +453,14 @@ class Results:
                     "cluster": cid_int,
                     "label": label,
                     "pval": best_pval,
+                    "qval": best_qval,
+                    "score": best_score,
                     "n": n_members,
                     "term": best_term,
                 }
             )
 
         if not rows:
-            return pd.DataFrame(columns=["cluster", "label", "pval", "n", "term"])
+            return pd.DataFrame(columns=_CLUSTER_LABEL_OUTPUT_FIELDS)
 
         return pd.DataFrame(rows).sort_values("cluster").reset_index(drop=True)

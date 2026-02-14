@@ -22,7 +22,7 @@ def test_end_to_end_smoke(toy_df):
         Analysis(matrix, annotations)
         .cluster(linkage_threshold=1.0)
         .enrich()
-        .finalize(add_qvalues=False, col_cluster=False)
+        .finalize(col_cluster=False)
     )
     results = analysis.results
 
@@ -30,4 +30,5 @@ def test_end_to_end_smoke(toy_df):
     assert results.matrix is matrix
     assert results.clusters is not None
     assert "pval" in results.df.columns
+    assert "qval" in results.df.columns
     assert results.cluster_layout().cluster_spans

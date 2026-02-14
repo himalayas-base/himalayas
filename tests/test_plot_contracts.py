@@ -191,7 +191,7 @@ def test_plot_label_bar_requires_colors(toy_results):
 @pytest.mark.api
 def test_plot_cluster_labels_respect_np_order(toy_results):
     """
-    Ensures cluster labels keep label first while respecting n/p order from label_fields
+    Ensures cluster labels keep label first while respecting q/p/n order from label_fields
     and emitting a single stats block.
 
     Args:
@@ -201,24 +201,27 @@ def test_plot_cluster_labels_respect_np_order(toy_results):
     plt_show = plt.show
     plt.show = lambda *args, **kwargs: None
     try:
+        results_q = toy_results.with_qvalues()
         plotter = (
-            Plotter(toy_results)
+            Plotter(results_q)
             .plot_matrix()
             .plot_cluster_labels(
-                label_fields=("label", "p", "n"),
+                label_fields=("label", "q", "p", "n"),
             )
         )
         plotter.show()
         fig = plotter._fig
         texts = [t.get_text() for ax in fig.axes for t in ax.texts]
         # Cluster labels are asserted via rendered text fragments rather than data objects.
-        label_texts = [t for t in texts if "$p$=" in t and "n=" in t]
+        label_texts = [t for t in texts if "$q$=" in t and "$p$=" in t and "n=" in t]
         assert label_texts, "Expected cluster label text to be rendered."
         for txt in label_texts:
             assert " (" in txt
             assert txt.strip().endswith(")")
+            assert "$q$=" in txt
             assert "$p$=" in txt
             assert "n=" in txt
+            assert txt.find("$q$=") < txt.find("$p$=")
             assert txt.find("$p$=") < txt.find("n=")
     finally:
         plt.show = plt_show
@@ -231,6 +234,9 @@ def test_plot_cluster_labels_accepts_override_mapper(toy_results):
 
     Args:
         toy_results (Results): Results fixture with clusters and layout.
+
+    Raises:
+        ValueError: If overrides reference unknown cluster ids.
     """
     plt = _use_agg_backend()
     plt_show = plt.show
@@ -345,25 +351,27 @@ def test_plot_cluster_labels_override_respects_np_field_contract(toy_results):
     plt_show = plt.show
     plt.show = lambda *args, **kwargs: None
     try:
+        results_q = toy_results.with_qvalues()
         cid = int(toy_results.cluster_layout().cluster_spans[0][0])
         plotter = (
-            Plotter(toy_results)
+            Plotter(results_q)
             .plot_matrix()
             .plot_cluster_labels(
                 overrides={cid: "CustomLabelIgnoredByFields"},
-                label_fields=("n", "p"),
+                label_fields=("n", "q", "p"),
                 wrap_text=False,
             )
         )
         plotter.show()
         fig = plotter._fig
         texts = [t.get_text() for ax in fig.axes for t in ax.texts]
-        # Labels are rendered as raw text; this selects n/p-only cluster entries.
-        np_texts = [t for t in texts if t.startswith("(") and "n=" in t and "$p$=" in t]
-        assert np_texts, "Expected n/p-only cluster label text."
+        # Labels are rendered as raw text; this selects n/q/p-only cluster entries.
+        np_texts = [t for t in texts if t.startswith("(") and "n=" in t and "$q$=" in t and "$p$=" in t]
+        assert np_texts, "Expected n/q/p-only cluster label text."
         assert all("CustomLabelIgnoredByFields" not in t for t in np_texts)
         for txt in np_texts:
-            assert txt.find("n=") < txt.find("$p$=")
+            assert txt.find("n=") < txt.find("$q$=")
+            assert txt.find("$q$=") < txt.find("$p$=")
     finally:
         plt.show = plt_show
 
@@ -385,6 +393,7 @@ def test_plot_cluster_label_override_keeps_deterministic_stats(toy_results):
 
     assert label_map[cid][0] == f"Custom-{cid}"
     assert float(label_map[cid][1]) == pytest.approx(base_pval)
+    assert float(label_map[cid][3]) == pytest.approx(base_pval)
 
 
 @pytest.mark.api
