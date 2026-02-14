@@ -155,6 +155,9 @@ def test_results_cluster_labels_top_term_defaults():
 def test_results_cluster_labels_compressed_requires_rank_column():
     """
     Ensures compressed labels require the selected ranking column.
+
+    Raises:
+        KeyError: If the selected ranking column is missing.
     """
     df = pd.DataFrame(
         {
@@ -171,6 +174,9 @@ def test_results_cluster_labels_compressed_requires_rank_column():
 def test_results_cluster_labels_compressed_rank_by_q_requires_qval():
     """
     Ensures compressed labels with rank_by='q' require a q-value column.
+
+    Raises:
+        KeyError: If q-values are missing when rank_by='q'.
     """
     df = pd.DataFrame(
         {
@@ -261,6 +267,9 @@ def test_results_cluster_labels_top_term_requires_pval():
 def test_resolve_rank_spec_supports_rank_by_values():
     """
     Ensures rank specification resolves cleanly for supported semantic selectors.
+
+    Raises:
+        ValueError: If rank_by is outside the supported set.
     """
     assert _resolve_rank_spec(rank_by="p") == "pval"
     assert _resolve_rank_spec(rank_by="q") == "qval"
@@ -273,6 +282,9 @@ def test_resolve_rank_spec_supports_rank_by_values():
 def test_results_cluster_labels_rejects_unknown_kwargs():
     """
     Ensures unknown keyword arguments are rejected.
+
+    Raises:
+        TypeError: If unknown keyword arguments are provided.
     """
     df = pd.DataFrame({"cluster": [1], "term": ["t1"], "pval": [0.1]})
     res = Results(df, method="test")

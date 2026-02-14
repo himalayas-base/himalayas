@@ -66,6 +66,12 @@ def test_dendrogram_condensed_invalid_label_fields_raises(toy_results):
 def test_dendrogram_condensed_rejects_unknown_kwargs(toy_results):
     """
     Ensures condensed dendrogram does not accept unknown kwargs.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+
+    Raises:
+        TypeError: If unknown keyword arguments are provided.
     """
     with pytest.raises(TypeError, match="unknown_kwarg"):
         plot_dendrogram_condensed(toy_results, unknown_kwarg=True)
@@ -211,6 +217,9 @@ def test_dendrogram_condensed_plot_handle_rejects_closed_figure(toy_results):
 
     Args:
         toy_results (Results): Results fixture with clusters and layout.
+
+    Raises:
+        RuntimeError: If plotting is attempted after the figure is closed.
     """
     _use_agg_backend()
     plot = plot_dendrogram_condensed(toy_results)

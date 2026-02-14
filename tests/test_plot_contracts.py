@@ -234,6 +234,9 @@ def test_plot_cluster_labels_accepts_override_mapper(toy_results):
 
     Args:
         toy_results (Results): Results fixture with clusters and layout.
+
+    Raises:
+        ValueError: If overrides reference unknown cluster ids.
     """
     plt = _use_agg_backend()
     plt_show = plt.show

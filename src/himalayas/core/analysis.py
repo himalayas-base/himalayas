@@ -76,16 +76,14 @@ class Analysis:
     def finalize(
         self,
         *,
-        add_qvalues: bool = True,
         col_cluster: bool = False,
     ) -> Analysis:
         """
-        Finalizes the analysis by computing a layout and producing a presentation-ready Results object.
-        This step is required for plotting and downstream visualization, but may be skipped if only raw
-        enrichment statistics are needed.
+        Finalizes the analysis by computing a layout, attaching context, and adding q-values to produce
+        a presentation-ready Results object. This step is required for plotting and downstream
+        visualization, but may be skipped if only raw enrichment statistics are needed.
 
         Kwargs:
-            add_qvalues (bool): Whether to compute q-values. Defaults to True.
             col_cluster (bool): Whether to compute column order by clustering. Defaults to False.
 
         Returns:
@@ -115,7 +113,6 @@ class Analysis:
             layout=self.layout,
             parent=self.results.parent,
         )
-        if add_qvalues:
-            self.results = self.results.with_qvalues()
+        self.results = self.results.with_qvalues()
 
         return self
