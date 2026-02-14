@@ -63,6 +63,15 @@ def test_dendrogram_condensed_invalid_label_fields_raises(toy_results):
 
 
 @pytest.mark.api
+def test_dendrogram_condensed_rejects_unknown_kwargs(toy_results):
+    """
+    Ensures condensed dendrogram does not accept unknown kwargs.
+    """
+    with pytest.raises(TypeError, match="unknown_kwarg"):
+        plot_dendrogram_condensed(toy_results, unknown_kwarg=True)
+
+
+@pytest.mark.api
 def test_dendrogram_condensed_bad_label_overrides_type_raises(
     toy_results
 ):
@@ -215,7 +224,7 @@ def test_dendrogram_condensed_plot_handle_rejects_closed_figure(toy_results):
 @pytest.mark.api
 def test_dendrogram_condensed_label_fields_respect_np_order(toy_results):
     """
-    Ensures condensed dendrogram labels keep label first while respecting n/p order
+    Ensures condensed dendrogram labels keep label first while respecting q/p/n order
     from label_fields and emitting a single stats block.
 
     Args:
@@ -224,19 +233,22 @@ def test_dendrogram_condensed_label_fields_respect_np_order(toy_results):
     _use_agg_backend()
     plot = None
     try:
+        results_q = toy_results.with_qvalues()
         plot = plot_dendrogram_condensed(
-            toy_results,
-            label_fields=("label", "p", "n"),
+            results_q,
+            label_fields=("label", "q", "p", "n"),
         )
         texts = [t.get_text() for ax in plot.fig.axes for t in ax.texts]
         # Cluster labels are asserted via rendered text fragments rather than data objects.
-        label_texts = [t for t in texts if "$p$=" in t and "n=" in t]
+        label_texts = [t for t in texts if "$q$=" in t and "$p$=" in t and "n=" in t]
         assert label_texts, "Expected cluster label text to be rendered."
         for txt in label_texts:
             assert " (" in txt
             assert txt.strip().endswith(")")
+            assert "$q$=" in txt
             assert "$p$=" in txt
             assert "n=" in txt
+            assert txt.find("$q$=") < txt.find("$p$=")
             assert txt.find("$p$=") < txt.find("n=")
     finally:
         if plot is not None:
