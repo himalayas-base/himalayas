@@ -5,6 +5,8 @@ himalayas/core/analysis
 
 from __future__ import annotations
 
+from typing import Optional
+
 from .annotations import Annotations
 from .clustering import cluster
 from .enrichment import run_cluster_hypergeom
@@ -34,27 +36,53 @@ class Analysis:
         self._cluster_linkage_method = "ward"
         self._cluster_linkage_metric = "euclidean"
 
-    def cluster(self, **kwargs) -> Analysis:
+    def cluster(
+        self,
+        linkage_method: str = "ward",
+        linkage_metric: str = "euclidean",
+        linkage_threshold: float = 0.7,
+        *,
+        min_cluster_size: int = 1,
+    ) -> Analysis:
         """
         Performs clustering on the analysis matrix.
 
+        Args:
+            linkage_method (str): Linkage method for hierarchical clustering. Defaults to "ward".
+            linkage_metric (str): Distance metric for hierarchical clustering. Defaults to "euclidean".
+            linkage_threshold (float): Distance threshold for cutting the dendrogram. Defaults to 0.7.
+
         Kwargs:
-            **kwargs: Keyword arguments forwarded to clustering. Defaults to {}.
+            min_cluster_size (int): Enforces a minimum cluster size by merging smaller clusters
+                upward along the dendrogram. Values <= 1 disable enforcement. Defaults to 1.
 
         Returns:
             Analysis: The Analysis instance (for method chaining).
         """
-        self._cluster_linkage_method = kwargs.get("linkage_method", "ward")
-        self._cluster_linkage_metric = kwargs.get("linkage_metric", "euclidean")
-        self.clusters = cluster(self.matrix, **kwargs)
+        self._cluster_linkage_method = linkage_method
+        self._cluster_linkage_metric = linkage_metric
+        self.clusters = cluster(
+            self.matrix,
+            linkage_method=linkage_method,
+            linkage_metric=linkage_metric,
+            linkage_threshold=linkage_threshold,
+            min_cluster_size=min_cluster_size,
+        )
         return self
 
-    def enrich(self, **kwargs) -> Analysis:
+    def enrich(
+        self,
+        *,
+        min_overlap: int = 1,
+        background: Optional[Matrix] = None,
+    ) -> Analysis:
         """
         Performs enrichment analysis on the clustered matrix.
 
         Kwargs:
-            **kwargs: Keyword arguments forwarded to enrichment. Defaults to {}.
+            min_overlap (int): Minimum overlap (k) to report. Defaults to 1.
+            background (Optional[Matrix]): Background matrix defining enrichment universe.
+                Defaults to None.
 
         Returns:
             Analysis: The Analysis instance (for method chaining).
@@ -69,7 +97,8 @@ class Analysis:
             self.matrix,
             self.clusters,
             self.annotations,
-            **kwargs,
+            min_overlap=min_overlap,
+            background=background,
         )
         return self
 
