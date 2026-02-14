@@ -3,9 +3,12 @@ tests/test_analysis_workflow
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 """
 
+import inspect
+import numpy as np
 import pytest
 
 from himalayas import Analysis
+from himalayas.core import analysis as analysis_module
 
 
 @pytest.mark.api
@@ -100,3 +103,34 @@ def test_cluster_can_be_called_twice(toy_matrix, toy_annotations):
 
     assert analysis.clusters is not None
     assert analysis.clusters is not first_clusters
+
+
+@pytest.mark.api
+def test_finalize_col_cluster_uses_cluster_linkage_kwargs(
+    monkeypatch, toy_matrix, toy_annotations
+):
+    """
+    Ensures finalize(col_cluster=True) uses linkage settings from cluster().
+
+    Args:
+        monkeypatch (pytest.MonkeyPatch): Fixture for replacing module call targets.
+        toy_matrix (Matrix): Toy matrix fixture.
+        toy_annotations (Annotations): Toy annotations fixture.
+    """
+    seen = {}
+
+    def _capture_col_order(matrix, **kwargs):
+        seen["kwargs"] = dict(kwargs)
+        return np.arange(matrix.df.shape[1], dtype=int)
+
+    monkeypatch.setattr(analysis_module, "compute_col_order", _capture_col_order)
+
+    (
+        Analysis(toy_matrix, toy_annotations)
+        .cluster(linkage_method="average", linkage_metric="cosine", linkage_threshold=1.0)
+        .enrich()
+        .finalize(add_qvalues=False, col_cluster=True)
+    )
+
+    assert seen["kwargs"]["linkage_method"] == "average"
+    assert seen["kwargs"]["linkage_metric"] == "cosine"

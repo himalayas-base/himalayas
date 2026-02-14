@@ -31,6 +31,8 @@ class Analysis:
         self.clusters = None
         self.layout = None
         self.results = None
+        self._cluster_linkage_method = "ward"
+        self._cluster_linkage_metric = "euclidean"
 
     def cluster(self, **kwargs) -> Analysis:
         """
@@ -42,6 +44,8 @@ class Analysis:
         Returns:
             Analysis: The Analysis instance (for method chaining).
         """
+        self._cluster_linkage_method = kwargs.get("linkage_method", "ward")
+        self._cluster_linkage_metric = kwargs.get("linkage_metric", "euclidean")
         self.clusters = cluster(self.matrix, **kwargs)
         return self
 
@@ -74,7 +78,6 @@ class Analysis:
         *,
         add_qvalues: bool = True,
         col_cluster: bool = False,
-        **kwargs,
     ) -> Analysis:
         """
         Finalizes the analysis by computing a layout and producing a presentation-ready Results object.
@@ -84,7 +87,6 @@ class Analysis:
         Kwargs:
             add_qvalues (bool): Whether to compute q-values. Defaults to True.
             col_cluster (bool): Whether to compute column order by clustering. Defaults to False.
-            **kwargs: Keyword arguments forwarded to column ordering. Defaults to {}.
 
         Returns:
             Analysis: The Analysis instance (for method chaining).
@@ -99,7 +101,11 @@ class Analysis:
         # Resolve column order, then construct finalized Results
         col_order = None
         if col_cluster:
-            col_order = compute_col_order(self.matrix, **kwargs)
+            col_order = compute_col_order(
+                self.matrix,
+                linkage_method=self._cluster_linkage_method,
+                linkage_metric=self._cluster_linkage_metric,
+            )
         self.layout = self.clusters.layout(col_order=col_order)
         self.results = Results(
             self.results.df,
