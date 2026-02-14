@@ -9,7 +9,7 @@
 framework for post hoc enrichment-based annotation of hierarchically clustered
 matrices. HiMaLAYAS treats dendrogram-defined clusters as statistical units,
 evaluates annotation enrichment, and renders significant annotations alongside
-their matrix regions. HiMaLAYAS supports both biological and non-biological domains.
+the matrix. HiMaLAYAS supports both biological and non-biological domains.
 
 For a full description of HiMaLAYAS and its applications, see:
 <br>
