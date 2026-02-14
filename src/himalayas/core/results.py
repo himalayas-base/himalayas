@@ -395,26 +395,16 @@ class Results:
         if label_mode not in {"top_term", "compressed"}:
             raise ValueError("label_mode must be one of {'top_term', 'compressed'}")
         score_col = _resolve_rank_spec(rank_by=rank_by)
-        score_present = score_col in self.df.columns
-        if label_mode == "top_term" and not score_present:
-            raise KeyError(f"Missing column required for label_mode='top_term': {score_col}")
-        # Keep compressed-mode compatibility when ranking by p-values:
-        # if p-values are absent, labels are still generated from uniform term weights.
-        # q-based ranking remains strict because q-values are always optional downstream.
-        if label_mode == "compressed" and rank_by == "q" and not score_present:
+        if score_col not in self.df.columns:
             raise KeyError(f"Missing column required for rank_by={rank_by!r}: {score_col}")
 
         # Resolve display label source with optional human-readable fallback.
         label_source = _TERM_NAME_FIELD if _TERM_NAME_FIELD in self.df.columns else _TERM_FIELD
 
-        # Precompute compressed-mode weights; enforce p-values for top-term mode.
+        # Precompute compressed-mode weights.
         df = self.df.copy()
         if label_mode == "compressed":
-            if score_present:
-                df["_weight"] = -np.log10(df[score_col].clip(lower=1e-300))
-            else:
-                # Enables compressed labels even when p-values are absent.
-                df["_weight"] = 1.0
+            df["_weight"] = -np.log10(df[score_col].clip(lower=1e-300))
 
         # Build one canonical label row per cluster.
         rows = []
@@ -440,11 +430,8 @@ class Results:
                     sub["_weight"].tolist(),
                     max_words=max_words,
                 )
-                if score_present:
-                    best_idx = sub[score_col].astype(float).idxmin()
-                    best_term = str(sub.loc[best_idx, _TERM_FIELD])
-                else:
-                    best_term = None
+                best_idx = sub[score_col].astype(float).idxmin()
+                best_term = str(sub.loc[best_idx, _TERM_FIELD])
             best_pval = None
             best_qval = None
             best_score = None

@@ -152,9 +152,9 @@ def test_results_cluster_labels_top_term_defaults():
 
 
 @pytest.mark.api
-def test_results_cluster_labels_compressed_works_without_pvals():
+def test_results_cluster_labels_compressed_requires_rank_column():
     """
-    Ensures compressed labels work without a p-value column.
+    Ensures compressed labels require the selected ranking column.
     """
     df = pd.DataFrame(
         {
@@ -163,13 +163,25 @@ def test_results_cluster_labels_compressed_works_without_pvals():
         }
     )
     res = Results(df, method="test")
-    out = res.cluster_labels(label_mode="compressed", max_words=1)
+    with pytest.raises(KeyError):
+        res.cluster_labels(label_mode="compressed", max_words=1)
 
-    assert out.loc[0, "cluster"] == 1
-    assert out.loc[0, "label"] == "alpha"
-    assert out.loc[0, "pval"] is None
-    assert out.loc[0, "qval"] is None
-    assert out.loc[0, "score"] is None
+
+@pytest.mark.api
+def test_results_cluster_labels_compressed_rank_by_q_requires_qval():
+    """
+    Ensures compressed labels with rank_by='q' require a q-value column.
+    """
+    df = pd.DataFrame(
+        {
+            "cluster": [1, 1],
+            "term": ["Alpha Beta", "Alpha Gamma"],
+            "pval": [0.2, 0.05],
+        }
+    )
+    res = Results(df, method="test")
+    with pytest.raises(KeyError):
+        res.cluster_labels(label_mode="compressed", rank_by="q", max_words=1)
 
 
 @pytest.mark.api
