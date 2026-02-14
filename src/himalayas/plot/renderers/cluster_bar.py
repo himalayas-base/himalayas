@@ -37,11 +37,11 @@ def _resolve_cluster_values(
     for i, (cid, _s, _e) in enumerate(cluster_spans):
         _label, _pval, _qval, score = label_map.get(cid, (None, np.nan, np.nan, np.nan))
         try:
-            p = float(score)
+            score_value = float(score)
         except (TypeError, ValueError):
             continue
-        if np.isfinite(p):
-            values[i] = p
+        if np.isfinite(score_value):
+            values[i] = score_value
 
     return values
 

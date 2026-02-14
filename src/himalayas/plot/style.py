@@ -103,7 +103,7 @@ DEFAULT_STYLE: StyleDefaults = {
     "label_bar_missing_color": "#eeeeee",
     # Bars rendered inside the label panel (to the left of text)
     # (label_bar_default_width, label_bar_default_gap removed)
-    # Default settings for cluster p-value bars (e.g., sigbar)
+    # Default settings for cluster score bars (e.g., sigbar)
     # NOTE: scaling is controlled by an explicit `norm` passed to plot_cluster_bar
     # `sigbar_min_logp` / `sigbar_max_logp` are defaults used only for the legend
     "sigbar_width": 0.015,

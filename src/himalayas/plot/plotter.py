@@ -353,7 +353,8 @@ class Plotter:
                 If None, renders tracks only without cluster text.
         """
         if cluster_kwargs is None:
-            df = pd.DataFrame(columns=["cluster", "label", "pval"])
+            # Keep renderer input schema aligned with Results.cluster_labels() output.
+            df = pd.DataFrame(columns=["cluster", "label", "pval", "qval", "score", "n", "term"])
             renderer = ClusterLabelsRenderer(df, skip_unlabeled=True)
         else:
             renderer_kwargs = dict(cluster_kwargs)
@@ -421,7 +422,7 @@ class Plotter:
     def plot_sigbar_legend(self, **kwargs) -> Plotter:
         """
         Declares a significance bar legend. Explains the color mapping of the cluster-level significance bar
-        (based on -log10(p)). Off by default.
+        (based on -log10(score)). Off by default.
 
         Kwargs:
             **kwargs: Renderer keyword arguments. Defaults to {}.
