@@ -473,7 +473,18 @@ def _compute_condensed_dendrogram(
 
     Returns:
         DendrogramData: Condensed dendrogram data.
+
+    Raises:
+        ValueError: If fewer than two clusters are available for branching.
     """
+    if len(cluster_ids) < 2:
+        raise ValueError(
+            "Condensed dendrogram requires at least two clusters to draw branches "
+            f"(found {len(cluster_ids)}). "
+            "This often occurs when the current matrix resolves to one cluster. "
+            "Skip condensed plotting for this run or adjust clustering settings."
+        )
+
     # Build condensed linkage matrix
     n_master = Z_master.shape[0] + 1
     row_index_to_cluster = {

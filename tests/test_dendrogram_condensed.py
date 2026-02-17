@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import pytest
 from matplotlib.colors import to_rgba
 
+from himalayas import Analysis
 from himalayas.core.clustering import Clusters
 from himalayas.core.results import Results
 from himalayas.plot import CondensedDendrogramPlot, plot_dendrogram_condensed
@@ -355,4 +356,34 @@ def test_dendrogram_condensed_unmapped_clusters_raises(toy_results):
         parent=toy_results,
     )
     with pytest.raises(ValueError):
+        plot_dendrogram_condensed(results)
+
+
+@pytest.mark.api
+def test_dendrogram_condensed_single_cluster_raises_clear_error(
+    toy_matrix,
+    toy_annotations,
+):
+    """
+    Ensures single-cluster inputs raise a descriptive ValueError.
+
+    Args:
+        toy_matrix (Matrix): Matrix fixture.
+        toy_annotations (Annotations): Annotation fixture.
+
+    Raises:
+        ValueError: If fewer than two clusters are available for condensed branching.
+    """
+    analysis = (
+        Analysis(toy_matrix, toy_annotations)
+        .cluster(linkage_threshold=1e9)
+        .enrich()
+        .finalize(col_cluster=False)
+    )
+    results = analysis.results
+    assert results is not None
+    assert results.clusters is not None
+    assert len(results.clusters.unique_clusters) == 1
+
+    with pytest.raises(ValueError, match="at least two clusters"):
         plot_dendrogram_condensed(results)
