@@ -79,9 +79,9 @@ Submitted to _Bioinformatics_.
 
 ### Software archive
 
-HiMaLAYAS software for the manuscript.
+HiMaLAYAS software for the _bioRxiv_ preprint.
 <br>
-Zenodo. https://doi.org/10.5281/zenodo.18610373
+Zenodo. https://doi.org/10.5281/zenodo.18627073
 
 ## Contributing
 
