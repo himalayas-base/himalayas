@@ -117,6 +117,47 @@ def test_plot_cluster_bar_uses_internal_cluster_labels(toy_results):
 
 
 @pytest.mark.api
+def test_plotter_plot_handle_rebuilds_closed_figure(toy_results, tmp_path):
+    """
+    Ensures Plotter rebuilds after the backing figure is closed.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+        tmp_path (Path): Temporary output directory.
+    """
+    plt = _use_agg_backend()
+    plt_show = plt.show
+    out = tmp_path / "plotter_rebuild.png"
+    plotter = None
+    plt.show = lambda *args, **kwargs: None
+    try:
+        plotter = Plotter(toy_results).plot_matrix()
+
+        # Baseline render: capture the original figure handle.
+        plotter.show()
+        fig0 = plotter._fig
+        # Simulate notebook/backend lifecycle where figures are explicitly closed.
+        plt.close(fig0)
+
+        # Closed handle should trigger a rebuild on show().
+        plotter.show()
+        assert plotter._fig is not None
+        assert plotter._fig is not fig0
+        assert plotter._fig.number in plt.get_fignums()
+
+        # save() should also rebuild after close and produce an output file.
+        plt.close(plotter._fig)
+        plotter.save(out, dpi=150)
+        assert out.exists()
+        assert out.stat().st_size > 0
+        assert plotter._fig.number in plt.get_fignums()
+    finally:
+        plt.show = plt_show
+        if plotter is not None and plotter._fig is not None and plotter._fig.number in plt.get_fignums():
+            plt.close(plotter._fig)
+
+
+@pytest.mark.api
 def test_plot_colorbars_tick_decimals_contract(toy_results):
     """
     Ensures tick_decimals validation and display precision behavior are consistent.

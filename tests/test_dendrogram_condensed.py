@@ -211,23 +211,35 @@ def test_dendrogram_condensed_plot_handle_save_supports_kwargs(toy_results, tmp_
 
 
 @pytest.mark.api
-def test_dendrogram_condensed_plot_handle_rejects_closed_figure(toy_results):
+def test_dendrogram_condensed_plot_handle_rebuilds_closed_figure(toy_results, tmp_path):
     """
-    Ensures the condensed plot handle errors after the backing figure is closed.
+    Ensures the condensed plot handle rebuilds after the backing figure is closed.
 
     Args:
         toy_results (Results): Results fixture with clusters and layout.
-
-    Raises:
-        RuntimeError: If plotting is attempted after the figure is closed.
+        tmp_path (Path): Temporary output directory.
     """
     _use_agg_backend()
+    out = tmp_path / "condensed_rebuild.png"
     plot = plot_dendrogram_condensed(toy_results)
-    plt.close(plot.fig)
-    with pytest.raises(RuntimeError, match="figure is closed"):
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        # Simulate a closed backend figure between notebook cells.
+        plt.close(plot.fig)
+        # show() should transparently rebuild the closed figure.
         plot.show()
-    with pytest.raises(RuntimeError, match="figure is closed"):
-        plot.save("unused.png")
+        assert plot._figure_is_open()
+
+        # save() should also rebuild after close and still write the file.
+        plt.close(plot.fig)
+        plot.save(out, dpi=150)
+        assert out.exists()
+        assert out.stat().st_size > 0
+    finally:
+        plt.show = plt_show
+        if plot._figure_is_open():
+            plt.close(plot.fig)
 
 
 @pytest.mark.api
