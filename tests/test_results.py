@@ -42,23 +42,51 @@ def test_results_subset_requires_matrix_and_clusters():
 
 
 @pytest.mark.api
-def test_results_subset_returns_new_matrix():
+def test_results_subset_single_cluster_returns_cluster_rows():
     """
-    Ensures subsetting returns a new matrix and clears clusters.
+    Ensures subsetting a single cluster returns only that cluster in matrix row order.
     """
     # Build a tiny matrix and subset the first cluster
     df = pd.DataFrame(
-        [[0.0], [1.0], [2.0]],
-        index=["a", "b", "c"],
-        columns=["x"],
+        [[0.0, 0.1], [0.0, 0.2], [5.0, 5.1], [5.0, 5.2]],
+        index=["a", "b", "c", "d"],
+        columns=["f1", "f2"],
     )
     matrix = Matrix(df)
-    clusters = cluster(matrix, linkage_threshold=100.0)
+    clusters = cluster(matrix, linkage_threshold=1.0)
     res = Results(pd.DataFrame(), method="test", matrix=matrix, clusters=clusters)
-    sub = res.subset(cluster=int(clusters.unique_clusters[0]))
+    cid = int(clusters.unique_clusters[0])
+    expected_labels = [lab for lab in matrix.df.index if lab in clusters.cluster_to_labels[cid]]
+    sub = res.subset(cluster=cid)
 
     assert sub.matrix is not None
+    assert list(sub.matrix.df.index) == expected_labels
     assert sub.clusters is None
+    assert sub.method == "subset"
+
+
+@pytest.mark.api
+def test_results_subset_clusters_returns_union_in_matrix_order(toy_results):
+    """
+    Ensures multi-cluster subsetting returns the label union in original matrix row order.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and matrix attached.
+    """
+    # Select two real clusters from the fixture to validate multi-cluster subsetting.
+    cluster_ids = [int(c) for c in toy_results.clusters.unique_clusters]
+    assert len(cluster_ids) >= 2
+    # Build expected labels as the selected-cluster union in original matrix row order.
+    selected = cluster_ids[:2]
+    cluster_to_labels = toy_results.clusters.cluster_to_labels
+    expected_set = set().union(*(cluster_to_labels[cid] for cid in selected))
+    expected_labels = [lab for lab in toy_results.matrix.df.index if lab in expected_set]
+    sub = toy_results.subset_clusters(selected)
+
+    assert sub.matrix is not None
+    assert list(sub.matrix.df.index) == expected_labels
+    assert sub.clusters is None
+    assert sub.method == "subset"
 
 
 @pytest.mark.api
@@ -195,6 +223,7 @@ def test_results_cluster_labels_rank_by_q_changes_top_term_and_score():
     """
     Ensures rank_by='q' uses q-values for representative-term ranking and score output.
     """
+    # Use conflicting p/q ranks so rank_by changes the selected representative term.
     df = pd.DataFrame(
         {
             "cluster": [1, 1],
@@ -208,7 +237,6 @@ def test_results_cluster_labels_rank_by_q_changes_top_term_and_score():
     res = Results(df, method="test")
     out_p = res.cluster_labels(rank_by="p")
     out_q = res.cluster_labels(rank_by="q")
-
     row_p = out_p.iloc[0]
     row_q = out_q.iloc[0]
 

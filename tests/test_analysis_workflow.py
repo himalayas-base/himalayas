@@ -6,7 +6,7 @@ tests/test_analysis_workflow
 import numpy as np
 import pytest
 
-from himalayas import Analysis
+from himalayas import Analysis, Annotations, Matrix
 from himalayas.core import analysis as analysis_module
 
 
@@ -133,3 +133,29 @@ def test_finalize_col_cluster_uses_cluster_linkage_kwargs(
 
     assert seen["kwargs"]["linkage_method"] == "average"
     assert seen["kwargs"]["linkage_metric"] == "cosine"
+
+
+@pytest.mark.api
+def test_end_to_end_smoke(toy_df):
+    """
+    Ensures the basic analysis pipeline produces usable results.
+
+    Args:
+        toy_df (pd.DataFrame): Toy input DataFrame.
+    """
+    matrix = Matrix(toy_df)
+    annotations = Annotations({"t1": ["a", "b"], "t2": ["c", "d"]}, matrix)
+    analysis = (
+        Analysis(matrix, annotations)
+        .cluster(linkage_threshold=1.0)
+        .enrich()
+        .finalize(col_cluster=False)
+    )
+    results = analysis.results
+
+    assert results is not None
+    assert results.matrix is matrix
+    assert results.clusters is not None
+    assert "pval" in results.df.columns
+    assert "qval" in results.df.columns
+    assert results.cluster_layout().cluster_spans

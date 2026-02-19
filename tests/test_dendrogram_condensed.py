@@ -114,6 +114,7 @@ def test_dendrogram_condensed_placeholder_controls_match_cluster_label_parity(to
     plot = None
     plot2 = None
     try:
+        # Render with placeholders enabled to compare placeholder and regular label styling.
         plot = plot_dendrogram_condensed(
             filtered,
             label_fields=("label",),
@@ -130,6 +131,7 @@ def test_dendrogram_condensed_placeholder_controls_match_cluster_label_parity(to
         assert placeholder_nodes, "Expected placeholder text to be rendered."
         assert regular_nodes, "Expected at least one non-placeholder cluster label."
 
+        # Compare one placeholder label node and one regular label node for style parity checks.
         placeholder_node = placeholder_nodes[0]
         regular_node = regular_nodes[0]
         assert to_rgba(placeholder_node.get_color()) == pytest.approx(to_rgba("red"))
@@ -341,6 +343,7 @@ def test_dendrogram_condensed_unmapped_clusters_raises(toy_results):
     Raises:
         ValueError: If cluster ids cannot be mapped from master leaf order.
     """
+    # Replace cluster labels with unmapped names so row-to-cluster mapping fails deterministically.
     bad_labels = [f"x{i}" for i in range(len(toy_results.matrix.labels))]
     bad_clusters = Clusters(
         toy_results.clusters.linkage_matrix,
