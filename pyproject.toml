@@ -31,6 +31,7 @@ dependencies = [
 
 [project.optional-dependencies]
 text = ["nltk"]
+speed = ["fastcluster"]
 
 [project.urls]
 Homepage = "https://github.com/himalayas-base/himalayas"
