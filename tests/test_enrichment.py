@@ -67,6 +67,7 @@ def test_run_cluster_hypergeom_background_mismatch_raises(toy_matrix):
     Raises:
         ValueError: If background is missing labels from the analysis matrix.
     """
+    # Construct a background missing analysis labels to trigger universe validation.
     clusters = cluster(toy_matrix, linkage_threshold=1.0)
     annotations = Annotations({"t1": ["a", "b"]}, toy_matrix)
     background_df = toy_matrix.df.loc[["a", "b"]]

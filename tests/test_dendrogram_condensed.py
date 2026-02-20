@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import pytest
 from matplotlib.colors import to_rgba
 
+from himalayas import Analysis
 from himalayas.core.clustering import Clusters
 from himalayas.core.results import Results
 from himalayas.plot import CondensedDendrogramPlot, plot_dendrogram_condensed
@@ -113,6 +114,7 @@ def test_dendrogram_condensed_placeholder_controls_match_cluster_label_parity(to
     plot = None
     plot2 = None
     try:
+        # Render with placeholders enabled to compare placeholder and regular label styling.
         plot = plot_dendrogram_condensed(
             filtered,
             label_fields=("label",),
@@ -129,6 +131,7 @@ def test_dendrogram_condensed_placeholder_controls_match_cluster_label_parity(to
         assert placeholder_nodes, "Expected placeholder text to be rendered."
         assert regular_nodes, "Expected at least one non-placeholder cluster label."
 
+        # Compare one placeholder label node and one regular label node for style parity checks.
         placeholder_node = placeholder_nodes[0]
         regular_node = regular_nodes[0]
         assert to_rgba(placeholder_node.get_color()) == pytest.approx(to_rgba("red"))
@@ -211,23 +214,35 @@ def test_dendrogram_condensed_plot_handle_save_supports_kwargs(toy_results, tmp_
 
 
 @pytest.mark.api
-def test_dendrogram_condensed_plot_handle_rejects_closed_figure(toy_results):
+def test_dendrogram_condensed_plot_handle_rebuilds_closed_figure(toy_results, tmp_path):
     """
-    Ensures the condensed plot handle errors after the backing figure is closed.
+    Ensures the condensed plot handle rebuilds after the backing figure is closed.
 
     Args:
         toy_results (Results): Results fixture with clusters and layout.
-
-    Raises:
-        RuntimeError: If plotting is attempted after the figure is closed.
+        tmp_path (Path): Temporary output directory.
     """
     _use_agg_backend()
+    out = tmp_path / "condensed_rebuild.png"
     plot = plot_dendrogram_condensed(toy_results)
-    plt.close(plot.fig)
-    with pytest.raises(RuntimeError, match="figure is closed"):
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        # Simulate a closed backend figure between notebook cells.
+        plt.close(plot.fig)
+        # show() should transparently rebuild the closed figure.
         plot.show()
-    with pytest.raises(RuntimeError, match="figure is closed"):
-        plot.save("unused.png")
+        assert plot._figure_is_open()
+
+        # save() should also rebuild after close and still write the file.
+        plt.close(plot.fig)
+        plot.save(out, dpi=150)
+        assert out.exists()
+        assert out.stat().st_size > 0
+    finally:
+        plt.show = plt_show
+        if plot._figure_is_open():
+            plt.close(plot.fig)
 
 
 @pytest.mark.api
@@ -328,6 +343,7 @@ def test_dendrogram_condensed_unmapped_clusters_raises(toy_results):
     Raises:
         ValueError: If cluster ids cannot be mapped from master leaf order.
     """
+    # Replace cluster labels with unmapped names so row-to-cluster mapping fails deterministically.
     bad_labels = [f"x{i}" for i in range(len(toy_results.matrix.labels))]
     bad_clusters = Clusters(
         toy_results.clusters.linkage_matrix,
@@ -343,4 +359,34 @@ def test_dendrogram_condensed_unmapped_clusters_raises(toy_results):
         parent=toy_results,
     )
     with pytest.raises(ValueError):
+        plot_dendrogram_condensed(results)
+
+
+@pytest.mark.api
+def test_dendrogram_condensed_single_cluster_raises_clear_error(
+    toy_matrix,
+    toy_annotations,
+):
+    """
+    Ensures single-cluster inputs raise a descriptive ValueError.
+
+    Args:
+        toy_matrix (Matrix): Matrix fixture.
+        toy_annotations (Annotations): Annotation fixture.
+
+    Raises:
+        ValueError: If fewer than two clusters are available for condensed branching.
+    """
+    analysis = (
+        Analysis(toy_matrix, toy_annotations)
+        .cluster(linkage_threshold=1e9)
+        .enrich()
+        .finalize(col_cluster=False)
+    )
+    results = analysis.results
+    assert results is not None
+    assert results.clusters is not None
+    assert len(results.clusters.unique_clusters) == 1
+
+    with pytest.raises(ValueError, match="at least two clusters"):
         plot_dendrogram_condensed(results)

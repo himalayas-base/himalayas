@@ -28,6 +28,65 @@ def _use_agg_backend():
 
 
 @pytest.mark.api
+def test_plotter_smoke(toy_results):
+    """
+    Ensures Plotter can render a minimal plot without errors.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = _use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        (
+            Plotter(toy_results)
+            .set_label_panel(
+                axes=[0.70, 0.05, 0.29, 0.90],
+                text_pad=0.01,
+            )
+            .plot_matrix()
+            .plot_cluster_labels()
+            .show()
+        )
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+def test_plotter_stacked_defaults_smoke(toy_results):
+    """
+    Ensures a stacked default Plotter chain renders without explicit style kwargs.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = _use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        (
+            Plotter(toy_results)
+            .set_label_panel(
+                axes=[0.70, 0.05, 0.29, 0.90],
+                track_x=0.02,
+                gutter_width=0.01,
+                text_pad=0.01,
+            )
+            .plot_dendrogram()
+            .plot_matrix()
+            .plot_matrix_axis_labels()
+            .plot_row_ticks()
+            .plot_col_ticks()
+            .plot_cluster_labels()
+            .plot_cluster_bar(name="sigbar")
+            .show()
+        )
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
 def test_plotter_requires_layers(toy_results):
     """
     Ensures Plotter refuses to render with no declared layers.
@@ -114,6 +173,47 @@ def test_plot_cluster_bar_uses_internal_cluster_labels(toy_results):
         )
     finally:
         plt.show = plt_show
+
+
+@pytest.mark.api
+def test_plotter_plot_handle_rebuilds_closed_figure(toy_results, tmp_path):
+    """
+    Ensures Plotter rebuilds after the backing figure is closed.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+        tmp_path (Path): Temporary output directory.
+    """
+    plt = _use_agg_backend()
+    plt_show = plt.show
+    out = tmp_path / "plotter_rebuild.png"
+    plotter = None
+    plt.show = lambda *args, **kwargs: None
+    try:
+        plotter = Plotter(toy_results).plot_matrix()
+
+        # Baseline render: capture the original figure handle.
+        plotter.show()
+        fig0 = plotter._fig
+        # Simulate notebook/backend lifecycle where figures are explicitly closed.
+        plt.close(fig0)
+
+        # Closed handle should trigger a rebuild on show().
+        plotter.show()
+        assert plotter._fig is not None
+        assert plotter._fig is not fig0
+        assert plotter._fig.number in plt.get_fignums()
+
+        # save() should also rebuild after close and produce an output file.
+        plt.close(plotter._fig)
+        plotter.save(out, dpi=150)
+        assert out.exists()
+        assert out.stat().st_size > 0
+        assert plotter._fig.number in plt.get_fignums()
+    finally:
+        plt.show = plt_show
+        if plotter is not None and plotter._fig is not None and plotter._fig.number in plt.get_fignums():
+            plt.close(plotter._fig)
 
 
 @pytest.mark.api
@@ -242,6 +342,7 @@ def test_plot_cluster_labels_accepts_override_mapper(toy_results):
     plt_show = plt.show
     plt.show = lambda *args, **kwargs: None
     try:
+        # Override one cluster label and verify both explicit and empty-string overrides render safely.
         cid = int(toy_results.cluster_layout().cluster_spans[0][0])
         custom_label = f"Custom-{cid}"
         plotter = (
@@ -311,6 +412,8 @@ def test_plot_cluster_labels_placeholder_style_overrides_global_style(toy_result
             .plot_cluster_bar(name="sig")
         )
         plotter.show()
+
+        # Collect rendered labels to validate placeholder-vs-regular style behavior.
         fig = plotter._fig
         texts = [t for ax in fig.axes for t in ax.texts if t.get_text().strip()]
         placeholder_nodes = [t for t in texts if t.get_text() == placeholder_text]
@@ -384,11 +487,11 @@ def test_plot_cluster_label_override_keeps_deterministic_stats(toy_results):
     Args:
         toy_results (Results): Results fixture with clusters and layout.
     """
+    # Build baseline labels and assert a text-only override leaves numeric stats unchanged.
     df = toy_results.cluster_labels()
     cid = int(df.loc[0, "cluster"])
     base_pval = float(df.loc[df["cluster"] == cid, "pval"].iloc[0])
     override_map = _parse_label_overrides({cid: f"Custom-{cid}"})
-
     label_map = _build_label_map(df, override_map)
 
     assert label_map[cid][0] == f"Custom-{cid}"
@@ -408,6 +511,7 @@ def test_plot_cluster_labels_max_words_controls_label_building_compressed(toy_re
     plt_show = plt.show
     plt.show = lambda *args, **kwargs: None
     try:
+        # Render compressed labels with max_words=1 and assert generated labels stay single-word.
         plotter = (
             Plotter(toy_results)
             .plot_matrix()
@@ -442,6 +546,7 @@ def test_plot_cluster_labels_max_words_controls_display(toy_results):
     plt_show = plt.show
     plt.show = lambda *args, **kwargs: None
     try:
+        # Apply max_words truncation to an override label and verify rendered text is shortened.
         cid = int(toy_results.cluster_layout().cluster_spans[0][0])
         plotter = (
             Plotter(toy_results)

@@ -14,6 +14,20 @@ from .layout import ClusterLayout
 from .matrix import Matrix
 
 
+def _resolve_fastcluster_linkage():
+    """
+    Resolves fastcluster.linkage when available.
+
+    Returns:
+        Optional[callable]: fastcluster linkage callable, or None when unavailable.
+    """
+    try:
+        from fastcluster import linkage as fastcluster_linkage
+    except ImportError:
+        return None
+    return fastcluster_linkage
+
+
 def _build_tree_arrays(Z: np.ndarray, n_leaves: int) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Builds explicit binary-tree arrays (left, right, parent) from a SciPy linkage matrix.
@@ -382,7 +396,26 @@ class Clusters:
         self._cluster_to_labels: Optional[Dict[int, Set[Any]]] = None
         self._cluster_sizes: Optional[Dict[int, int]] = None
         self._unique_clusters: Optional[np.ndarray] = None
-        self._layout: Optional[ClusterLayout] = None
+        self._layout_cache: Dict[
+            Tuple[bool, Optional[Tuple[int, ...]]],
+            ClusterLayout,
+        ] = {}
+
+    @staticmethod
+    def _normalize_col_order_key(col_order: Optional[np.ndarray]) -> Optional[Tuple[int, ...]]:
+        """
+        Normalizes an optional column order array to a hashable cache key.
+
+        Args:
+            col_order (Optional[np.ndarray]): Optional column order array.
+
+        Returns:
+            Optional[Tuple[int, ...]]: Tuple key for caching, or None.
+        """
+        if col_order is None:
+            return None
+        arr = np.asarray(col_order, dtype=int)
+        return tuple(int(x) for x in arr.tolist())
 
     @property
     def leaf_order(self) -> np.ndarray:
@@ -553,20 +586,29 @@ class Clusters:
         Raises:
             ValueError: If `strict` is True and any cluster is non-contiguous in the order.
         """
-        if self._layout is None:
-            order = self.leaf_order
-            ordered_labels = self.ordered_labels(order)
-            ordered_cids = self.ordered_cluster_ids(order)
-            spans = self.cluster_spans(order, strict=strict)
-            self._layout = ClusterLayout(
-                leaf_order=order,
-                ordered_labels=ordered_labels,
-                ordered_cluster_ids=ordered_cids,
-                cluster_spans=spans,
-                cluster_sizes=dict(self.cluster_sizes),
-                col_order=col_order,
-            )
-        return self._layout
+        cache_key = (bool(strict), self._normalize_col_order_key(col_order))
+        got = self._layout_cache.get(cache_key)
+        if got is not None:
+            return got
+
+        col_order_arr = None
+        if col_order is not None:
+            col_order_arr = np.asarray(col_order, dtype=int).copy()
+
+        order = self.leaf_order
+        ordered_labels = self.ordered_labels(order)
+        ordered_cids = self.ordered_cluster_ids(order)
+        spans = self.cluster_spans(order, strict=strict)
+        got = ClusterLayout(
+            leaf_order=order,
+            ordered_labels=ordered_labels,
+            ordered_cluster_ids=ordered_cids,
+            cluster_spans=spans,
+            cluster_sizes=dict(self.cluster_sizes),
+            col_order=col_order_arr,
+        )
+        self._layout_cache[cache_key] = got
+        return got
 
 
 def cluster(
@@ -575,6 +617,7 @@ def cluster(
     linkage_metric: str = "euclidean",
     linkage_threshold: float = 0.7,
     *,
+    optimal_ordering: bool = False,
     min_cluster_size: int = 1,
 ) -> Clusters:
     """
@@ -589,21 +632,91 @@ def cluster(
         linkage_threshold (float): Distance threshold for cutting the dendrogram. Defaults to 0.7.
 
     Kwargs:
+        optimal_ordering (bool): Whether to optimize leaf ordering in the linkage output.
+            Defaults to False.
         min_cluster_size (int): Enforces a minimum cluster size by merging smaller clusters
             upward along the dendrogram. Values <= 1 disable enforcement. Defaults to 1.
 
     Returns:
         Clusters: Clusters object containing dendrogram and cluster assignments.
     """
-    Z = linkage(
+    linkage_matrix = compute_linkage(
+        matrix,
+        linkage_method=linkage_method,
+        linkage_metric=linkage_metric,
+        optimal_ordering=optimal_ordering,
+    )
+    return cut_linkage(
+        linkage_matrix,
+        matrix.labels,
+        linkage_threshold,
+        min_cluster_size=min_cluster_size,
+    )
+
+
+def compute_linkage(
+    matrix: Matrix,
+    *,
+    linkage_method: str = "ward",
+    linkage_metric: str = "euclidean",
+    optimal_ordering: bool = False,
+) -> np.ndarray:
+    """
+    Computes a row linkage matrix for hierarchical clustering.
+
+    Args:
+        matrix (Matrix): Matrix to cluster.
+
+    Kwargs:
+        linkage_method (str): Linkage method for hierarchical clustering. Defaults to "ward".
+        linkage_metric (str): Distance metric for hierarchical clustering. Defaults to "euclidean".
+        optimal_ordering (bool): Whether to optimize leaf ordering in the linkage output.
+            Defaults to False.
+
+    Returns:
+        np.ndarray: Linkage matrix.
+    """
+    if not bool(optimal_ordering):
+        fastcluster_linkage = _resolve_fastcluster_linkage()
+        if fastcluster_linkage is not None:
+            return fastcluster_linkage(
+                matrix.values,
+                method=linkage_method,
+                metric=linkage_metric,
+            )
+    return linkage(
         matrix.values,
         method=linkage_method,
         metric=linkage_metric,
-        optimal_ordering=True,
+        optimal_ordering=bool(optimal_ordering),
     )
+
+
+def cut_linkage(
+    linkage_matrix: np.ndarray,
+    labels: np.ndarray,
+    linkage_threshold: float,
+    *,
+    min_cluster_size: int = 1,
+) -> Clusters:
+    """
+    Cuts a precomputed linkage matrix into clusters.
+
+    Args:
+        linkage_matrix (np.ndarray): Linkage matrix from hierarchical clustering.
+        labels (np.ndarray): Labels aligned to linkage leaves.
+        linkage_threshold (float): Distance threshold for cutting the dendrogram.
+
+    Kwargs:
+        min_cluster_size (int): Enforces a minimum cluster size by merging smaller clusters
+            upward along the dendrogram. Values <= 1 disable enforcement. Defaults to 1.
+
+    Returns:
+        Clusters: Clusters object containing dendrogram and cluster assignments.
+    """
     return Clusters(
-        Z,
-        matrix.labels,
+        linkage_matrix,
+        labels,
         linkage_threshold,
         min_cluster_size=min_cluster_size,
     )

@@ -29,11 +29,26 @@ class ClusterLayout:
     col_order: Optional[np.ndarray] = None
 
 
+def _resolve_fastcluster_linkage():
+    """
+    Resolves fastcluster.linkage when available.
+
+    Returns:
+        Optional[callable]: fastcluster linkage callable, or None when unavailable.
+    """
+    try:
+        from fastcluster import linkage as fastcluster_linkage
+    except ImportError:
+        return None
+    return fastcluster_linkage
+
+
 def compute_col_order(
     matrix: Matrix,
     *,
     linkage_method: str = "ward",
     linkage_metric: str = "euclidean",
+    optimal_ordering: bool = False,
 ) -> np.ndarray:
     """
     Computes a dendrogram leaf order for matrix columns (visual grouping only).
@@ -44,6 +59,8 @@ def compute_col_order(
     Kwargs:
         linkage_method (str): Linkage method for hierarchical clustering. Defaults to "ward".
         linkage_metric (str): Distance metric for hierarchical clustering. Defaults to "euclidean".
+        optimal_ordering (bool): Whether to optimize leaf ordering in the linkage output.
+            Defaults to False.
 
     Returns:
         np.ndarray: Column order indices in dendrogram order.
@@ -51,10 +68,19 @@ def compute_col_order(
     n_cols = int(matrix.df.shape[1])
     if n_cols <= 1:
         return np.arange(n_cols, dtype=int)
+    if not bool(optimal_ordering):
+        fastcluster_linkage = _resolve_fastcluster_linkage()
+        if fastcluster_linkage is not None:
+            Z = fastcluster_linkage(
+                matrix.values.T,
+                method=linkage_method,
+                metric=linkage_metric,
+            )
+            return leaves_list(Z)
     Z = linkage(
         matrix.values.T,
         method=linkage_method,
         metric=linkage_metric,
-        optimal_ordering=True,
+        optimal_ordering=bool(optimal_ordering),
     )
     return leaves_list(Z)

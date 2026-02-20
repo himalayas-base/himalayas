@@ -5,8 +5,10 @@ himalayas/core/analysis
 
 from __future__ import annotations
 
+from typing import Optional
+
 from .annotations import Annotations
-from .clustering import cluster
+from .clustering import cut_linkage, compute_linkage
 from .enrichment import run_cluster_hypergeom
 from .layout import compute_col_order
 from .matrix import Matrix
@@ -33,28 +35,76 @@ class Analysis:
         self.results = None
         self._cluster_linkage_method = "ward"
         self._cluster_linkage_metric = "euclidean"
+        self._cluster_optimal_ordering = False
+        self._col_order_cache = {}
+        self._row_linkage_cache = {}
 
-    def cluster(self, **kwargs) -> Analysis:
+    def cluster(
+        self,
+        linkage_method: str = "ward",
+        linkage_metric: str = "euclidean",
+        linkage_threshold: float = 0.7,
+        *,
+        optimal_ordering: bool = False,
+        min_cluster_size: int = 1,
+    ) -> Analysis:
         """
         Performs clustering on the analysis matrix.
 
+        Args:
+            linkage_method (str): Linkage method for hierarchical clustering. Defaults to "ward".
+            linkage_metric (str): Distance metric for hierarchical clustering. Defaults to "euclidean".
+            linkage_threshold (float): Distance threshold for cutting the dendrogram. Defaults to 0.7.
+
         Kwargs:
-            **kwargs: Keyword arguments forwarded to clustering. Defaults to {}.
+            optimal_ordering (bool): Whether to optimize leaf ordering in the linkage output.
+                Defaults to False.
+            min_cluster_size (int): Enforces a minimum cluster size by merging smaller clusters
+                upward along the dendrogram. Values <= 1 disable enforcement. Defaults to 1.
 
         Returns:
             Analysis: The Analysis instance (for method chaining).
         """
-        self._cluster_linkage_method = kwargs.get("linkage_method", "ward")
-        self._cluster_linkage_metric = kwargs.get("linkage_metric", "euclidean")
-        self.clusters = cluster(self.matrix, **kwargs)
+        self.results = None
+        self.layout = None
+        self._cluster_linkage_method = linkage_method
+        self._cluster_linkage_metric = linkage_metric
+        self._cluster_optimal_ordering = bool(optimal_ordering)
+        row_cache_key = (
+            self._cluster_linkage_method,
+            self._cluster_linkage_metric,
+            self._cluster_optimal_ordering,
+        )
+        linkage_matrix = self._row_linkage_cache.get(row_cache_key)
+        if linkage_matrix is None:
+            linkage_matrix = compute_linkage(
+                self.matrix,
+                linkage_method=self._cluster_linkage_method,
+                linkage_metric=self._cluster_linkage_metric,
+                optimal_ordering=self._cluster_optimal_ordering,
+            )
+            self._row_linkage_cache[row_cache_key] = linkage_matrix
+        self.clusters = cut_linkage(
+            linkage_matrix,
+            self.matrix.labels,
+            linkage_threshold=linkage_threshold,
+            min_cluster_size=min_cluster_size,
+        )
         return self
 
-    def enrich(self, **kwargs) -> Analysis:
+    def enrich(
+        self,
+        *,
+        min_overlap: int = 1,
+        background: Optional[Matrix] = None,
+    ) -> Analysis:
         """
         Performs enrichment analysis on the clustered matrix.
 
         Kwargs:
-            **kwargs: Keyword arguments forwarded to enrichment. Defaults to {}.
+            min_overlap (int): Minimum overlap (k) to report. Defaults to 1.
+            background (Optional[Matrix]): Background matrix defining enrichment universe.
+                Defaults to None.
 
         Returns:
             Analysis: The Analysis instance (for method chaining).
@@ -69,7 +119,8 @@ class Analysis:
             self.matrix,
             self.clusters,
             self.annotations,
-            **kwargs,
+            min_overlap=min_overlap,
+            background=background,
         )
         return self
 
@@ -99,11 +150,21 @@ class Analysis:
         # Resolve column order, then construct finalized Results
         col_order = None
         if col_cluster:
-            col_order = compute_col_order(
-                self.matrix,
-                linkage_method=self._cluster_linkage_method,
-                linkage_metric=self._cluster_linkage_metric,
+            cache_key = (
+                self._cluster_linkage_method,
+                self._cluster_linkage_metric,
+                self._cluster_optimal_ordering,
             )
+            cached = self._col_order_cache.get(cache_key)
+            if cached is None:
+                cached = compute_col_order(
+                    self.matrix,
+                    linkage_method=self._cluster_linkage_method,
+                    linkage_metric=self._cluster_linkage_metric,
+                    optimal_ordering=self._cluster_optimal_ordering,
+                )
+                self._col_order_cache[cache_key] = cached
+            col_order = cached
         self.layout = self.clusters.layout(col_order=col_order)
         self.results = Results(
             self.results.df,

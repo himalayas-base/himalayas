@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import re
 from collections import Counter
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 
 import numpy as np
 import pandas as pd
@@ -229,6 +229,39 @@ class Results:
             parent=self,
         )
 
+    def _subset_from_labels(self, labels: Iterable[Any]) -> Results:
+        """
+        Returns a subset Results view from an explicit row-label collection.
+
+        Args:
+            labels (Iterable[Any]): Row labels to retain in the subset matrix.
+
+        Returns:
+            Results: New Results object with subset matrix attached.
+
+        Raises:
+            ValueError: If matrix is not attached.
+        """
+        # Validation
+        if self.matrix is None:
+            raise ValueError("Results must have matrix to subset")
+
+        # Subset rows by label while preserving matrix row order
+        label_list = list(labels)
+        df_sub = self.matrix.df.loc[label_list]
+        sub_matrix = Matrix(
+            df_sub,
+            axis=self.matrix.axis,
+        )
+        return Results(
+            df=pd.DataFrame(),
+            method="subset",
+            matrix=sub_matrix,
+            clusters=None,
+            layout=None,
+            parent=self,
+        )
+
     def subset(
         self,
         cluster: int,
@@ -246,29 +279,54 @@ class Results:
             ValueError: If matrix or clusters are not attached.
             KeyError: If the cluster id is not found.
         """
+        return self.subset_clusters([cluster])
+
+    def subset_clusters(
+        self,
+        clusters: Iterable[int],
+    ) -> Results:
+        """
+        Returns a Results object restricted to the union of one or more clusters.
+
+        Args:
+            clusters (Iterable[int]): Cluster ids to subset.
+
+        Returns:
+            Results: New Results object restricted to the selected clusters.
+
+        Raises:
+            ValueError: If matrix or clusters are not attached, or if no cluster ids
+                are provided.
+            KeyError: If one or more cluster ids are not found.
+        """
         # Validation
         if self.matrix is None or self.clusters is None:
             raise ValueError("Results must have matrix and clusters to subset")
-        cid = int(cluster)
-        if cid not in self.clusters.cluster_to_labels:
-            raise KeyError(f"Cluster {cid} not found")
 
-        # Subset matrix (rows only)
-        labels = sorted(self.clusters.cluster_to_labels[cid])
-        df_sub = self.matrix.df.loc[labels]
-        sub_matrix = Matrix(
-            df_sub,
-            axis=self.matrix.axis,
-        )
-        # Return new Results view
-        return Results(
-            df=pd.DataFrame(),
-            method="subset",
-            matrix=sub_matrix,
-            clusters=None,
-            layout=None,
-            parent=self,
-        )
+        # Deduplicate cluster ids while preserving order
+        cluster_ids: List[int] = []
+        seen: Set[int] = set()
+        for cid in clusters:
+            cid_int = int(cid)
+            if cid_int in seen:
+                continue
+            seen.add(cid_int)
+            cluster_ids.append(cid_int)
+        if not cluster_ids:
+            raise ValueError("clusters must contain at least one cluster id")
+
+        # Validate cluster ids and resolve to label sets
+        cluster_to_labels = self.clusters.cluster_to_labels
+        missing = [cid for cid in cluster_ids if cid not in cluster_to_labels]
+        if missing:
+            if len(missing) == 1:
+                raise KeyError(f"Cluster {missing[0]} not found")
+            raise KeyError(f"Clusters not found: {missing}")
+
+        # Subset rows by union of selected cluster labels while preserving matrix row order
+        selected_labels = set().union(*(cluster_to_labels[cid] for cid in cluster_ids))
+        labels = [lab for lab in self.matrix.df.index if lab in selected_labels]
+        return self._subset_from_labels(labels)
 
     @staticmethod
     def _bh_fdr(pvals: np.ndarray) -> np.ndarray:

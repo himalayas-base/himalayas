@@ -5,6 +5,7 @@ himalayas/plot/condensed_dendrogram
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from collections.abc import Hashable
 from os import PathLike
 from typing import (
@@ -60,6 +61,45 @@ class ClusterLabelInfo(NamedTuple):
     score: float
 
 
+@dataclass(frozen=True)
+class CondensedDendrogramSpec:
+    """
+    Immutable render specification for condensed dendrogram plots.
+    """
+
+    results: "Results"
+    rank_by: str = "p"
+    label_mode: str = "top_term"
+    figsize: Tuple[float, float] = (10, 10)
+    sigbar_cmap: Union[str, Colormap] = "YlOrBr"
+    sigbar_min_logp: float = 2.0
+    sigbar_max_logp: float = 10.0
+    sigbar_norm: Optional[Normalize] = None
+    sigbar_width: float = 0.06
+    sigbar_height: float = 0.8
+    sigbar_alpha: float = 1.0
+    font: str = "Helvetica"
+    fontsize: float = 9
+    max_words: Optional[int] = None
+    wrap_text: bool = True
+    wrap_width: Optional[int] = None
+    overflow: str = "wrap"
+    omit_words: Optional[Tuple[str, ...]] = None
+    label_fields: Tuple[str, ...] = ("label", "n", "p")
+    label_overrides: Optional[Dict[int, str]] = None
+    label_color: str = "black"
+    label_alpha: float = 1.0
+    placeholder_text: str = "—"
+    placeholder_color: Optional[str] = None
+    placeholder_alpha: Optional[float] = None
+    skip_unlabeled: bool = False
+    label_fontweight: str = "normal"
+    dendrogram_color: str = "black"
+    dendrogram_lw: float = 1.0
+    label_left_pad: float = 0.02
+    background_color: Optional[str] = None
+
+
 class CondensedDendrogramPlot:
     """
     Class for a rendered condensed dendrogram figure.
@@ -72,6 +112,7 @@ class CondensedDendrogramPlot:
         ax_den: plt.Axes,
         ax_sig: plt.Axes,
         ax_txt: plt.Axes,
+        spec: Optional[CondensedDendrogramSpec] = None,
     ) -> None:
         """
         Initializes the CondensedDendrogramPlot handle.
@@ -81,11 +122,31 @@ class CondensedDendrogramPlot:
             ax_den (plt.Axes): Dendrogram axis.
             ax_sig (plt.Axes): Significance bar axis.
             ax_txt (plt.Axes): Label text axis.
+            spec (Optional[CondensedDendrogramSpec]): Render specification used to
+                rebuild if the figure is later closed. Defaults to None.
         """
         self.fig = fig
         self.ax_den = ax_den
         self.ax_sig = ax_sig
         self.ax_txt = ax_txt
+        self._spec = spec
+
+    def _ensure_open(self) -> None:
+        """
+        Ensures the backing figure is open, rebuilding it when possible.
+
+        Raises:
+            RuntimeError: If the figure is closed and no render spec is available.
+        """
+        if self._figure_is_open():
+            return
+        if self._spec is None:
+            raise RuntimeError("Cannot reopen condensed dendrogram: render spec is unavailable.")
+        rebuilt = _render_condensed(self._spec)
+        self.fig = rebuilt.fig
+        self.ax_den = rebuilt.ax_den
+        self.ax_sig = rebuilt.ax_sig
+        self.ax_txt = rebuilt.ax_txt
 
     def _figure_is_open(self) -> bool:
         """
@@ -110,10 +171,9 @@ class CondensedDendrogramPlot:
             **kwargs: Additional matplotlib savefig options. Defaults to {}.
 
         Raises:
-            RuntimeError: If the figure has been closed.
+            RuntimeError: If the figure has been closed and cannot be rebuilt.
         """
-        if not self._figure_is_open():
-            raise RuntimeError("Cannot save condensed dendrogram: figure is closed.")
+        self._ensure_open()
         self.fig.savefig(
             path,
             facecolor=self.fig.get_facecolor(),
@@ -125,10 +185,9 @@ class CondensedDendrogramPlot:
         Shows the rendered condensed dendrogram figure.
 
         Raises:
-            RuntimeError: If the figure has been closed.
+            RuntimeError: If the figure has been closed and cannot be rebuilt.
         """
-        if not self._figure_is_open():
-            raise RuntimeError("Cannot show condensed dendrogram: figure is closed.")
+        self._ensure_open()
         plt.show()
 
 
@@ -414,7 +473,18 @@ def _compute_condensed_dendrogram(
 
     Returns:
         DendrogramData: Condensed dendrogram data.
+
+    Raises:
+        ValueError: If fewer than two clusters are available for branching.
     """
+    if len(cluster_ids) < 2:
+        raise ValueError(
+            "Condensed dendrogram requires at least two clusters to draw branches "
+            f"(found {len(cluster_ids)}). "
+            "This often occurs when the current matrix resolves to one cluster. "
+            "Skip condensed plotting for this run or adjust clustering settings."
+        )
+
     # Build condensed linkage matrix
     n_master = Z_master.shape[0] + 1
     row_index_to_cluster = {
@@ -593,6 +663,170 @@ def _get_cluster_size(
     return None
 
 
+def _render_condensed(spec: CondensedDendrogramSpec) -> CondensedDendrogramPlot:
+    """
+    Renders a condensed dendrogram from an immutable render specification.
+
+    Args:
+        spec (CondensedDendrogramSpec): Normalized rendering specification.
+
+    Raises:
+        AttributeError: If required attributes are missing from results.
+        ValueError: If no clusters are found or plotting options are invalid.
+        TypeError: If label_overrides is not a dict.
+
+    Returns:
+        CondensedDendrogramPlot: Rendered condensed dendrogram figure handle.
+    """
+    # Validation
+    _validate_condensed_inputs(spec.results, spec.label_fields)
+    cluster_labels = spec.results.cluster_labels(
+        rank_by=spec.rank_by,
+        label_mode=spec.label_mode,
+        max_words=spec.max_words,
+    )
+    # Get master linkage and clusters
+    Z_master, clusters = _get_master_linkage(spec.results)
+    cluster_ids, row_to_cluster = _resolve_cluster_order(Z_master, spec.results, clusters)
+    labels, scores, lab_map, cluster_sizes, y = _prepare_cluster_labels(
+        cluster_ids,
+        cluster_labels,
+        clusters,
+        label_overrides=spec.label_overrides,
+        omit_words=spec.omit_words,
+        max_words=spec.max_words,
+        placeholder_text=spec.placeholder_text,
+        wrap_text=spec.wrap_text,
+        wrap_width=spec.wrap_width,
+        overflow=spec.overflow,
+    )
+    d = _compute_condensed_dendrogram(
+        Z_master,
+        row_to_cluster,
+        cluster_ids,
+        spec.results.matrix.labels,
+    )
+    _fig, ax_den, ax_sig, ax_txt = _setup_condensed_axes(
+        spec.figsize,
+        spec.sigbar_width,
+        spec.label_left_pad,
+        spec.background_color,
+    )
+
+    # Render dendrogram
+    k = len(cluster_ids)
+    cluster_y = {i: y[i] for i in range(k)}
+    leaf_order = d["leaves"]
+    max_h = max(map(max, d["dcoord"]))
+    x_pad = max_h * 0.05
+    for xs, ys in zip(d["dcoord"], d["icoord"]):
+        mapped = []
+        for yval in ys:
+            slot = int(round((yval - 5.0) / 10.0))
+            slot = max(0, min(k - 1, slot))
+            mapped.append(cluster_y[int(leaf_order[slot])])
+        ax_den.plot(xs, mapped, color=spec.dendrogram_color, lw=spec.dendrogram_lw)
+    ax_den.set(xlim=(max_h + x_pad, 0.0), ylim=(k * 10, 0))
+
+    # Render significance bar
+    cmap = plt.get_cmap(spec.sigbar_cmap)
+    ax_sig.set(xlim=(0, 1), ylim=(k * 10, 0))
+    if not np.isfinite(spec.sigbar_height) or spec.sigbar_height <= 0 or spec.sigbar_height > 1:
+        raise ValueError("sigbar_height must be in the range (0, 1]")
+
+    # Normalize scores to [0, 1] based on log-transformed p-values, then render bars
+    norm = spec.sigbar_norm
+    denom = spec.sigbar_max_logp - spec.sigbar_min_logp
+    row_pitch = float(np.mean(np.diff(y))) if len(y) > 1 else 10.0
+    bar_height = row_pitch * float(spec.sigbar_height)
+    for i, score in enumerate(scores):
+        if not np.isfinite(score) or score <= 0:
+            val = 0.0
+        else:
+            lp = -np.log10(score)
+            if norm is None:
+                val = np.clip((lp - spec.sigbar_min_logp) / denom, 0, 1)
+            else:
+                try:
+                    val = float(norm(lp))
+                except TypeError:
+                    val = float(norm([lp])[0])
+        ax_sig.add_patch(
+            plt.Rectangle(
+                (0, y[i] - (bar_height / 2.0)),
+                1,
+                bar_height,
+                facecolor=cmap(val),
+                edgecolor="none",
+                alpha=spec.sigbar_alpha,
+            )
+        )
+
+    # Render text labels
+    ax_txt.set(xlim=(0, 1), ylim=(k * 10, 0))
+    # Mapping cluster -> row ids is needed for _get_cluster_size.
+    cluster_to_rows = getattr(clusters, "cluster_to_labels", None) or {}
+    # Format and place per-cluster label text
+    for cid, yi, lab in zip(cluster_ids, y, labels):
+        is_placeholder = int(cid) not in lab_map
+        if is_placeholder and spec.skip_unlabeled:
+            continue
+
+        n = None
+        pval_value = None
+        qval_value = None
+        if not is_placeholder and "n" in spec.label_fields:
+            n = _get_cluster_size(
+                int(cid),
+                label_map=lab_map,
+                cluster_sizes=cluster_sizes,
+                cluster_to_labels=cluster_to_rows,
+            )
+        if not is_placeholder:
+            label_info = lab_map[int(cid)]
+            pval_value = label_info.pval if np.isfinite(label_info.pval) else None
+            qval_value = label_info.qval if np.isfinite(label_info.qval) else None
+        txt = _compose_condensed_cluster_text(
+            label=lab,
+            is_placeholder=is_placeholder,
+            label_fields=spec.label_fields,
+            n_members=n,
+            pval=pval_value,
+            qval=qval_value,
+            wrap_text=spec.wrap_text,
+            wrap_width=spec.wrap_width,
+        )
+        text_color, text_alpha = _resolve_condensed_label_style(
+            is_placeholder=is_placeholder,
+            label_color=spec.label_color,
+            label_alpha=spec.label_alpha,
+            placeholder_color=spec.placeholder_color,
+            placeholder_alpha=spec.placeholder_alpha,
+        )
+        ax_txt.text(
+            0.0,
+            yi,
+            txt,
+            va="center",
+            ha="left",
+            font=spec.font,
+            fontsize=spec.fontsize,
+            color=text_color,
+            alpha=text_alpha,
+            fontweight=spec.label_fontweight,
+        )
+
+    # Clean axes and return rendered figure handle
+    _finalize_axes(ax_den, ax_sig, ax_txt)
+    return CondensedDendrogramPlot(
+        fig=_fig,
+        ax_den=ax_den,
+        ax_sig=ax_sig,
+        ax_txt=ax_txt,
+        spec=spec,
+    )
+
+
 def plot_dendrogram_condensed(
     results: Results,
     *,
@@ -684,145 +918,38 @@ def plot_dendrogram_condensed(
     Returns:
         CondensedDendrogramPlot: Rendered condensed dendrogram figure handle.
     """
-    # Validation
-    _validate_condensed_inputs(results, label_fields)
     override_map = _parse_label_overrides(label_overrides)
-    cluster_labels = results.cluster_labels(
+    spec = CondensedDendrogramSpec(
+        results=results,
         rank_by=rank_by,
         label_mode=label_mode,
+        figsize=tuple(figsize),
+        sigbar_cmap=sigbar_cmap,
+        sigbar_min_logp=sigbar_min_logp,
+        sigbar_max_logp=sigbar_max_logp,
+        sigbar_norm=sigbar_norm,
+        sigbar_width=sigbar_width,
+        sigbar_height=sigbar_height,
+        sigbar_alpha=sigbar_alpha,
+        font=font,
+        fontsize=fontsize,
         max_words=max_words,
-    )
-    # Get master linkage and clusters
-    Z_master, clusters = _get_master_linkage(results)
-    cluster_ids, row_to_cluster = _resolve_cluster_order(Z_master, results, clusters)
-    labels, scores, lab_map, cluster_sizes, y = _prepare_cluster_labels(
-        cluster_ids,
-        cluster_labels,
-        clusters,
-        label_overrides=override_map,
-        omit_words=omit_words,
-        max_words=max_words,
-        placeholder_text=placeholder_text,
         wrap_text=wrap_text,
         wrap_width=wrap_width,
         overflow=overflow,
+        omit_words=None if omit_words is None else tuple(omit_words),
+        label_fields=tuple(label_fields),
+        label_overrides=override_map,
+        label_color=label_color,
+        label_alpha=label_alpha,
+        placeholder_text=placeholder_text,
+        placeholder_color=placeholder_color,
+        placeholder_alpha=placeholder_alpha,
+        skip_unlabeled=skip_unlabeled,
+        label_fontweight=label_fontweight,
+        dendrogram_color=dendrogram_color,
+        dendrogram_lw=dendrogram_lw,
+        label_left_pad=label_left_pad,
+        background_color=background_color,
     )
-    d = _compute_condensed_dendrogram(
-        Z_master,
-        row_to_cluster,
-        cluster_ids,
-        results.matrix.labels,
-    )
-    _fig, ax_den, ax_sig, ax_txt = _setup_condensed_axes(
-        figsize, sigbar_width, label_left_pad, background_color
-    )
-
-    # Render dendrogram
-    k = len(cluster_ids)
-    cluster_y = {i: y[i] for i in range(k)}
-    leaf_order = d["leaves"]
-    max_h = max(map(max, d["dcoord"]))
-    x_pad = max_h * 0.05
-    for xs, ys in zip(d["dcoord"], d["icoord"]):
-        mapped = []
-        for yval in ys:
-            slot = int(round((yval - 5.0) / 10.0))
-            slot = max(0, min(k - 1, slot))
-            mapped.append(cluster_y[int(leaf_order[slot])])
-        ax_den.plot(xs, mapped, color=dendrogram_color, lw=dendrogram_lw)
-    ax_den.set(xlim=(max_h + x_pad, 0.0), ylim=(k * 10, 0))
-
-    # Render significance bar
-    cmap = plt.get_cmap(sigbar_cmap)
-    ax_sig.set(xlim=(0, 1), ylim=(k * 10, 0))
-    if not np.isfinite(sigbar_height) or sigbar_height <= 0 or sigbar_height > 1:
-        raise ValueError("sigbar_height must be in the range (0, 1]")
-    norm = sigbar_norm
-    denom = sigbar_max_logp - sigbar_min_logp
-    row_pitch = float(np.mean(np.diff(y))) if len(y) > 1 else 10.0
-    bar_height = row_pitch * float(sigbar_height)
-    for i, score in enumerate(scores):
-        if not np.isfinite(score) or score <= 0:
-            val = 0.0
-        else:
-            lp = -np.log10(score)
-            if norm is None:
-                val = np.clip((lp - sigbar_min_logp) / denom, 0, 1)
-            else:
-                try:
-                    val = float(norm(lp))
-                except TypeError:
-                    val = float(norm([lp])[0])
-        ax_sig.add_patch(
-            plt.Rectangle(
-                (0, y[i] - (bar_height / 2.0)),
-                1,
-                bar_height,
-                facecolor=cmap(val),
-                edgecolor="none",
-                alpha=sigbar_alpha,
-            )
-        )
-
-    # Render text labels
-    ax_txt.set(xlim=(0, 1), ylim=(k * 10, 0))
-    # Mapping cluster -> row ids is needed for _get_cluster_size.
-    cluster_to_rows = getattr(clusters, "cluster_to_labels", None) or {}
-    # Format and place per-cluster label text
-    for cid, yi, lab in zip(cluster_ids, y, labels):
-        is_placeholder = int(cid) not in lab_map
-        if is_placeholder and skip_unlabeled:
-            continue
-
-        n = None
-        pval_value = None
-        qval_value = None
-        if not is_placeholder and "n" in label_fields:
-            n = _get_cluster_size(
-                int(cid),
-                label_map=lab_map,
-                cluster_sizes=cluster_sizes,
-                cluster_to_labels=cluster_to_rows,
-            )
-        if not is_placeholder:
-            label_info = lab_map[int(cid)]
-            pval_value = label_info.pval if np.isfinite(label_info.pval) else None
-            qval_value = label_info.qval if np.isfinite(label_info.qval) else None
-        txt = _compose_condensed_cluster_text(
-            label=lab,
-            is_placeholder=is_placeholder,
-            label_fields=label_fields,
-            n_members=n,
-            pval=pval_value,
-            qval=qval_value,
-            wrap_text=wrap_text,
-            wrap_width=wrap_width,
-        )
-        text_color, text_alpha = _resolve_condensed_label_style(
-            is_placeholder=is_placeholder,
-            label_color=label_color,
-            label_alpha=label_alpha,
-            placeholder_color=placeholder_color,
-            placeholder_alpha=placeholder_alpha,
-        )
-        ax_txt.text(
-            0.0,
-            yi,
-            txt,
-            va="center",
-            ha="left",
-            font=font,
-            fontsize=fontsize,
-            color=text_color,
-            alpha=text_alpha,
-            fontweight=label_fontweight,
-        )
-
-    # Clean axes and return rendered figure handle
-    _finalize_axes(ax_den, ax_sig, ax_txt)
-    return CondensedDendrogramPlot(
-        fig=_fig,
-        ax_den=ax_den,
-        ax_sig=ax_sig,
-        ax_txt=ax_txt,
-    )
+    return _render_condensed(spec)
