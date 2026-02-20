@@ -35,6 +35,7 @@ class Analysis:
         self.results = None
         self._cluster_linkage_method = "ward"
         self._cluster_linkage_metric = "euclidean"
+        self._cluster_optimal_ordering = False
         self._col_order_cache = {}
         self._row_linkage_cache = {}
 
@@ -44,6 +45,7 @@ class Analysis:
         linkage_metric: str = "euclidean",
         linkage_threshold: float = 0.7,
         *,
+        optimal_ordering: bool = False,
         min_cluster_size: int = 1,
     ) -> Analysis:
         """
@@ -55,6 +57,8 @@ class Analysis:
             linkage_threshold (float): Distance threshold for cutting the dendrogram. Defaults to 0.7.
 
         Kwargs:
+            optimal_ordering (bool): Whether to optimize leaf ordering in the linkage output.
+                Defaults to False.
             min_cluster_size (int): Enforces a minimum cluster size by merging smaller clusters
                 upward along the dendrogram. Values <= 1 disable enforcement. Defaults to 1.
 
@@ -65,13 +69,19 @@ class Analysis:
         self.layout = None
         self._cluster_linkage_method = linkage_method
         self._cluster_linkage_metric = linkage_metric
-        row_cache_key = (self._cluster_linkage_method, self._cluster_linkage_metric)
+        self._cluster_optimal_ordering = bool(optimal_ordering)
+        row_cache_key = (
+            self._cluster_linkage_method,
+            self._cluster_linkage_metric,
+            self._cluster_optimal_ordering,
+        )
         linkage_matrix = self._row_linkage_cache.get(row_cache_key)
         if linkage_matrix is None:
             linkage_matrix = compute_linkage(
                 self.matrix,
                 linkage_method=self._cluster_linkage_method,
                 linkage_metric=self._cluster_linkage_metric,
+                optimal_ordering=self._cluster_optimal_ordering,
             )
             self._row_linkage_cache[row_cache_key] = linkage_matrix
         self.clusters = cut_linkage(
@@ -143,6 +153,7 @@ class Analysis:
             cache_key = (
                 self._cluster_linkage_method,
                 self._cluster_linkage_metric,
+                self._cluster_optimal_ordering,
             )
             cached = self._col_order_cache.get(cache_key)
             if cached is None:
@@ -150,6 +161,7 @@ class Analysis:
                     self.matrix,
                     linkage_method=self._cluster_linkage_method,
                     linkage_metric=self._cluster_linkage_metric,
+                    optimal_ordering=self._cluster_optimal_ordering,
                 )
                 self._col_order_cache[cache_key] = cached
             col_order = cached

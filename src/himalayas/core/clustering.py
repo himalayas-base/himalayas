@@ -14,6 +14,20 @@ from .layout import ClusterLayout
 from .matrix import Matrix
 
 
+def _resolve_fastcluster_linkage():
+    """
+    Resolves fastcluster.linkage when available.
+
+    Returns:
+        Optional[callable]: fastcluster linkage callable, or None when unavailable.
+    """
+    try:
+        from fastcluster import linkage as fastcluster_linkage
+    except ImportError:
+        return None
+    return fastcluster_linkage
+
+
 def _build_tree_arrays(Z: np.ndarray, n_leaves: int) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Builds explicit binary-tree arrays (left, right, parent) from a SciPy linkage matrix.
@@ -603,6 +617,7 @@ def cluster(
     linkage_metric: str = "euclidean",
     linkage_threshold: float = 0.7,
     *,
+    optimal_ordering: bool = False,
     min_cluster_size: int = 1,
 ) -> Clusters:
     """
@@ -617,6 +632,8 @@ def cluster(
         linkage_threshold (float): Distance threshold for cutting the dendrogram. Defaults to 0.7.
 
     Kwargs:
+        optimal_ordering (bool): Whether to optimize leaf ordering in the linkage output.
+            Defaults to False.
         min_cluster_size (int): Enforces a minimum cluster size by merging smaller clusters
             upward along the dendrogram. Values <= 1 disable enforcement. Defaults to 1.
 
@@ -627,6 +644,7 @@ def cluster(
         matrix,
         linkage_method=linkage_method,
         linkage_metric=linkage_metric,
+        optimal_ordering=optimal_ordering,
     )
     return cut_linkage(
         linkage_matrix,
@@ -641,6 +659,7 @@ def compute_linkage(
     *,
     linkage_method: str = "ward",
     linkage_metric: str = "euclidean",
+    optimal_ordering: bool = False,
 ) -> np.ndarray:
     """
     Computes a row linkage matrix for hierarchical clustering.
@@ -651,15 +670,25 @@ def compute_linkage(
     Kwargs:
         linkage_method (str): Linkage method for hierarchical clustering. Defaults to "ward".
         linkage_metric (str): Distance metric for hierarchical clustering. Defaults to "euclidean".
+        optimal_ordering (bool): Whether to optimize leaf ordering in the linkage output.
+            Defaults to False.
 
     Returns:
-        np.ndarray: SciPy linkage matrix.
+        np.ndarray: Linkage matrix.
     """
+    if not bool(optimal_ordering):
+        fastcluster_linkage = _resolve_fastcluster_linkage()
+        if fastcluster_linkage is not None:
+            return fastcluster_linkage(
+                matrix.values,
+                method=linkage_method,
+                metric=linkage_metric,
+            )
     return linkage(
         matrix.values,
         method=linkage_method,
         metric=linkage_metric,
-        optimal_ordering=True,
+        optimal_ordering=bool(optimal_ordering),
     )
 
 

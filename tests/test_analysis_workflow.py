@@ -136,13 +136,19 @@ def test_finalize_col_cluster_uses_cluster_linkage_kwargs(
 
     (
         Analysis(toy_matrix, toy_annotations)
-        .cluster(linkage_method="average", linkage_metric="cosine", linkage_threshold=1.0)
+        .cluster(
+            linkage_method="average",
+            linkage_metric="cosine",
+            linkage_threshold=1.0,
+            optimal_ordering=True,
+        )
         .enrich()
         .finalize(col_cluster=True)
     )
 
     assert seen["kwargs"]["linkage_method"] == "average"
     assert seen["kwargs"]["linkage_metric"] == "cosine"
+    assert seen["kwargs"]["optimal_ordering"] is True
 
 
 @pytest.mark.api
@@ -167,7 +173,12 @@ def test_finalize_col_cluster_caches_col_order_for_same_linkage(
 
     analysis = (
         Analysis(toy_matrix, toy_annotations)
-        .cluster(linkage_method="average", linkage_metric="cosine", linkage_threshold=1.0)
+        .cluster(
+            linkage_method="average",
+            linkage_metric="cosine",
+            linkage_threshold=1.0,
+            optimal_ordering=False,
+        )
         .enrich()
         .finalize(col_cluster=True)
     )
@@ -198,12 +209,22 @@ def test_finalize_col_cluster_recomputes_col_order_when_linkage_changes(
 
     analysis = (
         Analysis(toy_matrix, toy_annotations)
-        .cluster(linkage_method="average", linkage_metric="cosine", linkage_threshold=1.0)
+        .cluster(
+            linkage_method="average",
+            linkage_metric="cosine",
+            linkage_threshold=1.0,
+            optimal_ordering=False,
+        )
         .enrich()
         .finalize(col_cluster=True)
     )
     (
-        analysis.cluster(linkage_method="ward", linkage_metric="euclidean", linkage_threshold=1.0)
+        analysis.cluster(
+            linkage_method="ward",
+            linkage_metric="euclidean",
+            linkage_threshold=1.0,
+            optimal_ordering=False,
+        )
         .enrich()
         .finalize(col_cluster=True)
     )
@@ -211,8 +232,57 @@ def test_finalize_col_cluster_recomputes_col_order_when_linkage_changes(
     assert len(seen["kwargs"]) == 2
     assert seen["kwargs"][0]["linkage_method"] == "average"
     assert seen["kwargs"][0]["linkage_metric"] == "cosine"
+    assert seen["kwargs"][0]["optimal_ordering"] is False
     assert seen["kwargs"][1]["linkage_method"] == "ward"
     assert seen["kwargs"][1]["linkage_metric"] == "euclidean"
+    assert seen["kwargs"][1]["optimal_ordering"] is False
+
+
+@pytest.mark.api
+def test_finalize_col_cluster_recomputes_col_order_when_optimal_ordering_changes(
+    monkeypatch, toy_matrix, toy_annotations
+):
+    """
+    Ensures changing optimal_ordering causes a new column-order computation.
+
+    Args:
+        monkeypatch (pytest.MonkeyPatch): Fixture for replacing module call targets.
+        toy_matrix (Matrix): Toy matrix fixture.
+        toy_annotations (Annotations): Toy annotations fixture.
+    """
+    seen = {"kwargs": []}
+
+    def _capture_col_order(matrix, **kwargs):
+        seen["kwargs"].append(dict(kwargs))
+        return np.arange(matrix.df.shape[1], dtype=int)
+
+    monkeypatch.setattr(analysis_module, "compute_col_order", _capture_col_order)
+
+    analysis = (
+        Analysis(toy_matrix, toy_annotations)
+        .cluster(
+            linkage_method="average",
+            linkage_metric="cosine",
+            linkage_threshold=1.0,
+            optimal_ordering=False,
+        )
+        .enrich()
+        .finalize(col_cluster=True)
+    )
+    (
+        analysis.cluster(
+            linkage_method="average",
+            linkage_metric="cosine",
+            linkage_threshold=1.0,
+            optimal_ordering=True,
+        )
+        .enrich()
+        .finalize(col_cluster=True)
+    )
+
+    assert len(seen["kwargs"]) == 2
+    assert seen["kwargs"][0]["optimal_ordering"] is False
+    assert seen["kwargs"][1]["optimal_ordering"] is True
 
 
 @pytest.mark.api
@@ -240,11 +310,13 @@ def test_cluster_reuses_cached_row_linkage_for_same_linkage_settings(
         linkage_method="average",
         linkage_metric="cosine",
         linkage_threshold=0.5,
+        optimal_ordering=False,
     )
     analysis.cluster(
         linkage_method="average",
         linkage_metric="cosine",
         linkage_threshold=1.0,
+        optimal_ordering=False,
     )
 
     assert seen["calls"] == 1
@@ -275,18 +347,61 @@ def test_cluster_recomputes_row_linkage_when_linkage_settings_change(
         linkage_method="average",
         linkage_metric="cosine",
         linkage_threshold=1.0,
+        optimal_ordering=False,
     )
     analysis.cluster(
         linkage_method="ward",
         linkage_metric="euclidean",
         linkage_threshold=1.0,
+        optimal_ordering=False,
     )
 
     assert len(seen["kwargs"]) == 2
     assert seen["kwargs"][0]["linkage_method"] == "average"
     assert seen["kwargs"][0]["linkage_metric"] == "cosine"
+    assert seen["kwargs"][0]["optimal_ordering"] is False
     assert seen["kwargs"][1]["linkage_method"] == "ward"
     assert seen["kwargs"][1]["linkage_metric"] == "euclidean"
+    assert seen["kwargs"][1]["optimal_ordering"] is False
+
+
+@pytest.mark.api
+def test_cluster_recomputes_row_linkage_when_optimal_ordering_changes(
+    monkeypatch, toy_matrix, toy_annotations
+):
+    """
+    Ensures changing optimal_ordering causes a new row-linkage computation.
+
+    Args:
+        monkeypatch (pytest.MonkeyPatch): Fixture for replacing module call targets.
+        toy_matrix (Matrix): Toy matrix fixture.
+        toy_annotations (Annotations): Toy annotations fixture.
+    """
+    seen = {"kwargs": []}
+    orig_compute_linkage = clustering_module.compute_linkage
+
+    def _capture_compute_linkage(matrix, **kwargs):
+        seen["kwargs"].append(dict(kwargs))
+        return orig_compute_linkage(matrix, **kwargs)
+
+    monkeypatch.setattr(analysis_module, "compute_linkage", _capture_compute_linkage)
+
+    analysis = Analysis(toy_matrix, toy_annotations).cluster(
+        linkage_method="average",
+        linkage_metric="cosine",
+        linkage_threshold=1.0,
+        optimal_ordering=False,
+    )
+    analysis.cluster(
+        linkage_method="average",
+        linkage_metric="cosine",
+        linkage_threshold=1.0,
+        optimal_ordering=True,
+    )
+
+    assert len(seen["kwargs"]) == 2
+    assert seen["kwargs"][0]["optimal_ordering"] is False
+    assert seen["kwargs"][1]["optimal_ordering"] is True
 
 
 @pytest.mark.api
