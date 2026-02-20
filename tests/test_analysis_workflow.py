@@ -145,6 +145,76 @@ def test_finalize_col_cluster_uses_cluster_linkage_kwargs(
 
 
 @pytest.mark.api
+def test_finalize_col_cluster_caches_col_order_for_same_linkage(
+    monkeypatch, toy_matrix, toy_annotations
+):
+    """
+    Ensures repeated finalize(col_cluster=True) reuses cached column order for the same linkage.
+
+    Args:
+        monkeypatch (pytest.MonkeyPatch): Fixture for replacing module call targets.
+        toy_matrix (Matrix): Toy matrix fixture.
+        toy_annotations (Annotations): Toy annotations fixture.
+    """
+    seen = {"calls": 0}
+
+    def _capture_col_order(matrix, **kwargs):
+        seen["calls"] += 1
+        return np.arange(matrix.df.shape[1], dtype=int)
+
+    monkeypatch.setattr(analysis_module, "compute_col_order", _capture_col_order)
+
+    analysis = (
+        Analysis(toy_matrix, toy_annotations)
+        .cluster(linkage_method="average", linkage_metric="cosine", linkage_threshold=1.0)
+        .enrich()
+        .finalize(col_cluster=True)
+    )
+    analysis.finalize(col_cluster=True)
+
+    assert seen["calls"] == 1
+
+
+@pytest.mark.api
+def test_finalize_col_cluster_recomputes_col_order_when_linkage_changes(
+    monkeypatch, toy_matrix, toy_annotations
+):
+    """
+    Ensures changing linkage settings causes a new column-order computation.
+
+    Args:
+        monkeypatch (pytest.MonkeyPatch): Fixture for replacing module call targets.
+        toy_matrix (Matrix): Toy matrix fixture.
+        toy_annotations (Annotations): Toy annotations fixture.
+    """
+    seen = {"kwargs": []}
+
+    def _capture_col_order(matrix, **kwargs):
+        seen["kwargs"].append(dict(kwargs))
+        return np.arange(matrix.df.shape[1], dtype=int)
+
+    monkeypatch.setattr(analysis_module, "compute_col_order", _capture_col_order)
+
+    analysis = (
+        Analysis(toy_matrix, toy_annotations)
+        .cluster(linkage_method="average", linkage_metric="cosine", linkage_threshold=1.0)
+        .enrich()
+        .finalize(col_cluster=True)
+    )
+    (
+        analysis.cluster(linkage_method="ward", linkage_metric="euclidean", linkage_threshold=1.0)
+        .enrich()
+        .finalize(col_cluster=True)
+    )
+
+    assert len(seen["kwargs"]) == 2
+    assert seen["kwargs"][0]["linkage_method"] == "average"
+    assert seen["kwargs"][0]["linkage_metric"] == "cosine"
+    assert seen["kwargs"][1]["linkage_method"] == "ward"
+    assert seen["kwargs"][1]["linkage_metric"] == "euclidean"
+
+
+@pytest.mark.api
 def test_end_to_end_smoke(toy_df):
     """
     Ensures the basic analysis pipeline produces usable results.

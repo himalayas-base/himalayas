@@ -35,6 +35,7 @@ class Analysis:
         self.results = None
         self._cluster_linkage_method = "ward"
         self._cluster_linkage_metric = "euclidean"
+        self._col_order_cache = {}
 
     def cluster(
         self,
@@ -132,11 +133,19 @@ class Analysis:
         # Resolve column order, then construct finalized Results
         col_order = None
         if col_cluster:
-            col_order = compute_col_order(
-                self.matrix,
-                linkage_method=self._cluster_linkage_method,
-                linkage_metric=self._cluster_linkage_metric,
+            cache_key = (
+                self._cluster_linkage_method,
+                self._cluster_linkage_metric,
             )
+            cached = self._col_order_cache.get(cache_key)
+            if cached is None:
+                cached = compute_col_order(
+                    self.matrix,
+                    linkage_method=self._cluster_linkage_method,
+                    linkage_metric=self._cluster_linkage_metric,
+                )
+                self._col_order_cache[cache_key] = cached
+            col_order = cached
         self.layout = self.clusters.layout(col_order=col_order)
         self.results = Results(
             self.results.df,
