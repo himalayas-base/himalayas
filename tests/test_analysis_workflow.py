@@ -89,7 +89,7 @@ def test_finalize_attaches_qvalues_without_col_clustering(toy_matrix, toy_annota
 
 
 @pytest.mark.api
-def test_cluster_can_be_called_twice(toy_matrix, toy_annotations):
+def test_recluster_invalidates_downstream_state(toy_matrix, toy_annotations):
     """
     Ensures repeated clustering invalidates stale downstream state.
 
