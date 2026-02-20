@@ -30,11 +30,16 @@ Submitted to _Bioinformatics_.
 ## Installation
 
 HiMaLAYAS is compatible with Python 3.8 or later and runs on major operating
-systems. To install the latest version, run:
+systems.
 
 ```bash
-pip install himalayas --upgrade
+pip install himalayas
+# Optional: faster clustering + richer compressed-label text processing
+pip install "himalayas[speed,text]"
 ```
+
+Detailed installation options and fallback behavior are documented at
+[himalayas-base.github.io/himalayas-docs/1_installation](https://himalayas-base.github.io/himalayas-docs/1_installation/).
 
 ## Key Features of HiMaLAYAS
 
