@@ -5,9 +5,7 @@ himalayas/core/analysis
 
 from __future__ import annotations
 
-from typing import Dict, Optional, Tuple
-
-import numpy as np
+from typing import Optional
 
 from .annotations import Annotations
 from .clustering import cut_linkage, compute_linkage
@@ -37,8 +35,8 @@ class Analysis:
         self.results = None
         self._cluster_linkage_method = "ward"
         self._cluster_linkage_metric = "euclidean"
-        self._col_order_cache: Dict[Tuple[str, str], np.ndarray] = {}
-        self._row_linkage_cache: Dict[Tuple[str, str], np.ndarray] = {}
+        self._col_order_cache = {}
+        self._row_linkage_cache = {}
 
     def cluster(
         self,
@@ -63,8 +61,6 @@ class Analysis:
         Returns:
             Analysis: The Analysis instance (for method chaining).
         """
-        # Invalidate downstream artifacts: re-clustering changes cluster membership,
-        # so prior enrichment/layout are no longer valid.
         self.results = None
         self.layout = None
         self._cluster_linkage_method = linkage_method
