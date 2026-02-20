@@ -6,7 +6,7 @@ tests/test_clustering
 import numpy as np
 import pytest
 
-from himalayas.core.clustering import cluster
+from himalayas.core.clustering import cluster, compute_linkage, cut_linkage
 
 
 @pytest.mark.api
@@ -89,3 +89,23 @@ def test_cluster_layout_reuses_cached_object_for_same_inputs(toy_matrix):
     second = clusters.layout(col_order=desired)
 
     assert first is second
+
+
+@pytest.mark.api
+def test_compute_and_cut_linkage_matches_cluster(toy_matrix):
+    """
+    Ensures compute_linkage()+cut_linkage() matches cluster() semantics.
+
+    Args:
+        toy_matrix (Matrix): Toy matrix fixture.
+    """
+    direct = cluster(toy_matrix, linkage_threshold=1.0)
+    linkage_matrix = compute_linkage(toy_matrix)
+    split = cut_linkage(
+        linkage_matrix,
+        toy_matrix.labels,
+        linkage_threshold=1.0,
+    )
+
+    assert np.array_equal(direct.cluster_ids, split.cluster_ids)
+    assert np.array_equal(direct.leaf_order, split.leaf_order)

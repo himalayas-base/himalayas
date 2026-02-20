@@ -623,15 +623,71 @@ def cluster(
     Returns:
         Clusters: Clusters object containing dendrogram and cluster assignments.
     """
-    Z = linkage(
+    linkage_matrix = compute_linkage(
+        matrix,
+        linkage_method=linkage_method,
+        linkage_metric=linkage_metric,
+    )
+    return cut_linkage(
+        linkage_matrix,
+        matrix.labels,
+        linkage_threshold,
+        min_cluster_size=min_cluster_size,
+    )
+
+
+def compute_linkage(
+    matrix: Matrix,
+    *,
+    linkage_method: str = "ward",
+    linkage_metric: str = "euclidean",
+) -> np.ndarray:
+    """
+    Computes a row linkage matrix for hierarchical clustering.
+
+    Args:
+        matrix (Matrix): Matrix to cluster.
+
+    Kwargs:
+        linkage_method (str): Linkage method for hierarchical clustering. Defaults to "ward".
+        linkage_metric (str): Distance metric for hierarchical clustering. Defaults to "euclidean".
+
+    Returns:
+        np.ndarray: SciPy linkage matrix.
+    """
+    return linkage(
         matrix.values,
         method=linkage_method,
         metric=linkage_metric,
         optimal_ordering=True,
     )
+
+
+def cut_linkage(
+    linkage_matrix: np.ndarray,
+    labels: np.ndarray,
+    linkage_threshold: float,
+    *,
+    min_cluster_size: int = 1,
+) -> Clusters:
+    """
+    Cuts a precomputed linkage matrix into clusters.
+
+    Args:
+        linkage_matrix (np.ndarray): Linkage matrix from hierarchical clustering.
+        labels (np.ndarray): Labels aligned to linkage leaves.
+        linkage_threshold (float): Distance threshold for cutting the dendrogram.
+
+    Kwargs:
+        min_cluster_size (int): Enforces a minimum cluster size by merging smaller clusters
+            upward along the dendrogram. Values <= 1 disable enforcement. Defaults to 1.
+
+    Returns:
+        Clusters: Clusters object containing dendrogram and cluster assignments.
+    """
     return Clusters(
-        Z,
-        matrix.labels,
+        linkage_matrix,
+        labels,
         linkage_threshold,
         min_cluster_size=min_cluster_size,
     )

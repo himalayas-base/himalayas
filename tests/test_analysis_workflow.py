@@ -8,6 +8,7 @@ import pytest
 
 from himalayas import Analysis, Annotations, Matrix
 from himalayas.core import analysis as analysis_module
+from himalayas.core import clustering as clustering_module
 
 
 @pytest.mark.api
@@ -205,6 +206,80 @@ def test_finalize_col_cluster_recomputes_col_order_when_linkage_changes(
         analysis.cluster(linkage_method="ward", linkage_metric="euclidean", linkage_threshold=1.0)
         .enrich()
         .finalize(col_cluster=True)
+    )
+
+    assert len(seen["kwargs"]) == 2
+    assert seen["kwargs"][0]["linkage_method"] == "average"
+    assert seen["kwargs"][0]["linkage_metric"] == "cosine"
+    assert seen["kwargs"][1]["linkage_method"] == "ward"
+    assert seen["kwargs"][1]["linkage_metric"] == "euclidean"
+
+
+@pytest.mark.api
+def test_cluster_reuses_cached_row_linkage_for_same_linkage_settings(
+    monkeypatch, toy_matrix, toy_annotations
+):
+    """
+    Ensures repeated cluster() calls reuse cached row linkage for the same linkage settings.
+
+    Args:
+        monkeypatch (pytest.MonkeyPatch): Fixture for replacing module call targets.
+        toy_matrix (Matrix): Toy matrix fixture.
+        toy_annotations (Annotations): Toy annotations fixture.
+    """
+    seen = {"calls": 0}
+    orig_compute_linkage = clustering_module.compute_linkage
+
+    def _capture_compute_linkage(matrix, **kwargs):
+        seen["calls"] += 1
+        return orig_compute_linkage(matrix, **kwargs)
+
+    monkeypatch.setattr(analysis_module, "compute_linkage", _capture_compute_linkage)
+
+    analysis = Analysis(toy_matrix, toy_annotations).cluster(
+        linkage_method="average",
+        linkage_metric="cosine",
+        linkage_threshold=0.5,
+    )
+    analysis.cluster(
+        linkage_method="average",
+        linkage_metric="cosine",
+        linkage_threshold=1.0,
+    )
+
+    assert seen["calls"] == 1
+
+
+@pytest.mark.api
+def test_cluster_recomputes_row_linkage_when_linkage_settings_change(
+    monkeypatch, toy_matrix, toy_annotations
+):
+    """
+    Ensures changing linkage settings causes a new row-linkage computation.
+
+    Args:
+        monkeypatch (pytest.MonkeyPatch): Fixture for replacing module call targets.
+        toy_matrix (Matrix): Toy matrix fixture.
+        toy_annotations (Annotations): Toy annotations fixture.
+    """
+    seen = {"kwargs": []}
+    orig_compute_linkage = clustering_module.compute_linkage
+
+    def _capture_compute_linkage(matrix, **kwargs):
+        seen["kwargs"].append(dict(kwargs))
+        return orig_compute_linkage(matrix, **kwargs)
+
+    monkeypatch.setattr(analysis_module, "compute_linkage", _capture_compute_linkage)
+
+    analysis = Analysis(toy_matrix, toy_annotations).cluster(
+        linkage_method="average",
+        linkage_metric="cosine",
+        linkage_threshold=1.0,
+    )
+    analysis.cluster(
+        linkage_method="ward",
+        linkage_metric="euclidean",
+        linkage_threshold=1.0,
     )
 
     assert len(seen["kwargs"]) == 2

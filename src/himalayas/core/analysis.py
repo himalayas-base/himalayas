@@ -5,10 +5,12 @@ himalayas/core/analysis
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Dict, Optional, Tuple
+
+import numpy as np
 
 from .annotations import Annotations
-from .clustering import cluster
+from .clustering import cut_linkage, compute_linkage
 from .enrichment import run_cluster_hypergeom
 from .layout import compute_col_order
 from .matrix import Matrix
@@ -35,7 +37,8 @@ class Analysis:
         self.results = None
         self._cluster_linkage_method = "ward"
         self._cluster_linkage_metric = "euclidean"
-        self._col_order_cache = {}
+        self._col_order_cache: Dict[Tuple[str, str], np.ndarray] = {}
+        self._row_linkage_cache: Dict[Tuple[str, str], np.ndarray] = {}
 
     def cluster(
         self,
@@ -66,10 +69,18 @@ class Analysis:
         self.layout = None
         self._cluster_linkage_method = linkage_method
         self._cluster_linkage_metric = linkage_metric
-        self.clusters = cluster(
-            self.matrix,
-            linkage_method=linkage_method,
-            linkage_metric=linkage_metric,
+        row_cache_key = (self._cluster_linkage_method, self._cluster_linkage_metric)
+        linkage_matrix = self._row_linkage_cache.get(row_cache_key)
+        if linkage_matrix is None:
+            linkage_matrix = compute_linkage(
+                self.matrix,
+                linkage_method=self._cluster_linkage_method,
+                linkage_metric=self._cluster_linkage_metric,
+            )
+            self._row_linkage_cache[row_cache_key] = linkage_matrix
+        self.clusters = cut_linkage(
+            linkage_matrix,
+            self.matrix.labels,
             linkage_threshold=linkage_threshold,
             min_cluster_size=min_cluster_size,
         )
