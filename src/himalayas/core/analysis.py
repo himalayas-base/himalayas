@@ -59,6 +59,10 @@ class Analysis:
         Returns:
             Analysis: The Analysis instance (for method chaining).
         """
+        # Invalidate downstream artifacts: re-clustering changes cluster membership,
+        # so prior enrichment/layout are no longer valid.
+        self.results = None
+        self.layout = None
         self._cluster_linkage_method = linkage_method
         self._cluster_linkage_metric = linkage_metric
         self.clusters = cluster(

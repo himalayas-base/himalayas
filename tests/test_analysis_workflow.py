@@ -90,18 +90,27 @@ def test_finalize_attaches_qvalues_without_col_clustering(toy_matrix, toy_annota
 @pytest.mark.api
 def test_cluster_can_be_called_twice(toy_matrix, toy_annotations):
     """
-    Ensures repeated clustering updates the analysis state without error.
+    Ensures repeated clustering invalidates stale downstream state.
 
     Args:
         toy_matrix (Matrix): Toy matrix fixture.
         toy_annotations (Annotations): Toy annotations fixture.
     """
-    analysis = Analysis(toy_matrix, toy_annotations).cluster(linkage_threshold=1.0)
+    analysis = (
+        Analysis(toy_matrix, toy_annotations)
+        .cluster(linkage_threshold=1.0)
+        .enrich()
+        .finalize(col_cluster=False)
+    )
     first_clusters = analysis.clusters
     analysis.cluster(linkage_threshold=1.0)
 
     assert analysis.clusters is not None
     assert analysis.clusters is not first_clusters
+    assert analysis.results is None
+    assert analysis.layout is None
+    with pytest.raises(RuntimeError):
+        analysis.finalize(col_cluster=False)
 
 
 @pytest.mark.api
