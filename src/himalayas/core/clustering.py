@@ -382,7 +382,26 @@ class Clusters:
         self._cluster_to_labels: Optional[Dict[int, Set[Any]]] = None
         self._cluster_sizes: Optional[Dict[int, int]] = None
         self._unique_clusters: Optional[np.ndarray] = None
-        self._layout: Optional[ClusterLayout] = None
+        self._layout_cache: Dict[
+            Tuple[bool, Optional[Tuple[int, ...]]],
+            ClusterLayout,
+        ] = {}
+
+    @staticmethod
+    def _normalize_col_order_key(col_order: Optional[np.ndarray]) -> Optional[Tuple[int, ...]]:
+        """
+        Normalizes an optional column order array to a hashable cache key.
+
+        Args:
+            col_order (Optional[np.ndarray]): Optional column order array.
+
+        Returns:
+            Optional[Tuple[int, ...]]: Tuple key for caching, or None.
+        """
+        if col_order is None:
+            return None
+        arr = np.asarray(col_order, dtype=int)
+        return tuple(int(x) for x in arr.tolist())
 
     @property
     def leaf_order(self) -> np.ndarray:
@@ -553,20 +572,29 @@ class Clusters:
         Raises:
             ValueError: If `strict` is True and any cluster is non-contiguous in the order.
         """
-        if self._layout is None:
-            order = self.leaf_order
-            ordered_labels = self.ordered_labels(order)
-            ordered_cids = self.ordered_cluster_ids(order)
-            spans = self.cluster_spans(order, strict=strict)
-            self._layout = ClusterLayout(
-                leaf_order=order,
-                ordered_labels=ordered_labels,
-                ordered_cluster_ids=ordered_cids,
-                cluster_spans=spans,
-                cluster_sizes=dict(self.cluster_sizes),
-                col_order=col_order,
-            )
-        return self._layout
+        cache_key = (bool(strict), self._normalize_col_order_key(col_order))
+        got = self._layout_cache.get(cache_key)
+        if got is not None:
+            return got
+
+        col_order_arr = None
+        if col_order is not None:
+            col_order_arr = np.asarray(col_order, dtype=int).copy()
+
+        order = self.leaf_order
+        ordered_labels = self.ordered_labels(order)
+        ordered_cids = self.ordered_cluster_ids(order)
+        spans = self.cluster_spans(order, strict=strict)
+        got = ClusterLayout(
+            leaf_order=order,
+            ordered_labels=ordered_labels,
+            ordered_cluster_ids=ordered_cids,
+            cluster_spans=spans,
+            cluster_sizes=dict(self.cluster_sizes),
+            col_order=col_order_arr,
+        )
+        self._layout_cache[cache_key] = got
+        return got
 
 
 def cluster(
