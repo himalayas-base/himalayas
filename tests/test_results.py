@@ -250,6 +250,29 @@ def test_results_cluster_labels_rank_by_q_changes_top_term_and_score():
 
 
 @pytest.mark.api
+def test_results_cluster_labels_rank_by_q_ties_break_by_p_then_term():
+    """
+    Ensures q-rank ties are broken deterministically by p-value, then term id.
+    """
+    df = pd.DataFrame(
+        {
+            "cluster": [1, 1, 1],
+            "term": ["t_b", "t_a", "t_c"],
+            "pval": [0.01, 0.01, 0.02],
+            "qval": [0.05, 0.05, 0.05],
+        }
+    )
+    res = Results(df, method="test")
+    out = res.cluster_labels(rank_by="q")
+    row = out.iloc[0]
+
+    assert row["term"] == "t_a"
+    assert row["pval"] == pytest.approx(0.01)
+    assert row["qval"] == pytest.approx(0.05)
+    assert row["score"] == pytest.approx(0.05)
+
+
+@pytest.mark.api
 def test_results_cluster_labels_invalid_label_mode_raises():
     """
     Ensures unsupported label modes raise a ValueError.

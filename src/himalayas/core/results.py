@@ -168,6 +168,44 @@ def _resolve_rank_spec(
     return "pval" if rank_by == "p" else "qval"
 
 
+def _select_best_term_index(
+    sub: pd.DataFrame,
+    *,
+    score_col: str,
+) -> Any:
+    """
+    Selects a deterministic best-row index for a per-cluster term subset.
+    Ranking priority:
+      1) selected score column (pval or qval)
+      2) p-value (when present)
+      3) term id lexical order
+
+    Args:
+        sub (pd.DataFrame): Per-cluster subset.
+
+    Kwargs:
+        score_col (str): Primary score column name.
+
+    Returns:
+        Any: Row index label for the selected representative term.
+    """
+    # Normalize score keys to numeric so invalid values are pushed to the end.
+    order = pd.DataFrame(index=sub.index)
+    order["_score"] = pd.to_numeric(sub[score_col], errors="coerce")
+    if "pval" in sub.columns:
+        order["_pval"] = pd.to_numeric(sub["pval"], errors="coerce")
+    else:
+        order["_pval"] = np.nan
+    # Add a stable lexical tie-breaker when numeric keys are identical.
+    order["_term"] = sub[_TERM_FIELD].astype(str)
+    ordered = order.sort_values(
+        by=["_score", "_pval", "_term"],
+        kind="mergesort",
+        na_position="last",
+    )
+    return ordered.index[0]
+
+
 class Results:
     """
     Class for holding analysis results and attached context for plotting or subsetting.
@@ -470,7 +508,7 @@ class Results:
             cid_int = int(cid)
             best_idx = None
             if label_mode == "top_term":
-                best_idx = sub[score_col].astype(float).idxmin()
+                best_idx = _select_best_term_index(sub, score_col=score_col)
                 best_row = df.loc[best_idx]
                 label_val = best_row[label_source]
                 if label_source != _TERM_FIELD and (label_val is None or pd.isna(label_val)):
@@ -488,7 +526,7 @@ class Results:
                     sub["_weight"].tolist(),
                     max_words=max_words,
                 )
-                best_idx = sub[score_col].astype(float).idxmin()
+                best_idx = _select_best_term_index(sub, score_col=score_col)
                 best_term = str(sub.loc[best_idx, _TERM_FIELD])
             best_pval = None
             best_qval = None
