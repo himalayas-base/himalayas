@@ -298,6 +298,28 @@ def test_dendrogram_condensed_label_fields_respect_np_order(toy_results):
 
 
 @pytest.mark.api
+def test_dendrogram_condensed_none_label_fields_hides_text(toy_results):
+    """
+    Ensures label_fields=None suppresses condensed cluster text when no prefix is requested.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    _use_agg_backend()
+    plot = None
+    try:
+        plot = plot_dendrogram_condensed(
+            toy_results,
+            label_fields=None,
+        )
+        texts = [t.get_text().strip() for ax in plot.fig.axes for t in ax.texts if t.get_text().strip()]
+        assert not texts
+    finally:
+        if plot is not None:
+            plt.close(plot.fig)
+
+
+@pytest.mark.api
 def test_dendrogram_condensed_label_prefix_cid_supports_compressed_labels(toy_results):
     """
     Ensures label_prefix='cid' prefixes compressed condensed labels.
@@ -323,7 +345,12 @@ def test_dendrogram_condensed_label_prefix_cid_supports_compressed_labels(toy_re
 
 
 @pytest.mark.api
-def test_dendrogram_condensed_label_prefix_precedence_override_wins(toy_results):
+@pytest.mark.parametrize(
+    "label_fields",
+    [("label",), None],
+    ids=["with_label_fields", "without_label_fields"],
+)
+def test_dendrogram_condensed_label_prefix_precedence_override_wins(toy_results, label_fields):
     """
     Ensures label_prefix is applied before overrides and explicit overrides win.
 
@@ -340,7 +367,7 @@ def test_dendrogram_condensed_label_prefix_precedence_override_wins(toy_results)
     try:
         plot = plot_dendrogram_condensed(
             toy_results,
-            label_fields=("label",),
+            label_fields=label_fields,
             label_prefix="cid",
             label_overrides={override_cid: override_label},
             wrap_text=False,
@@ -348,7 +375,10 @@ def test_dendrogram_condensed_label_prefix_precedence_override_wins(toy_results)
         texts = [t.get_text().strip() for ax in plot.fig.axes for t in ax.texts if t.get_text().strip()]
         assert override_label in texts
         assert all(txt != f"{override_cid}. {override_label}" for txt in texts)
-        assert any(txt.startswith(f"{regular_cid}. ") for txt in texts)
+        if label_fields is None:
+            assert f"{regular_cid}." in texts
+        else:
+            assert any(txt.startswith(f"{regular_cid}. ") for txt in texts)
     finally:
         if plot is not None:
             plt.close(plot.fig)

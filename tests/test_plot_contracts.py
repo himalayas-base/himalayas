@@ -357,6 +357,32 @@ def test_plot_cluster_labels_invalid_label_prefix_raises(toy_results):
 
 
 @pytest.mark.api
+def test_plot_cluster_labels_none_label_fields_hides_text(toy_results):
+    """
+    Ensures label_fields=None suppresses cluster text when no prefix is requested.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = _use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        plotter = (
+            Plotter(toy_results)
+            .plot_matrix()
+            .plot_cluster_labels(
+                label_fields=None,
+            )
+        )
+        plotter.show()
+        texts = [t.get_text().strip() for ax in plotter._fig.axes for t in ax.texts if t.get_text().strip()]
+        assert not texts
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
 def test_plot_cluster_labels_label_prefix_cid_supports_compressed_labels(toy_results):
     """
     Ensures label_prefix='cid' prefixes compressed display labels.
@@ -386,7 +412,12 @@ def test_plot_cluster_labels_label_prefix_cid_supports_compressed_labels(toy_res
 
 
 @pytest.mark.api
-def test_plot_cluster_labels_label_prefix_precedence_override_wins(toy_results):
+@pytest.mark.parametrize(
+    "label_fields",
+    [("label",), None],
+    ids=["with_label_fields", "without_label_fields"],
+)
+def test_plot_cluster_labels_label_prefix_precedence_override_wins(toy_results, label_fields):
     """
     Ensures label_prefix is applied before overrides and explicit overrides win.
 
@@ -406,7 +437,7 @@ def test_plot_cluster_labels_label_prefix_precedence_override_wins(toy_results):
             Plotter(toy_results)
             .plot_matrix()
             .plot_cluster_labels(
-                label_fields=("label",),
+                label_fields=label_fields,
                 label_prefix="cid",
                 overrides={override_cid: override_label},
                 wrap_text=False,
@@ -416,7 +447,10 @@ def test_plot_cluster_labels_label_prefix_precedence_override_wins(toy_results):
         texts = [t.get_text().strip() for ax in plotter._fig.axes for t in ax.texts if t.get_text().strip()]
         assert override_label in texts
         assert all(txt != f"{override_cid}. {override_label}" for txt in texts)
-        assert any(txt.startswith(f"{regular_cid}. ") for txt in texts)
+        if label_fields is None:
+            assert f"{regular_cid}." in texts
+        else:
+            assert any(txt.startswith(f"{regular_cid}. ") for txt in texts)
     finally:
         plt.show = plt_show
 

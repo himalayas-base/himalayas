@@ -85,7 +85,7 @@ class CondensedDendrogramSpec:
     wrap_width: Optional[int] = None
     overflow: str = "wrap"
     omit_words: Optional[Tuple[str, ...]] = None
-    label_fields: Tuple[str, ...] = ("label", "n", "p")
+    label_fields: Optional[Tuple[str, ...]] = ("label", "n", "p")
     label_prefix: Optional[str] = None
     label_overrides: Optional[Dict[int, str]] = None
     label_color: str = "black"
@@ -194,7 +194,7 @@ class CondensedDendrogramPlot:
 
 def _validate_condensed_inputs(
     results: Results,
-    label_fields: Sequence[str],
+    label_fields: Optional[Sequence[str]],
     label_prefix: Optional[str],
 ) -> None:
     """
@@ -202,7 +202,8 @@ def _validate_condensed_inputs(
 
     Args:
         results (Results): Enrichment results exposing cluster_layout() and clusters.
-        label_fields (Sequence[str]): Fields to include in labels ("label", "n", "p", "q").
+        label_fields (Optional[Sequence[str]]): Fields to include in labels
+            ("label", "n", "p", "q").
         label_prefix (Optional[str]): Label prefix mode.
 
     Raises:
@@ -211,7 +212,7 @@ def _validate_condensed_inputs(
     """
     # Validation
     allowed = {"label", "n", "p", "q"}
-    if not set(label_fields).issubset(allowed):
+    if label_fields is not None and not set(label_fields).issubset(allowed):
         raise ValueError(f"label_fields must be a subset of {allowed}")
     if label_prefix not in {None, "cid"}:
         raise ValueError("label_prefix must be one of {None, 'cid'}")
@@ -286,6 +287,7 @@ def _prepare_cluster_labels(
     cluster_labels: pd.DataFrame,
     clusters: Clusters,
     *,
+    label_fields: Optional[Sequence[str]] = None,
     label_prefix: Optional[str] = None,
     label_overrides: Optional[Dict[int, str]] = None,
     omit_words: Optional[Sequence[str]] = None,
@@ -311,6 +313,8 @@ def _prepare_cluster_labels(
         clusters (Clusters): Clusters instance.
 
     Kwargs:
+        label_fields (Optional[Sequence[str]]): Fields to include in labels.
+            Defaults to None.
         label_prefix (Optional[str]): Label prefix mode. Defaults to None.
         label_overrides (Optional[Dict[int, str]]): Normalized mapping cluster_id -> custom label.
             Defaults to None.
@@ -362,14 +366,20 @@ def _prepare_cluster_labels(
     scores: list[float] = []
     for cid in cluster_ids:
         if cid not in lab_map:
+            if label_fields is None and label_prefix is None:
+                labels.append("")
+                scores.append(np.nan)
+                continue
             labels.append(placeholder_text)
             scores.append(np.nan)
             continue
         # Apply overrides and formatting, then collect
         lab_info = lab_map[cid]
         lab = lab_info.label
-        if label_prefix == "cid":
-            lab = f"{cid}. {lab}"
+        if label_fields is None and cid not in label_overrides:
+            lab = ""
+        if label_prefix == "cid" and cid not in label_overrides:
+            lab = f"{cid}. {lab}" if lab else f"{cid}."
         if cid in label_overrides:
             lab = label_overrides[cid]
         labels.append(
@@ -424,7 +434,7 @@ def _compose_condensed_cluster_text(
     *,
     label: str,
     is_placeholder: bool,
-    label_fields: Sequence[str],
+    label_fields: Optional[Sequence[str]],
     n_members: Optional[int],
     pval: Optional[float],
     qval: Optional[float],
@@ -437,7 +447,7 @@ def _compose_condensed_cluster_text(
     Args:
         label (str): Base text label.
         is_placeholder (bool): Whether the current cluster label is a placeholder.
-        label_fields (Sequence[str]): Fields to include in non-placeholder labels.
+        label_fields (Optional[Sequence[str]]): Fields to include in non-placeholder labels.
         n_members (Optional[int]): Cluster size.
         pval (Optional[float]): Cluster p-value.
         qval (Optional[float]): Cluster q-value.
@@ -450,12 +460,17 @@ def _compose_condensed_cluster_text(
     if is_placeholder:
         return label
 
-    has_label, stats = collect_label_stats(
-        label_fields,
-        n_members=n_members,
-        pval=pval,
-        qval=qval,
-    )
+    if label_fields is None:
+        has_label, stats = False, []
+    else:
+        has_label, stats = collect_label_stats(
+            label_fields,
+            n_members=n_members,
+            pval=pval,
+            qval=qval,
+        )
+    if not has_label and not stats:
+        return label
     return compose_label_text(
         label,
         has_label=has_label,
@@ -701,6 +716,7 @@ def _render_condensed(spec: CondensedDendrogramSpec) -> CondensedDendrogramPlot:
         cluster_ids,
         cluster_labels,
         clusters,
+        label_fields=spec.label_fields,
         label_prefix=spec.label_prefix,
         label_overrides=spec.label_overrides,
         omit_words=spec.omit_words,
@@ -785,7 +801,7 @@ def _render_condensed(spec: CondensedDendrogramSpec) -> CondensedDendrogramPlot:
         n = None
         pval_value = None
         qval_value = None
-        if not is_placeholder and "n" in spec.label_fields:
+        if not is_placeholder and spec.label_fields is not None and "n" in spec.label_fields:
             n = _get_cluster_size(
                 int(cid),
                 label_map=lab_map,
@@ -857,7 +873,7 @@ def plot_dendrogram_condensed(
     wrap_width: Optional[int] = None,
     overflow: str = "wrap",
     omit_words: Optional[Sequence[str]] = None,
-    label_fields: Sequence[str] = ("label", "n", "p"),
+    label_fields: Optional[Sequence[str]] = ("label", "n", "p"),
     label_prefix: Optional[str] = None,
     label_overrides: Optional[Dict[int, str]] = None,
     label_color: str = "black",
@@ -902,7 +918,9 @@ def plot_dendrogram_condensed(
         wrap_width (Optional[int]): Maximum characters per line when wrapping. Defaults to None.
         overflow (str): Overflow handling when truncating ("wrap" or "ellipsis"). Defaults to "wrap".
         omit_words (Optional[Sequence[str]]): Words to omit from cluster labels. Defaults to None.
-        label_fields (Sequence[str]): Fields to include in labels ("label", "n", "p", "q").
+        label_fields (Optional[Sequence[str]]): Fields to include in labels
+            ("label", "n", "p", "q").
+            If None, suppresses base label/stat text.
             Defaults to ("label", "n", "p").
         label_prefix (Optional[str]): Optional prefix mode for display labels.
             Supported values are None and "cid". Defaults to None.
@@ -951,7 +969,7 @@ def plot_dendrogram_condensed(
         wrap_width=wrap_width,
         overflow=overflow,
         omit_words=None if omit_words is None else tuple(omit_words),
-        label_fields=tuple(label_fields),
+        label_fields=None if label_fields is None else tuple(label_fields),
         label_prefix=label_prefix,
         label_overrides=override_map,
         label_color=label_color,

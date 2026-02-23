@@ -596,7 +596,8 @@ class Plotter:
                 Defaults to "top_term".
             max_words (Optional[int]): Maximum words in rendered display labels.
                 Defaults to None.
-            label_fields (tuple[str]): Fields to include: "label", "n", "p", "q".
+            label_fields (Optional[tuple[str]]): Fields to include: "label", "n", "p", "q".
+                If None, suppresses base label/stat text.
                 Defaults to ("label", "n", "p").
             label_prefix (Optional[str]): Optional prefix mode for display labels.
                 Supported values are None and "cid". Defaults to None.

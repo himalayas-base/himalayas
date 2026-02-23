@@ -68,7 +68,7 @@ def _resolve_labels_and_layout(
     float,
     str,
     float,
-    Tuple[str, ...],
+    Optional[Tuple[str, ...]],
     bool,
     Optional[str],
 ]:
@@ -98,7 +98,7 @@ def _resolve_labels_and_layout(
             - float: Maximum x-position for separator lines.
             - str: Font name for label text.
             - float: Font size for label text.
-            - Tuple[str, ...]: Fields to display in labels.
+            - Optional[Tuple[str, ...]]: Fields to display in labels.
             - bool: Whether to skip unlabeled clusters.
             - Optional[str]: Label prefix mode.
 
@@ -140,13 +140,14 @@ def _resolve_labels_and_layout(
     label_prefix = kwargs.get("label_prefix", None)
 
     # Validate label_fields
-    if not isinstance(label_fields, (list, tuple)):
-        raise TypeError("label_fields must be a list or tuple of strings")
+    if label_fields is not None and not isinstance(label_fields, (list, tuple)):
+        raise TypeError("label_fields must be None or a list/tuple of strings")
     allowed_fields = {"label", "n", "p", "q"}
-    if any(f not in allowed_fields for f in label_fields):
+    if label_fields is not None and any(f not in allowed_fields for f in label_fields):
         raise ValueError(f"label_fields may only contain {allowed_fields}")
     if label_prefix not in {None, "cid"}:
         raise ValueError("label_prefix must be one of {None, 'cid'}")
+    resolved_label_fields = None if label_fields is None else tuple(label_fields)
 
     return (
         ax_lab,
@@ -160,7 +161,7 @@ def _resolve_labels_and_layout(
         sep_xmax,
         font,
         fontsize,
-        tuple(label_fields),
+        resolved_label_fields,
         bool(skip_unlabeled),
         label_prefix,
     )
@@ -263,7 +264,7 @@ def _render_cluster_text_and_separators(
     sep_xmax: float,
     font: str,
     fontsize: float,
-    label_fields: Tuple[str, ...],
+    label_fields: Optional[Tuple[str, ...]],
     label_prefix: Optional[str],
     skip_unlabeled: bool,
     kwargs: Dict[str, Any],
@@ -285,7 +286,7 @@ def _render_cluster_text_and_separators(
         sep_xmax (float): Maximum x-position for separator lines.
         font (str): Font name for label text.
         fontsize (float): Font size for label text.
-        label_fields (Tuple[str, ...]): Fields to display in labels.
+        label_fields (Optional[Tuple[str, ...]]): Fields to display in labels.
         label_prefix (Optional[str]): Label prefix mode.
         skip_unlabeled (bool): Whether to skip unlabeled clusters.
         kwargs (Dict[str, Any]): Additional rendering options.
@@ -296,6 +297,8 @@ def _render_cluster_text_and_separators(
         # Choose placeholder or formatted label text for the cluster
         if cid not in label_map:
             if skip_unlabeled:
+                continue
+            if label_fields is None and label_prefix is None:
                 continue
             text = kwargs.get("placeholder_text", style["placeholder_text"])
             text_kwargs = {
@@ -312,8 +315,10 @@ def _render_cluster_text_and_separators(
             }
         else:
             label, pval, qval, _score = label_map[cid]
+            if label_fields is None and cid not in override_map:
+                label = ""
             if label_prefix == "cid" and cid not in override_map:
-                label = f"{cid}. {label}"
+                label = f"{cid}. {label}" if label else f"{cid}."
             n_members = cluster_sizes.get(cid, None)
             text = _format_cluster_label(
                 label,
@@ -501,7 +506,7 @@ def _format_cluster_label(
     qval: Optional[float] = None,
     n_members: Optional[int] = None,
     *,
-    label_fields: Tuple[str, ...],
+    label_fields: Optional[Tuple[str, ...]],
     kwargs: Dict[str, Any],
     style: StyleConfig,
 ) -> str:
@@ -515,7 +520,7 @@ def _format_cluster_label(
         n_members (int | None): Cluster size. Defaults to None.
 
     Kwargs:
-        label_fields (Tuple[str, ...]): Fields to display.
+        label_fields (Optional[Tuple[str, ...]]): Fields to display.
         kwargs (Dict[str, Any]): Renderer keyword arguments.
         style (StyleConfig): Style configuration.
 
@@ -525,12 +530,15 @@ def _format_cluster_label(
     # Assemble stats for requested fields.
     pval_value = pval if pval is not None and not pd.isna(pval) else None
     qval_value = qval if qval is not None and not pd.isna(qval) else None
-    has_label, stats = collect_label_stats(
-        label_fields,
-        n_members=n_members,
-        pval=pval_value,
-        qval=qval_value,
-    )
+    if label_fields is None:
+        has_label, stats = False, []
+    else:
+        has_label, stats = collect_label_stats(
+            label_fields,
+            n_members=n_members,
+            pval=pval_value,
+            qval=qval_value,
+        )
 
     # Apply label-only text policy, then append stats in a stable format.
     max_words = kwargs.get("max_words", None)
