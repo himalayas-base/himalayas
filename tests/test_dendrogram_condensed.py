@@ -64,6 +64,24 @@ def test_dendrogram_condensed_invalid_label_fields_raises(toy_results):
 
 
 @pytest.mark.api
+def test_dendrogram_condensed_invalid_label_prefix_raises(toy_results):
+    """
+    Ensures invalid label_prefix values raise a ValueError.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+
+    Raises:
+        ValueError: If label_prefix contains unsupported values.
+    """
+    with pytest.raises(ValueError):
+        plot_dendrogram_condensed(
+            toy_results,
+            label_prefix="bad",
+        )
+
+
+@pytest.mark.api
 def test_dendrogram_condensed_rejects_unknown_kwargs(toy_results):
     """
     Ensures condensed dendrogram does not accept unknown kwargs.
@@ -274,6 +292,63 @@ def test_dendrogram_condensed_label_fields_respect_np_order(toy_results):
             assert "n=" in txt
             assert txt.find("$q$=") < txt.find("$p$=")
             assert txt.find("$p$=") < txt.find("n=")
+    finally:
+        if plot is not None:
+            plt.close(plot.fig)
+
+
+@pytest.mark.api
+def test_dendrogram_condensed_label_prefix_cid_supports_compressed_labels(toy_results):
+    """
+    Ensures label_prefix='cid' prefixes compressed condensed labels.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    _use_agg_backend()
+    plot = None
+    try:
+        plot = plot_dendrogram_condensed(
+            toy_results,
+            label_mode="compressed",
+            label_fields=("label",),
+            label_prefix="cid",
+            wrap_text=False,
+        )
+        texts = [t.get_text().strip() for ax in plot.fig.axes for t in ax.texts if t.get_text().strip()]
+        assert any(txt.split(". ", 1)[0].isdigit() for txt in texts if ". " in txt)
+    finally:
+        if plot is not None:
+            plt.close(plot.fig)
+
+
+@pytest.mark.api
+def test_dendrogram_condensed_label_prefix_precedence_override_wins(toy_results):
+    """
+    Ensures label_prefix is applied before overrides and explicit overrides win.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    _use_agg_backend()
+    spans = toy_results.cluster_layout().cluster_spans
+    assert len(spans) >= 2
+    override_cid = int(spans[0][0])
+    regular_cid = int(spans[1][0])
+    override_label = "Custom Prefix Override"
+    plot = None
+    try:
+        plot = plot_dendrogram_condensed(
+            toy_results,
+            label_fields=("label",),
+            label_prefix="cid",
+            label_overrides={override_cid: override_label},
+            wrap_text=False,
+        )
+        texts = [t.get_text().strip() for ax in plot.fig.axes for t in ax.texts if t.get_text().strip()]
+        assert override_label in texts
+        assert all(txt != f"{override_cid}. {override_label}" for txt in texts)
+        assert any(txt.startswith(f"{regular_cid}. ") for txt in texts)
     finally:
         if plot is not None:
             plt.close(plot.fig)

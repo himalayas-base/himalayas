@@ -328,6 +328,100 @@ def test_plot_cluster_labels_respect_np_order(toy_results):
 
 
 @pytest.mark.api
+def test_plot_cluster_labels_invalid_label_prefix_raises(toy_results):
+    """
+    Ensures unsupported label_prefix values raise a ValueError.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+
+    Raises:
+        ValueError: If label_prefix is not supported.
+    """
+    plt = _use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        with pytest.raises(ValueError, match="label_prefix"):
+            (
+                Plotter(toy_results)
+                .plot_matrix()
+                .plot_cluster_labels(
+                    label_fields=("label",),
+                    label_prefix="bad",
+                )
+                .show()
+            )
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+def test_plot_cluster_labels_label_prefix_cid_supports_compressed_labels(toy_results):
+    """
+    Ensures label_prefix='cid' prefixes compressed display labels.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = _use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        plotter = (
+            Plotter(toy_results)
+            .plot_matrix()
+            .plot_cluster_labels(
+                label_mode="compressed",
+                label_fields=("label",),
+                label_prefix="cid",
+                wrap_text=False,
+            )
+        )
+        plotter.show()
+        texts = [t.get_text().strip() for ax in plotter._fig.axes for t in ax.texts if t.get_text().strip()]
+        assert any(txt.split(". ", 1)[0].isdigit() for txt in texts if ". " in txt)
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+def test_plot_cluster_labels_label_prefix_precedence_override_wins(toy_results):
+    """
+    Ensures label_prefix is applied before overrides and explicit overrides win.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = _use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        spans = toy_results.cluster_layout().cluster_spans
+        assert len(spans) >= 2
+        override_cid = int(spans[0][0])
+        regular_cid = int(spans[1][0])
+        override_label = "Custom Prefix Override"
+        plotter = (
+            Plotter(toy_results)
+            .plot_matrix()
+            .plot_cluster_labels(
+                label_fields=("label",),
+                label_prefix="cid",
+                overrides={override_cid: override_label},
+                wrap_text=False,
+            )
+        )
+        plotter.show()
+        texts = [t.get_text().strip() for ax in plotter._fig.axes for t in ax.texts if t.get_text().strip()]
+        assert override_label in texts
+        assert all(txt != f"{override_cid}. {override_label}" for txt in texts)
+        assert any(txt.startswith(f"{regular_cid}. ") for txt in texts)
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
 def test_plot_cluster_labels_accepts_override_mapper(toy_results):
     """
     Ensures cluster label overrides can replace generated labels by cluster id.

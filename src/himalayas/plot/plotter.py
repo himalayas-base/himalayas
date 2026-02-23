@@ -598,6 +598,8 @@ class Plotter:
                 Defaults to None.
             label_fields (tuple[str]): Fields to include: "label", "n", "p", "q".
                 Defaults to ("label", "n", "p").
+            label_prefix (Optional[str]): Optional prefix mode for display labels.
+                Supported values are None and "cid". Defaults to None.
             **kwargs: Renderer keyword arguments. Defaults to {}.
 
         Returns:
@@ -618,6 +620,7 @@ class Plotter:
             "alpha",
             "skip_unlabeled",
             "label_fields",
+            "label_prefix",
             "placeholder_text",
             "placeholder_color",
             "placeholder_alpha",

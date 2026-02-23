@@ -86,6 +86,7 @@ class CondensedDendrogramSpec:
     overflow: str = "wrap"
     omit_words: Optional[Tuple[str, ...]] = None
     label_fields: Tuple[str, ...] = ("label", "n", "p")
+    label_prefix: Optional[str] = None
     label_overrides: Optional[Dict[int, str]] = None
     label_color: str = "black"
     label_alpha: float = 1.0
@@ -194,6 +195,7 @@ class CondensedDendrogramPlot:
 def _validate_condensed_inputs(
     results: Results,
     label_fields: Sequence[str],
+    label_prefix: Optional[str],
 ) -> None:
     """
     Validates inputs for condensed dendrogram plotting.
@@ -201,6 +203,7 @@ def _validate_condensed_inputs(
     Args:
         results (Results): Enrichment results exposing cluster_layout() and clusters.
         label_fields (Sequence[str]): Fields to include in labels ("label", "n", "p", "q").
+        label_prefix (Optional[str]): Label prefix mode.
 
     Raises:
         AttributeError: If required attributes are missing from results.
@@ -210,6 +213,8 @@ def _validate_condensed_inputs(
     allowed = {"label", "n", "p", "q"}
     if not set(label_fields).issubset(allowed):
         raise ValueError(f"label_fields must be a subset of {allowed}")
+    if label_prefix not in {None, "cid"}:
+        raise ValueError("label_prefix must be one of {None, 'cid'}")
     if not list(results.cluster_layout().cluster_spans):
         raise ValueError("No clusters found")
 
@@ -281,6 +286,7 @@ def _prepare_cluster_labels(
     cluster_labels: pd.DataFrame,
     clusters: Clusters,
     *,
+    label_prefix: Optional[str] = None,
     label_overrides: Optional[Dict[int, str]] = None,
     omit_words: Optional[Sequence[str]] = None,
     max_words: Optional[int] = None,
@@ -305,6 +311,7 @@ def _prepare_cluster_labels(
         clusters (Clusters): Clusters instance.
 
     Kwargs:
+        label_prefix (Optional[str]): Label prefix mode. Defaults to None.
         label_overrides (Optional[Dict[int, str]]): Normalized mapping cluster_id -> custom label.
             Defaults to None.
         omit_words (Optional[Sequence[str]]): Words to omit from cluster labels. Defaults to None.
@@ -361,6 +368,8 @@ def _prepare_cluster_labels(
         # Apply overrides and formatting, then collect
         lab_info = lab_map[cid]
         lab = lab_info.label
+        if label_prefix == "cid":
+            lab = f"{cid}. {lab}"
         if cid in label_overrides:
             lab = label_overrides[cid]
         labels.append(
@@ -679,7 +688,7 @@ def _render_condensed(spec: CondensedDendrogramSpec) -> CondensedDendrogramPlot:
         CondensedDendrogramPlot: Rendered condensed dendrogram figure handle.
     """
     # Validation
-    _validate_condensed_inputs(spec.results, spec.label_fields)
+    _validate_condensed_inputs(spec.results, spec.label_fields, spec.label_prefix)
     cluster_labels = spec.results.cluster_labels(
         rank_by=spec.rank_by,
         label_mode=spec.label_mode,
@@ -692,6 +701,7 @@ def _render_condensed(spec: CondensedDendrogramSpec) -> CondensedDendrogramPlot:
         cluster_ids,
         cluster_labels,
         clusters,
+        label_prefix=spec.label_prefix,
         label_overrides=spec.label_overrides,
         omit_words=spec.omit_words,
         max_words=spec.max_words,
@@ -848,6 +858,7 @@ def plot_dendrogram_condensed(
     overflow: str = "wrap",
     omit_words: Optional[Sequence[str]] = None,
     label_fields: Sequence[str] = ("label", "n", "p"),
+    label_prefix: Optional[str] = None,
     label_overrides: Optional[Dict[int, str]] = None,
     label_color: str = "black",
     label_alpha: float = 1.0,
@@ -893,6 +904,8 @@ def plot_dendrogram_condensed(
         omit_words (Optional[Sequence[str]]): Words to omit from cluster labels. Defaults to None.
         label_fields (Sequence[str]): Fields to include in labels ("label", "n", "p", "q").
             Defaults to ("label", "n", "p").
+        label_prefix (Optional[str]): Optional prefix mode for display labels.
+            Supported values are None and "cid". Defaults to None.
         label_overrides (Optional[Dict[int, str]]): Mapping cluster_id -> custom label.
             Defaults to None.
         label_color (str): Color for cluster labels. Defaults to "black".
@@ -939,6 +952,7 @@ def plot_dendrogram_condensed(
         overflow=overflow,
         omit_words=None if omit_words is None else tuple(omit_words),
         label_fields=tuple(label_fields),
+        label_prefix=label_prefix,
         label_overrides=override_map,
         label_color=label_color,
         label_alpha=label_alpha,
