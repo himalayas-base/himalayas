@@ -315,9 +315,12 @@ def _render_cluster_text_and_separators(
             }
         else:
             label, pval, qval, _score = label_map[cid]
-            if label_fields is None and cid not in override_map:
+            is_override = cid in override_map
+            prefix_active = label_prefix == "cid" and not is_override
+            force_label = prefix_active or is_override
+            if (label_fields is None or "label" not in label_fields) and not is_override:
                 label = ""
-            if label_prefix == "cid" and cid not in override_map:
+            if prefix_active:
                 label = f"{cid}. {label}" if label else f"{cid}."
             n_members = cluster_sizes.get(cid, None)
             text = _format_cluster_label(
@@ -326,6 +329,7 @@ def _render_cluster_text_and_separators(
                 qval,
                 n_members,
                 label_fields=label_fields,
+                force_label=force_label,
                 kwargs=kwargs,
                 style=style,
             )
@@ -507,6 +511,7 @@ def _format_cluster_label(
     n_members: Optional[int] = None,
     *,
     label_fields: Optional[Tuple[str, ...]],
+    force_label: bool = False,
     kwargs: Dict[str, Any],
     style: StyleConfig,
 ) -> str:
@@ -521,6 +526,8 @@ def _format_cluster_label(
 
     Kwargs:
         label_fields (Optional[Tuple[str, ...]]): Fields to display.
+        force_label (bool): Forces label text to render even when "label" is absent
+            from label_fields. Defaults to False.
         kwargs (Dict[str, Any]): Renderer keyword arguments.
         style (StyleConfig): Style configuration.
 
@@ -530,15 +537,13 @@ def _format_cluster_label(
     # Assemble stats for requested fields.
     pval_value = pval if pval is not None and not pd.isna(pval) else None
     qval_value = qval if qval is not None and not pd.isna(qval) else None
-    if label_fields is None:
-        has_label, stats = False, []
-    else:
-        has_label, stats = collect_label_stats(
-            label_fields,
-            n_members=n_members,
-            pval=pval_value,
-            qval=qval_value,
-        )
+    has_label, stats = collect_label_stats(
+        label_fields,
+        n_members=n_members,
+        pval=pval_value,
+        qval=qval_value,
+        force_label=force_label,
+    )
 
     # Apply label-only text policy, then append stats in a stable format.
     max_words = kwargs.get("max_words", None)

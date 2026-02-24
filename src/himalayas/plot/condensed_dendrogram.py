@@ -376,7 +376,7 @@ def _prepare_cluster_labels(
         # Apply overrides and formatting, then collect
         lab_info = lab_map[cid]
         lab = lab_info.label
-        if label_fields is None and cid not in label_overrides:
+        if (label_fields is None or "label" not in label_fields) and cid not in label_overrides:
             lab = ""
         if label_prefix == "cid" and cid not in label_overrides:
             lab = f"{cid}. {lab}" if lab else f"{cid}."
@@ -440,6 +440,7 @@ def _compose_condensed_cluster_text(
     qval: Optional[float],
     wrap_text: bool,
     wrap_width: Optional[int],
+    force_label: bool = False,
 ) -> str:
     """
     Composes rendered text for one condensed cluster label.
@@ -453,6 +454,8 @@ def _compose_condensed_cluster_text(
         qval (Optional[float]): Cluster q-value.
         wrap_text (bool): Whether to wrap label text.
         wrap_width (Optional[int]): Maximum characters per wrapped line.
+        force_label (bool): Forces label text to render even when "label" is absent
+            from label_fields. Defaults to False.
 
     Returns:
         str: Final rendered label text.
@@ -460,15 +463,13 @@ def _compose_condensed_cluster_text(
     if is_placeholder:
         return label
 
-    if label_fields is None:
-        has_label, stats = False, []
-    else:
-        has_label, stats = collect_label_stats(
-            label_fields,
-            n_members=n_members,
-            pval=pval,
-            qval=qval,
-        )
+    has_label, stats = collect_label_stats(
+        label_fields,
+        n_members=n_members,
+        pval=pval,
+        qval=qval,
+        force_label=force_label,
+    )
     if not has_label and not stats:
         return label
     return compose_label_text(
@@ -792,9 +793,11 @@ def _render_condensed(spec: CondensedDendrogramSpec) -> CondensedDendrogramPlot:
     ax_txt.set(xlim=(0, 1), ylim=(k * 10, 0))
     # Mapping cluster -> row ids is needed for _get_cluster_size.
     cluster_to_rows = getattr(clusters, "cluster_to_labels", None) or {}
+    override_map = spec.label_overrides or {}
     # Format and place per-cluster label text
     for cid, yi, lab in zip(cluster_ids, y, labels):
-        is_placeholder = int(cid) not in lab_map
+        cid_int = int(cid)
+        is_placeholder = cid_int not in lab_map
         if is_placeholder and spec.skip_unlabeled:
             continue
 
@@ -803,19 +806,24 @@ def _render_condensed(spec: CondensedDendrogramSpec) -> CondensedDendrogramPlot:
         qval_value = None
         if not is_placeholder and spec.label_fields is not None and "n" in spec.label_fields:
             n = _get_cluster_size(
-                int(cid),
+                cid_int,
                 label_map=lab_map,
                 cluster_sizes=cluster_sizes,
                 cluster_to_labels=cluster_to_rows,
             )
+        force_label = False
         if not is_placeholder:
-            label_info = lab_map[int(cid)]
+            force_label = (spec.label_prefix == "cid" and cid_int not in override_map) or (
+                cid_int in override_map
+            )
+            label_info = lab_map[cid_int]
             pval_value = label_info.pval if np.isfinite(label_info.pval) else None
             qval_value = label_info.qval if np.isfinite(label_info.qval) else None
         txt = _compose_condensed_cluster_text(
             label=lab,
             is_placeholder=is_placeholder,
             label_fields=spec.label_fields,
+            force_label=force_label,
             n_members=n,
             pval=pval_value,
             qval=qval_value,

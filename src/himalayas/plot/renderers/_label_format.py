@@ -10,27 +10,33 @@ from typing import List, Optional, Sequence, Tuple
 
 
 def collect_label_stats(
-    label_fields: Sequence[str],
+    label_fields: Optional[Sequence[str]],
     *,
     n_members: Optional[int] = None,
     pval: Optional[float] = None,
     qval: Optional[float] = None,
+    force_label: bool = False,
 ) -> Tuple[bool, List[str]]:
     """
     Collects ordered label stats based on label_fields.
 
     Args:
-        label_fields (Sequence[str]): Fields to include in labels.
+        label_fields (Optional[Sequence[str]]): Fields to include in labels.
 
     Kwargs:
         n_members (Optional[int]): Cluster size for "n". Defaults to None.
         pval (Optional[float]): P-value for "p". Defaults to None.
         qval (Optional[float]): Q-value for "q". Defaults to None.
+        force_label (bool): Force inclusion of label text even when "label" is absent
+            from label_fields. Defaults to False.
 
     Returns:
         Tuple[bool, List[str]]: (has_label, ordered_stats_list).
     """
-    has_label = "label" in label_fields
+    if label_fields is None:
+        return bool(force_label), []
+
+    has_label = "label" in label_fields or bool(force_label)
     stats: List[str] = []
     for field in label_fields:
         if field == "label":

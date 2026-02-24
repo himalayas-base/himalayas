@@ -347,8 +347,8 @@ def test_dendrogram_condensed_label_prefix_cid_supports_compressed_labels(toy_re
 @pytest.mark.api
 @pytest.mark.parametrize(
     "label_fields",
-    [("label",), None],
-    ids=["with_label_fields", "without_label_fields"],
+    [("label",), ("n", "p"), None],
+    ids=["with_label_fields", "np_only", "without_label_fields"],
 )
 def test_dendrogram_condensed_label_prefix_precedence_override_wins(toy_results, label_fields):
     """
@@ -373,7 +373,10 @@ def test_dendrogram_condensed_label_prefix_precedence_override_wins(toy_results,
             wrap_text=False,
         )
         texts = [t.get_text().strip() for ax in plot.fig.axes for t in ax.texts if t.get_text().strip()]
-        assert override_label in texts
+        if label_fields is None:
+            assert override_label in texts
+        else:
+            assert any(txt.startswith(override_label) for txt in texts)
         assert all(txt != f"{override_cid}. {override_label}" for txt in texts)
         if label_fields is None:
             assert f"{regular_cid}." in texts

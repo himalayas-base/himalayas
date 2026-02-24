@@ -414,8 +414,8 @@ def test_plot_cluster_labels_label_prefix_cid_supports_compressed_labels(toy_res
 @pytest.mark.api
 @pytest.mark.parametrize(
     "label_fields",
-    [("label",), None],
-    ids=["with_label_fields", "without_label_fields"],
+    [("label",), ("n", "p"), None],
+    ids=["with_label_fields", "np_only", "without_label_fields"],
 )
 def test_plot_cluster_labels_label_prefix_precedence_override_wins(toy_results, label_fields):
     """
@@ -445,7 +445,10 @@ def test_plot_cluster_labels_label_prefix_precedence_override_wins(toy_results, 
         )
         plotter.show()
         texts = [t.get_text().strip() for ax in plotter._fig.axes for t in ax.texts if t.get_text().strip()]
-        assert override_label in texts
+        if label_fields is None:
+            assert override_label in texts
+        else:
+            assert any(txt.startswith(override_label) for txt in texts)
         assert all(txt != f"{override_cid}. {override_label}" for txt in texts)
         if label_fields is None:
             assert f"{regular_cid}." in texts
@@ -571,9 +574,9 @@ def test_plot_cluster_labels_placeholder_style_overrides_global_style(toy_result
 
 
 @pytest.mark.api
-def test_plot_cluster_labels_override_respects_np_field_contract(toy_results):
+def test_plot_cluster_labels_override_with_np_fields_keeps_label_and_stats(toy_results):
     """
-    Ensures label_fields controls displayed stats/order even when label overrides are provided.
+    Ensures override labels remain visible when label_fields excludes 'label', with stable stats order.
 
     Args:
         toy_results (Results): Results fixture with clusters and layout.
@@ -588,7 +591,7 @@ def test_plot_cluster_labels_override_respects_np_field_contract(toy_results):
             Plotter(results_q)
             .plot_matrix()
             .plot_cluster_labels(
-                overrides={cid: "CustomLabelIgnoredByFields"},
+                overrides={cid: "CustomLabelVisibleWithFields"},
                 label_fields=("n", "q", "p"),
                 wrap_text=False,
             )
@@ -596,11 +599,12 @@ def test_plot_cluster_labels_override_respects_np_field_contract(toy_results):
         plotter.show()
         fig = plotter._fig
         texts = [t.get_text() for ax in fig.axes for t in ax.texts]
-        # Labels are rendered as raw text; this selects n/q/p-only cluster entries.
-        np_texts = [t for t in texts if t.startswith("(") and "n=" in t and "$q$=" in t and "$p$=" in t]
-        assert np_texts, "Expected n/q/p-only cluster label text."
-        assert all("CustomLabelIgnoredByFields" not in t for t in np_texts)
-        for txt in np_texts:
+        custom_texts = [t for t in texts if t.startswith("CustomLabelVisibleWithFields")]
+        assert custom_texts, "Expected override label text to remain visible."
+        for txt in custom_texts:
+            assert "n=" in txt
+            assert "$q$=" in txt
+            assert "$p$=" in txt
             assert txt.find("n=") < txt.find("$q$=")
             assert txt.find("$q$=") < txt.find("$p$=")
     finally:
