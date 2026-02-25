@@ -35,7 +35,6 @@ def test_dendrogram_condensed_missing_term_column_raises(toy_results):
     bad_df = toy_results.df.drop(columns=["term"])
     results = Results(
         bad_df,
-        method=toy_results.method,
         matrix=toy_results.matrix,
         clusters=toy_results.clusters,
         layout=toy_results.cluster_layout(),
@@ -60,6 +59,24 @@ def test_dendrogram_condensed_invalid_label_fields_raises(toy_results):
         plot_dendrogram_condensed(
             toy_results,
             label_fields=("label", "bad"),
+        )
+
+
+@pytest.mark.api
+def test_dendrogram_condensed_invalid_label_prefix_raises(toy_results):
+    """
+    Ensures invalid label_prefix values raise a ValueError.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+
+    Raises:
+        ValueError: If label_prefix contains unsupported values.
+    """
+    with pytest.raises(ValueError):
+        plot_dendrogram_condensed(
+            toy_results,
+            label_prefix="bad",
         )
 
 
@@ -248,7 +265,7 @@ def test_dendrogram_condensed_plot_handle_rebuilds_closed_figure(toy_results, tm
 @pytest.mark.api
 def test_dendrogram_condensed_label_fields_respect_np_order(toy_results):
     """
-    Ensures condensed dendrogram labels keep label first while respecting q/p/n order
+    Ensures condensed dendrogram labels keep label first while respecting q/fe/p/n order
     from label_fields and emitting a single stats block.
 
     Args:
@@ -260,20 +277,113 @@ def test_dendrogram_condensed_label_fields_respect_np_order(toy_results):
         results_q = toy_results.with_qvalues()
         plot = plot_dendrogram_condensed(
             results_q,
-            label_fields=("label", "q", "p", "n"),
+            label_fields=("label", "q", "fe", "p", "n"),
         )
         texts = [t.get_text() for ax in plot.fig.axes for t in ax.texts]
         # Cluster labels are asserted via rendered text fragments rather than data objects.
-        label_texts = [t for t in texts if "$q$=" in t and "$p$=" in t and "n=" in t]
+        label_texts = [t for t in texts if "$q$=" in t and "FE=" in t and "$p$=" in t and "n=" in t]
         assert label_texts, "Expected cluster label text to be rendered."
         for txt in label_texts:
             assert " (" in txt
             assert txt.strip().endswith(")")
             assert "$q$=" in txt
+            assert "FE=" in txt
             assert "$p$=" in txt
             assert "n=" in txt
-            assert txt.find("$q$=") < txt.find("$p$=")
+            assert txt.find("$q$=") < txt.find("FE=")
+            assert txt.find("FE=") < txt.find("$p$=")
             assert txt.find("$p$=") < txt.find("n=")
+    finally:
+        if plot is not None:
+            plt.close(plot.fig)
+
+
+@pytest.mark.api
+def test_dendrogram_condensed_none_label_fields_hides_text(toy_results):
+    """
+    Ensures label_fields=None suppresses condensed cluster text when no prefix is requested.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    _use_agg_backend()
+    plot = None
+    try:
+        plot = plot_dendrogram_condensed(
+            toy_results,
+            label_fields=None,
+        )
+        texts = [t.get_text().strip() for ax in plot.fig.axes for t in ax.texts if t.get_text().strip()]
+        assert not texts
+    finally:
+        if plot is not None:
+            plt.close(plot.fig)
+
+
+@pytest.mark.api
+def test_dendrogram_condensed_label_prefix_cid_supports_compressed_labels(toy_results):
+    """
+    Ensures label_prefix='cid' prefixes compressed condensed labels.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    _use_agg_backend()
+    plot = None
+    try:
+        plot = plot_dendrogram_condensed(
+            toy_results,
+            label_mode="compressed",
+            label_fields=("label", "fe"),
+            label_prefix="cid",
+            wrap_text=False,
+        )
+        texts = [t.get_text().strip() for ax in plot.fig.axes for t in ax.texts if t.get_text().strip()]
+        assert any(txt.split(". ", 1)[0].isdigit() for txt in texts if ". " in txt)
+        assert any("FE=" in txt for txt in texts)
+    finally:
+        if plot is not None:
+            plt.close(plot.fig)
+
+
+@pytest.mark.api
+@pytest.mark.parametrize(
+    "label_fields",
+    [("label",), ("n", "p"), None],
+    ids=["with_label_fields", "np_only", "without_label_fields"],
+)
+def test_dendrogram_condensed_label_prefix_precedence_override_wins(toy_results, label_fields):
+    """
+    Ensures label_prefix is applied before overrides and explicit overrides win.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    _use_agg_backend()
+    spans = toy_results.cluster_layout().cluster_spans
+    assert len(spans) >= 2
+    override_cid = int(spans[0][0])
+    regular_cid = int(spans[1][0])
+    override_label = "Custom Prefix Override"
+    plot = None
+    try:
+        plot = plot_dendrogram_condensed(
+            toy_results,
+            label_fields=label_fields,
+            label_prefix="cid",
+            label_overrides={override_cid: override_label},
+            wrap_text=False,
+        )
+        texts = [t.get_text().strip() for ax in plot.fig.axes for t in ax.texts if t.get_text().strip()]
+        if label_fields is None:
+            assert override_label in texts
+        else:
+            assert any(txt.startswith(override_label) for txt in texts)
+        assert all(txt != f"{override_cid}. {override_label}" for txt in texts)
+        if label_fields is None:
+            assert f"{regular_cid}." in texts
+        else:
+            assert any(txt.startswith(f"{regular_cid}. ") for txt in texts)
     finally:
         if plot is not None:
             plt.close(plot.fig)
@@ -296,7 +406,6 @@ def test_dendrogram_condensed_missing_linkage_raises(toy_results):
 
     results = Results(
         toy_results.df,
-        method=toy_results.method,
         matrix=toy_results.matrix,
         clusters=_DummyClusters(),
         layout=toy_results.cluster_layout(),
@@ -322,7 +431,6 @@ def test_dendrogram_condensed_no_clusters_raises(toy_results):
 
     results = Results(
         toy_results.df,
-        method=toy_results.method,
         matrix=toy_results.matrix,
         clusters=toy_results.clusters,
         layout=_EmptyLayout(),
@@ -352,7 +460,6 @@ def test_dendrogram_condensed_unmapped_clusters_raises(toy_results):
     )
     results = Results(
         toy_results.df,
-        method=toy_results.method,
         matrix=toy_results.matrix,
         clusters=bad_clusters,
         layout=toy_results.cluster_layout(),

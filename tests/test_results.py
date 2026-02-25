@@ -19,11 +19,31 @@ def test_results_with_qvalues_adds_column():
     """
     # Compute q-values on a small p-value table
     df = pd.DataFrame({"pval": [0.01, 0.2, 0.05]})
-    res = Results(df, method="test")
+    res = Results(df)
     out = res.with_qvalues()
 
     assert "qval" in out.df.columns
     assert np.all(np.isfinite(out.df["qval"]))
+
+
+@pytest.mark.api
+def test_results_with_effect_sizes_adds_column():
+    """
+    Ensures fold enrichment is added with expected values.
+    """
+    df = pd.DataFrame(
+        {
+            "k": [2, 1],
+            "K": [4, 2],
+            "n": [5, 5],
+            "N": [20, 20],
+        }
+    )
+    res = Results(df)
+    out = res.with_effect_sizes()
+
+    assert "fe" in out.df.columns
+    assert out.df["fe"].to_numpy(dtype=float) == pytest.approx([2.0, 2.0])
 
 
 @pytest.mark.api
@@ -36,7 +56,7 @@ def test_results_subset_requires_matrix_and_clusters():
     """
     # Subsetting without attachments should fail
     df = pd.DataFrame({"pval": [0.1]})
-    res = Results(df, method="test")
+    res = Results(df)
     with pytest.raises(ValueError):
         res.subset(cluster=1)
 
@@ -54,7 +74,7 @@ def test_results_subset_single_cluster_returns_cluster_rows():
     )
     matrix = Matrix(df)
     clusters = cluster(matrix, linkage_threshold=1.0)
-    res = Results(pd.DataFrame(), method="test", matrix=matrix, clusters=clusters)
+    res = Results(pd.DataFrame(), matrix=matrix, clusters=clusters)
     cid = int(clusters.unique_clusters[0])
     expected_labels = [lab for lab in matrix.df.index if lab in clusters.cluster_to_labels[cid]]
     sub = res.subset(cluster=cid)
@@ -62,7 +82,6 @@ def test_results_subset_single_cluster_returns_cluster_rows():
     assert sub.matrix is not None
     assert list(sub.matrix.df.index) == expected_labels
     assert sub.clusters is None
-    assert sub.method == "subset"
 
 
 @pytest.mark.api
@@ -86,7 +105,6 @@ def test_results_subset_clusters_returns_union_in_matrix_order(toy_results):
     assert sub.matrix is not None
     assert list(sub.matrix.df.index) == expected_labels
     assert sub.clusters is None
-    assert sub.method == "subset"
 
 
 @pytest.mark.api
@@ -98,7 +116,7 @@ def test_results_with_qvalues_rejects_invalid_pvals():
         ValueError: If p-values contain invalid values.
     """
     df = pd.DataFrame({"pval": [0.2, -0.1, 1.2]})
-    res = Results(df, method="test")
+    res = Results(df)
     with pytest.raises(ValueError):
         res.with_qvalues()
 
@@ -109,7 +127,7 @@ def test_results_with_qvalues_preserves_nan():
     Ensures NaN p-values remain NaN after q-value computation.
     """
     df = pd.DataFrame({"pval": [0.01, np.nan, 0.2]})
-    res = Results(df, method="test")
+    res = Results(df)
     out = res.with_qvalues()
 
     assert np.isnan(out.df.loc[1, "qval"])
@@ -131,9 +149,9 @@ def test_results_subset_invalid_cluster_raises(toy_results):
 
 
 @pytest.mark.api
-def test_results_filter_preserves_parent_and_method(toy_results):
+def test_results_filter_preserves_parent_and_matrix(toy_results):
     """
-    Ensures filter() keeps method and parent linkage.
+    Ensures filter() keeps parent linkage and matrix attachment.
 
     Args:
         toy_results (Results): Results fixture with clusters and layout.
@@ -141,7 +159,6 @@ def test_results_filter_preserves_parent_and_method(toy_results):
     filtered = toy_results.filter("pval >= 0")
 
     assert filtered.parent is toy_results
-    assert filtered.method == toy_results.method
     assert filtered.matrix is toy_results.matrix
 
 
@@ -156,13 +173,14 @@ def test_results_cluster_labels_top_term_defaults():
             "term": ["t_a", "t_b", "t_c"],
             "term_name": ["Term A", None, "Term C"],
             "pval": [0.2, 0.01, 0.4],
+            "fe": [1.2, 2.5, 0.8],
             "n": [7, 7, 3],
         }
     )
-    res = Results(df, method="test")
+    res = Results(df)
     out = res.cluster_labels()
 
-    assert list(out.columns) == ["cluster", "label", "pval", "qval", "score", "n", "term"]
+    assert list(out.columns) == ["cluster", "label", "pval", "qval", "score", "n", "term", "fe"]
     c1 = out.loc[out["cluster"] == 1].iloc[0]
     c2 = out.loc[out["cluster"] == 2].iloc[0]
 
@@ -172,11 +190,13 @@ def test_results_cluster_labels_top_term_defaults():
     assert c1["pval"] == pytest.approx(0.01)
     assert c1["qval"] is None
     assert c1["score"] == pytest.approx(0.01)
+    assert c1["fe"] == pytest.approx(2.5)
     assert c1["n"] == 7
     assert c2["label"] == "Term C"
     assert c2["term"] == "t_c"
     assert c2["qval"] is None
     assert c2["score"] == pytest.approx(0.4)
+    assert c2["fe"] == pytest.approx(0.8)
 
 
 @pytest.mark.api
@@ -193,7 +213,7 @@ def test_results_cluster_labels_compressed_requires_rank_column():
             "term": ["Alpha Beta", "Alpha Gamma"],
         }
     )
-    res = Results(df, method="test")
+    res = Results(df)
     with pytest.raises(KeyError):
         res.cluster_labels(label_mode="compressed", max_words=1)
 
@@ -213,7 +233,7 @@ def test_results_cluster_labels_compressed_rank_by_q_requires_qval():
             "pval": [0.2, 0.05],
         }
     )
-    res = Results(df, method="test")
+    res = Results(df)
     with pytest.raises(KeyError):
         res.cluster_labels(label_mode="compressed", rank_by="q", max_words=1)
 
@@ -231,10 +251,11 @@ def test_results_cluster_labels_rank_by_q_changes_top_term_and_score():
             "term_name": ["Term A", "Term B"],
             "pval": [0.01, 0.02],
             "qval": [0.20, 0.05],
+            "fe": [1.1, 3.2],
             "n": [5, 5],
         }
     )
-    res = Results(df, method="test")
+    res = Results(df)
     out_p = res.cluster_labels(rank_by="p")
     out_q = res.cluster_labels(rank_by="q")
     row_p = out_p.iloc[0]
@@ -247,6 +268,30 @@ def test_results_cluster_labels_rank_by_q_changes_top_term_and_score():
     # Display stats remain semantically named regardless of ranking signal.
     assert row_q["pval"] == pytest.approx(0.02)
     assert row_q["qval"] == pytest.approx(0.05)
+    assert row_q["fe"] == pytest.approx(3.2)
+
+
+@pytest.mark.api
+def test_results_cluster_labels_rank_by_q_ties_break_by_p_then_term():
+    """
+    Ensures q-rank ties are broken deterministically by p-value, then term id.
+    """
+    df = pd.DataFrame(
+        {
+            "cluster": [1, 1, 1],
+            "term": ["t_b", "t_a", "t_c"],
+            "pval": [0.01, 0.01, 0.02],
+            "qval": [0.05, 0.05, 0.05],
+        }
+    )
+    res = Results(df)
+    out = res.cluster_labels(rank_by="q")
+    row = out.iloc[0]
+
+    assert row["term"] == "t_a"
+    assert row["pval"] == pytest.approx(0.01)
+    assert row["qval"] == pytest.approx(0.05)
+    assert row["score"] == pytest.approx(0.05)
 
 
 @pytest.mark.api
@@ -258,7 +303,7 @@ def test_results_cluster_labels_invalid_label_mode_raises():
         ValueError: If label_mode is not supported.
     """
     df = pd.DataFrame({"cluster": [1], "term": ["t1"], "pval": [0.1]})
-    res = Results(df, method="test")
+    res = Results(df)
     with pytest.raises(ValueError):
         res.cluster_labels(label_mode="bad")
 
@@ -272,7 +317,7 @@ def test_results_cluster_labels_missing_required_columns_raises():
         KeyError: If required input columns are missing.
     """
     df = pd.DataFrame({"cluster": [1], "pval": [0.1]})
-    res = Results(df, method="test")
+    res = Results(df)
     with pytest.raises(KeyError):
         res.cluster_labels()
 
@@ -286,7 +331,7 @@ def test_results_cluster_labels_top_term_requires_pval():
         KeyError: If top_term mode is requested without a p-value column.
     """
     df = pd.DataFrame({"cluster": [1], "term": ["t1"]})
-    res = Results(df, method="test")
+    res = Results(df)
     with pytest.raises(KeyError):
         res.cluster_labels(label_mode="top_term")
 
@@ -315,6 +360,6 @@ def test_results_cluster_labels_rejects_unknown_kwargs():
         TypeError: If unknown keyword arguments are provided.
     """
     df = pd.DataFrame({"cluster": [1], "term": ["t1"], "pval": [0.1]})
-    res = Results(df, method="test")
+    res = Results(df)
     with pytest.raises(TypeError, match="unknown_kwarg"):
         res.cluster_labels(unknown_kwarg=True)

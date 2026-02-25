@@ -10,7 +10,6 @@ from .cluster_labels import ClusterLabelsRenderer
 from .colorbar import ColorbarRenderer
 from .dendrogram import DendrogramRenderer
 from .matrix import MatrixRenderer
-from .sigbar_legend import SigbarLegendRenderer
 
 __all__ = [
     "AxesRenderer",
@@ -20,6 +19,5 @@ __all__ = [
     "ColorbarRenderer",
     "DendrogramRenderer",
     "MatrixRenderer",
-    "SigbarLegendRenderer",
     "Renderer",
 ]

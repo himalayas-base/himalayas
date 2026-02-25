@@ -209,7 +209,6 @@ def run_cluster_hypergeom(
     if not term_items:
         return Results(
             pd.DataFrame(columns=result_columns),
-            method="hypergeom",
             matrix=matrix,
             clusters=clusters,
         )
@@ -265,7 +264,6 @@ def run_cluster_hypergeom(
 
     return Results(
         df,
-        method="hypergeom",
         matrix=matrix,
         clusters=clusters,
     )

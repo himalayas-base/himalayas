@@ -20,7 +20,6 @@ from .renderers import (
     DendrogramRenderer,
     MatrixRenderer,
     render_cluster_bar_track,
-    SigbarLegendRenderer,
 )
 from .renderers.label_bar import render_label_bar_track
 from .style import StyleConfig
@@ -354,7 +353,9 @@ class Plotter:
         """
         if cluster_kwargs is None:
             # Keep renderer input schema aligned with Results.cluster_labels() output.
-            df = pd.DataFrame(columns=["cluster", "label", "pval", "qval", "score", "n", "term"])
+            df = pd.DataFrame(
+                columns=["cluster", "label", "pval", "qval", "score", "n", "term", "fe"]
+            )
             renderer = ClusterLabelsRenderer(df, skip_unlabeled=True)
         else:
             renderer_kwargs = dict(cluster_kwargs)
@@ -417,20 +418,6 @@ class Plotter:
                 "title": title,
             },
         )
-        return self
-
-    def plot_sigbar_legend(self, **kwargs) -> Plotter:
-        """
-        Declares a significance bar legend. Explains the color mapping of the cluster-level significance bar
-        (based on -log10(score)). Off by default.
-
-        Kwargs:
-            **kwargs: Renderer keyword arguments. Defaults to {}.
-
-        Returns:
-            Plotter: Self for chaining.
-        """
-        self._layers.append(("sigbar_legend", kwargs))
         return self
 
     def plot_matrix(self, **kwargs) -> Plotter:
@@ -596,8 +583,11 @@ class Plotter:
                 Defaults to "top_term".
             max_words (Optional[int]): Maximum words in rendered display labels.
                 Defaults to None.
-            label_fields (tuple[str]): Fields to include: "label", "n", "p", "q".
+            label_fields (Optional[tuple[str]]): Fields to include: "label", "n", "p", "q", "fe".
+                If None, suppresses base label/stat text.
                 Defaults to ("label", "n", "p").
+            label_prefix (Optional[str]): Optional prefix mode for display labels.
+                Supported values are None and "cid". Defaults to None.
             **kwargs: Renderer keyword arguments. Defaults to {}.
 
         Returns:
@@ -618,6 +608,7 @@ class Plotter:
             "alpha",
             "skip_unlabeled",
             "label_fields",
+            "label_prefix",
             "placeholder_text",
             "placeholder_color",
             "placeholder_alpha",
@@ -810,9 +801,6 @@ class Plotter:
                 renderer.render(fig, ax, self.matrix, layout, self._style)
             elif layer == "cluster_labels":
                 self._render_label_panel(fig, layout, bar_kwargs=bar_kwargs, cluster_kwargs=kwargs)
-            elif layer == "sigbar_legend":
-                renderer = SigbarLegendRenderer(**kwargs)
-                renderer.render(fig, self._style)
             elif layer == "bar_labels":
                 # Consumed inside the cluster label panel; no direct rendering
                 continue

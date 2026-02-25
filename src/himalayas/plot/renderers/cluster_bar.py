@@ -27,7 +27,7 @@ def _resolve_cluster_values(
 
     Kwargs:
         cluster_spans (Sequence[Tuple[int, int, int]]): Iterable of (cluster_id, start, end).
-        label_map (Dict[int, ClusterLabelStats]): Mapping cluster_id -> (label, pval, qval, score).
+        label_map (Dict[int, ClusterLabelStats]): Mapping cluster_id -> (label, pval, qval, score, fe).
 
     Returns:
         np.ndarray: Raw values per cluster (float, NaN allowed).
@@ -35,7 +35,9 @@ def _resolve_cluster_values(
     # Extract ranked score per cluster.
     values = np.full(len(cluster_spans), np.nan, dtype=float)
     for i, (cid, _s, _e) in enumerate(cluster_spans):
-        _label, _pval, _qval, score = label_map.get(cid, (None, np.nan, np.nan, np.nan))
+        _label, _pval, _qval, score, _fe = label_map.get(
+            cid, (None, np.nan, np.nan, np.nan, np.nan)
+        )
         try:
             score_value = float(score)
         except (TypeError, ValueError):
@@ -104,7 +106,7 @@ def render_cluster_bar_track(
         width (float): Width of the bar track.
         payload (Dict[str, Any]): Track payload.
         cluster_spans (Sequence[Tuple[int, int, int]]): Iterable of (cluster_id, start, end).
-        label_map (Dict[int, ClusterLabelStats]): Mapping cluster_id -> (label, pval, qval, score).
+        label_map (Dict[int, ClusterLabelStats]): Mapping cluster_id -> (label, pval, qval, score, fe).
         style (StyleConfig): Style configuration.
     """
     cmap_in = payload.get("cmap", style["sigbar_cmap"])

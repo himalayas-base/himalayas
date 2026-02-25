@@ -63,19 +63,21 @@ def _resolve_labels_and_layout(
     List[Tuple[int, int, int]],
     Dict[int, int],
     Dict[int, ClusterLabelStats],
+    Dict[int, str],
     float,
     float,
     str,
     float,
-    Tuple[str, ...],
+    Optional[Tuple[str, ...]],
     bool,
+    Optional[str],
 ]:
     """
     Resolves label data, overrides, axis layout, and text styling.
 
     Args:
         df (pd.DataFrame): Cluster label table with 'cluster', 'label', and optional
-            'pval', 'qval', and 'score'.
+            'pval', 'qval', 'score', and 'fe'.
         kwargs (Dict[str, Any]): Renderer keyword arguments.
         fig (plt.Figure): Target figure.
         matrix (Matrix): Matrix object providing row count.
@@ -90,13 +92,15 @@ def _resolve_labels_and_layout(
             - List[TrackSpec]: Resolved track specifications.
             - List[Tuple[int, int, int]]: Iterable of (cluster_id, start, end).
             - Dict[int, int]: Mapping cluster_id -> size.
-            - Dict[int, ClusterLabelStats]: Mapping cluster_id -> (label, pval, qval, score).
+            - Dict[int, ClusterLabelStats]: Mapping cluster_id -> (label, pval, qval, score, fe).
+            - Dict[int, str]: Mapping cluster_id -> validated override label.
             - float: Minimum x-position for separator lines.
             - float: Maximum x-position for separator lines.
             - str: Font name for label text.
             - float: Font size for label text.
-            - Tuple[str, ...]: Fields to display in labels.
+            - Optional[Tuple[str, ...]]: Fields to display in labels.
             - bool: Whether to skip unlabeled clusters.
+            - Optional[str]: Label prefix mode.
 
     Raises:
         TypeError: If inputs have invalid types.
@@ -133,13 +137,17 @@ def _resolve_labels_and_layout(
     fontsize = kwargs.get("fontsize", style.get("label_fontsize", 9))
     skip_unlabeled = kwargs.get("skip_unlabeled", False)
     label_fields = kwargs.get("label_fields", style["label_fields"])
+    label_prefix = kwargs.get("label_prefix", None)
 
     # Validate label_fields
-    if not isinstance(label_fields, (list, tuple)):
-        raise TypeError("label_fields must be a list or tuple of strings")
-    allowed_fields = {"label", "n", "p", "q"}
-    if any(f not in allowed_fields for f in label_fields):
+    if label_fields is not None and not isinstance(label_fields, (list, tuple)):
+        raise TypeError("label_fields must be None or a list/tuple of strings")
+    allowed_fields = {"label", "n", "p", "q", "fe"}
+    if label_fields is not None and any(f not in allowed_fields for f in label_fields):
         raise ValueError(f"label_fields may only contain {allowed_fields}")
+    if label_prefix not in {None, "cid"}:
+        raise ValueError("label_prefix must be one of {None, 'cid'}")
+    resolved_label_fields = None if label_fields is None else tuple(label_fields)
 
     return (
         ax_lab,
@@ -148,12 +156,14 @@ def _resolve_labels_and_layout(
         spans,
         cluster_sizes,
         label_map,
+        override_map,
         sep_xmin,
         sep_xmax,
         font,
         fontsize,
-        tuple(label_fields),
+        resolved_label_fields,
         bool(skip_unlabeled),
+        label_prefix,
     )
 
 
@@ -179,7 +189,7 @@ def _render_tracks(
         matrix (Matrix): Data matrix.
         row_order (np.ndarray): Row ordering indices.
         spans (Sequence[Tuple[int, int, int]]): Iterable of (cluster_id, start, end).
-        label_map (Dict[int, ClusterLabelStats]): Mapping cluster_id -> (label, pval, qval, score).
+        label_map (Dict[int, ClusterLabelStats]): Mapping cluster_id -> (label, pval, qval, score, fe).
         style (StyleConfig): Style configuration.
         bar_labels_kwargs (Optional[Dict[str, Any]]): Bar title rendering options. Defaults to None.
     """
@@ -248,12 +258,14 @@ def _render_cluster_text_and_separators(
     spans: Sequence[Tuple[int, int, int]],
     cluster_sizes: Dict[int, int],
     label_map: Dict[int, ClusterLabelStats],
+    override_map: Dict[int, str],
     label_text_x: float,
     sep_xmin: float,
     sep_xmax: float,
     font: str,
     fontsize: float,
-    label_fields: Tuple[str, ...],
+    label_fields: Optional[Tuple[str, ...]],
+    label_prefix: Optional[str],
     skip_unlabeled: bool,
     kwargs: Dict[str, Any],
     style: StyleConfig,
@@ -267,13 +279,15 @@ def _render_cluster_text_and_separators(
     Kwargs:
         spans (Sequence[Tuple[int, int, int]]): Iterable of (cluster_id, start, end).
         cluster_sizes (Dict[int, int]): Mapping cluster_id -> size.
-        label_map (Dict[int, ClusterLabelStats]): Mapping cluster_id -> (label, pval, qval, score).
+        label_map (Dict[int, ClusterLabelStats]): Mapping cluster_id -> (label, pval, qval, score, fe).
+        override_map (Dict[int, str]): Mapping cluster_id -> validated override label.
         label_text_x (float): X-position for label text.
         sep_xmin (float): Minimum x-position for separator lines.
         sep_xmax (float): Maximum x-position for separator lines.
         font (str): Font name for label text.
         fontsize (float): Font size for label text.
-        label_fields (Tuple[str, ...]): Fields to display in labels.
+        label_fields (Optional[Tuple[str, ...]]): Fields to display in labels.
+        label_prefix (Optional[str]): Label prefix mode.
         skip_unlabeled (bool): Whether to skip unlabeled clusters.
         kwargs (Dict[str, Any]): Additional rendering options.
         style (StyleConfig): Style configuration.
@@ -283,6 +297,8 @@ def _render_cluster_text_and_separators(
         # Choose placeholder or formatted label text for the cluster
         if cid not in label_map:
             if skip_unlabeled:
+                continue
+            if label_fields is None and label_prefix is None:
                 continue
             text = kwargs.get("placeholder_text", style["placeholder_text"])
             text_kwargs = {
@@ -298,14 +314,23 @@ def _render_cluster_text_and_separators(
                 ),
             }
         else:
-            label, pval, qval, _score = label_map[cid]
+            label, pval, qval, _score, fe = label_map[cid]
+            is_override = cid in override_map
+            prefix_active = label_prefix == "cid" and not is_override
+            force_label = prefix_active or is_override
+            if (label_fields is None or "label" not in label_fields) and not is_override:
+                label = ""
+            if prefix_active:
+                label = f"{cid}. {label}" if label else f"{cid}."
             n_members = cluster_sizes.get(cid, None)
             text = _format_cluster_label(
                 label,
                 pval,
                 qval,
+                fe,
                 n_members,
                 label_fields=label_fields,
+                force_label=force_label,
                 kwargs=kwargs,
                 style=style,
             )
@@ -386,11 +411,11 @@ def _build_label_map(
 
     Args:
         df (pd.DataFrame): Cluster label table with 'cluster', 'label', and optional
-            'pval', 'qval', and 'score'.
+            'pval', 'qval', 'score', and 'fe'.
         override_map (Dict[int, str]): Normalized overrides keyed by cluster id.
 
     Returns:
-        Dict[int, ClusterLabelStats]: Mapping cluster id to (label, pval, qval, score).
+        Dict[int, ClusterLabelStats]: Mapping cluster id to (label, pval, qval, score, fe).
 
     Raises:
         ValueError: If overrides reference unknown cluster ids.
@@ -402,6 +427,7 @@ def _build_label_map(
         base_label = str(row["label"])
         base_pval = row.get("pval", None)
         base_qval = row.get("qval", None)
+        base_fe = row.get("fe", None)
         if "score" in row:
             base_score = row.get("score", None)
         elif "pval" in row:
@@ -414,7 +440,7 @@ def _build_label_map(
             label = override_map[cid]
         else:
             label = base_label
-        label_map[cid] = (label, base_pval, base_qval, base_score)
+        label_map[cid] = (label, base_pval, base_qval, base_score, base_fe)
     # Reject overrides that do not match any cluster id
     if override_map:
         unknown = set(override_map) - set(label_map)
@@ -484,9 +510,11 @@ def _format_cluster_label(
     label: str,
     pval: Optional[float] = None,
     qval: Optional[float] = None,
+    fe: Optional[float] = None,
     n_members: Optional[int] = None,
     *,
-    label_fields: Tuple[str, ...],
+    label_fields: Optional[Tuple[str, ...]],
+    force_label: bool = False,
     kwargs: Dict[str, Any],
     style: StyleConfig,
 ) -> str:
@@ -497,10 +525,13 @@ def _format_cluster_label(
         label (str): Base or overridden label.
         pval (float | None): P-value to display, if any. Defaults to None.
         qval (float | None): Q-value to display, if any. Defaults to None.
+        fe (float | None): Fold enrichment to display, if any. Defaults to None.
         n_members (int | None): Cluster size. Defaults to None.
 
     Kwargs:
-        label_fields (Tuple[str, ...]): Fields to display.
+        label_fields (Optional[Tuple[str, ...]]): Fields to display.
+        force_label (bool): Forces label text to render even when "label" is absent
+            from label_fields. Defaults to False.
         kwargs (Dict[str, Any]): Renderer keyword arguments.
         style (StyleConfig): Style configuration.
 
@@ -510,11 +541,14 @@ def _format_cluster_label(
     # Assemble stats for requested fields.
     pval_value = pval if pval is not None and not pd.isna(pval) else None
     qval_value = qval if qval is not None and not pd.isna(qval) else None
+    fe_value = fe if fe is not None and not pd.isna(fe) else None
     has_label, stats = collect_label_stats(
         label_fields,
         n_members=n_members,
         pval=pval_value,
         qval=qval_value,
+        fe=fe_value,
+        force_label=force_label,
     )
 
     # Apply label-only text policy, then append stats in a stable format.
@@ -591,12 +625,14 @@ class ClusterLabelsRenderer:
             spans,
             cluster_sizes,
             label_map,
+            override_map,
             sep_xmin,
             sep_xmax,
             font,
             fontsize,
             label_fields,
             skip_unlabeled,
+            label_prefix,
         ) = _resolve_labels_and_layout(
             df,
             kwargs,
@@ -623,12 +659,14 @@ class ClusterLabelsRenderer:
             spans=spans,
             cluster_sizes=cluster_sizes,
             label_map=label_map,
+            override_map=override_map,
             label_text_x=label_text_x,
             sep_xmin=sep_xmin,
             sep_xmax=sep_xmax,
             font=font,
             fontsize=fontsize,
             label_fields=label_fields,
+            label_prefix=label_prefix,
             skip_unlabeled=skip_unlabeled,
             kwargs=kwargs,
             style=style,

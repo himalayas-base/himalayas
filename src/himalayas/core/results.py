@@ -19,7 +19,7 @@ from .matrix import Matrix
 _TERM_FIELD = "term"
 _CLUSTER_FIELD = "cluster"
 _TERM_NAME_FIELD = "term_name"
-_CLUSTER_LABEL_OUTPUT_FIELDS = ["cluster", "label", "pval", "qval", "score", "n", "term"]
+_CLUSTER_LABEL_OUTPUT_FIELDS = ["cluster", "label", "pval", "qval", "score", "n", "term", "fe"]
 
 
 def _summarize_terms(
@@ -168,6 +168,44 @@ def _resolve_rank_spec(
     return "pval" if rank_by == "p" else "qval"
 
 
+def _select_best_term_index(
+    sub: pd.DataFrame,
+    *,
+    score_col: str,
+) -> Any:
+    """
+    Selects a deterministic best-row index for a per-cluster term subset.
+    Ranking priority:
+      1) selected score column (pval or qval)
+      2) p-value (when present)
+      3) term id lexical order
+
+    Args:
+        sub (pd.DataFrame): Per-cluster subset.
+
+    Kwargs:
+        score_col (str): Primary score column name.
+
+    Returns:
+        Any: Row index label for the selected representative term.
+    """
+    # Normalize score keys to numeric so invalid values are pushed to the end.
+    order = pd.DataFrame(index=sub.index)
+    order["_score"] = pd.to_numeric(sub[score_col], errors="coerce")
+    if "pval" in sub.columns:
+        order["_pval"] = pd.to_numeric(sub["pval"], errors="coerce")
+    else:
+        order["_pval"] = np.nan
+    # Add a stable lexical tie-breaker when numeric keys are identical.
+    order["_term"] = sub[_TERM_FIELD].astype(str)
+    ordered = order.sort_values(
+        by=["_score", "_pval", "_term"],
+        kind="mergesort",
+        na_position="last",
+    )
+    return ordered.index[0]
+
+
 class Results:
     """
     Class for holding analysis results and attached context for plotting or subsetting.
@@ -176,7 +214,6 @@ class Results:
     def __init__(
         self,
         df: pd.DataFrame,
-        method: str,
         *,
         matrix: Optional[Matrix] = None,
         clusters: Optional[Clusters] = None,
@@ -188,7 +225,6 @@ class Results:
 
         Args:
             df (pd.DataFrame): Results table.
-            method (str): Analysis method identifier.
 
         Kwargs:
             matrix (Optional[Matrix]): Matrix associated with these results. Defaults to None.
@@ -197,14 +233,10 @@ class Results:
             parent (Optional[Results]): Parent results for provenance. Defaults to None.
         """
         self.df = df
-        self.method = method
         self.matrix = matrix
         self.clusters = clusters
         self.parent = parent
         self._layout = layout
-        self.params: Dict[str, Any] = {}
-        if clusters is not None:
-            self.params["linkage_threshold"] = clusters.threshold
 
     def filter(self, expr, **kwargs) -> Results:
         """
@@ -222,7 +254,6 @@ class Results:
         filtered_df = self.df.query(expr, **kwargs)
         return Results(
             filtered_df,
-            method=self.method,
             matrix=self.matrix,
             clusters=self.clusters,
             layout=self._layout,
@@ -255,7 +286,6 @@ class Results:
         )
         return Results(
             df=pd.DataFrame(),
-            method="subset",
             matrix=sub_matrix,
             clusters=None,
             layout=None,
@@ -362,6 +392,48 @@ class Results:
 
         return out
 
+    def with_effect_sizes(self, fe_col: str = "fe") -> Results:
+        """
+        Returns a new Results with fold enrichment added as `fe_col`. Does not mutate
+        the original Results.
+
+        Fold enrichment is computed as:
+            FE = (k / n) / (K / N) = (k * N) / (n * K)
+
+        Args:
+            fe_col (str): Column name for fold enrichment. Defaults to "fe".
+
+        Returns:
+            Results: New Results object with fold enrichment added.
+
+        Raises:
+            KeyError: If required overlap/count columns are missing.
+        """
+        # Validation
+        required_cols = ["k", "K", "n", "N"]
+        missing = [col for col in required_cols if col not in self.df.columns]
+        if missing:
+            raise KeyError(f"Missing columns required for fold enrichment: {missing}")
+
+        # Compute FE while preserving row alignment
+        df2 = self.df.copy()
+        k = pd.to_numeric(df2["k"], errors="coerce").to_numpy(dtype=float)
+        K = pd.to_numeric(df2["K"], errors="coerce").to_numpy(dtype=float)
+        n = pd.to_numeric(df2["n"], errors="coerce").to_numpy(dtype=float)
+        N = pd.to_numeric(df2["N"], errors="coerce").to_numpy(dtype=float)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            fe = (k * N) / (n * K)
+        fe[~np.isfinite(fe)] = np.nan
+        df2[fe_col] = fe
+
+        return Results(
+            df2,
+            matrix=self.matrix,
+            clusters=self.clusters,
+            layout=self._layout,
+            parent=self,
+        )
+
     def with_qvalues(self, pval_col: str = "pval", qval_col: str = "qval") -> Results:
         """
         Returns a new Results with BH-FDR q-values added as `qval_col`. Does not mutate
@@ -392,7 +464,6 @@ class Results:
 
         return Results(
             df2,
-            method=self.method,
             matrix=self.matrix,
             clusters=self.clusters,
             layout=self._layout,
@@ -413,15 +484,6 @@ class Results:
             raise ValueError("Results has no attached ClusterLayout")
         return self._layout
 
-    def cluster_spans(self) -> List[Tuple[int, int, int]]:
-        """
-        Returns cluster spans in dendrogram order.
-
-        Returns:
-            List[Tuple[int, int, int]]: List of (cluster_id, start, end) spans.
-        """
-        return self.cluster_layout().cluster_spans
-
     def cluster_labels(
         self,
         *,
@@ -439,7 +501,7 @@ class Results:
             max_words (int): Maximum words for compressed labels. Defaults to 6.
 
         Returns:
-            pd.DataFrame: Columns ["cluster", "label", "pval", "qval", "score", "n", "term"].
+            pd.DataFrame: Columns ["cluster", "label", "pval", "qval", "score", "n", "term", "fe"].
 
         Raises:
             KeyError: If required columns are missing.
@@ -470,7 +532,7 @@ class Results:
             cid_int = int(cid)
             best_idx = None
             if label_mode == "top_term":
-                best_idx = sub[score_col].astype(float).idxmin()
+                best_idx = _select_best_term_index(sub, score_col=score_col)
                 best_row = df.loc[best_idx]
                 label_val = best_row[label_source]
                 if label_source != _TERM_FIELD and (label_val is None or pd.isna(label_val)):
@@ -488,16 +550,18 @@ class Results:
                     sub["_weight"].tolist(),
                     max_words=max_words,
                 )
-                best_idx = sub[score_col].astype(float).idxmin()
+                best_idx = _select_best_term_index(sub, score_col=score_col)
                 best_term = str(sub.loc[best_idx, _TERM_FIELD])
             best_pval = None
             best_qval = None
             best_score = None
+            best_fe = None
             if best_idx is not None:
                 best_row = df.loc[best_idx]
                 best_pval = _as_optional_float(best_row.get("pval", None))
                 best_qval = _as_optional_float(best_row.get("qval", None))
                 best_score = _as_optional_float(best_row.get(score_col, None))
+                best_fe = _as_optional_float(best_row.get("fe", None))
 
             # Prefer explicit enrichment `n`; otherwise infer from attached clusters.
             n_members = _cluster_size_from_rows(sub)
@@ -515,6 +579,7 @@ class Results:
                     "score": best_score,
                     "n": n_members,
                     "term": best_term,
+                    "fe": best_fe,
                 }
             )
 
