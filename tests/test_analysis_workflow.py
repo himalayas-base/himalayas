@@ -48,7 +48,7 @@ def test_analysis_requires_cluster_and_enrich_before_finalize(toy_matrix, toy_an
 @pytest.mark.api
 def test_finalize_attaches_layout_and_qvalues(toy_matrix, toy_annotations):
     """
-    Ensures finalize() attaches layout and q-values.
+    Ensures finalize() attaches layout, effect sizes, and q-values.
 
     Args:
         toy_matrix (Matrix): Toy matrix fixture.
@@ -63,6 +63,7 @@ def test_finalize_attaches_layout_and_qvalues(toy_matrix, toy_annotations):
     results = analysis.results
 
     assert results is not None
+    assert "fe" in results.df.columns
     assert "qval" in results.df.columns
     layout = results.cluster_layout()
     assert layout.col_order is not None
@@ -71,7 +72,7 @@ def test_finalize_attaches_layout_and_qvalues(toy_matrix, toy_annotations):
 @pytest.mark.api
 def test_finalize_attaches_qvalues_without_col_clustering(toy_matrix, toy_annotations):
     """
-    Ensures finalize() adds q-values even when column clustering is disabled.
+    Ensures finalize() adds effect sizes and q-values when column clustering is disabled.
 
     Args:
         toy_matrix (Matrix): Toy matrix fixture.
@@ -85,6 +86,7 @@ def test_finalize_attaches_qvalues_without_col_clustering(toy_matrix, toy_annota
     )
     results = analysis.results
 
+    assert "fe" in results.df.columns
     assert "qval" in results.df.columns
 
 
@@ -426,5 +428,6 @@ def test_end_to_end_smoke(toy_df):
     assert results.matrix is matrix
     assert results.clusters is not None
     assert "pval" in results.df.columns
+    assert "fe" in results.df.columns
     assert "qval" in results.df.columns
     assert results.cluster_layout().cluster_spans

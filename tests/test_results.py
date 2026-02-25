@@ -27,6 +27,26 @@ def test_results_with_qvalues_adds_column():
 
 
 @pytest.mark.api
+def test_results_with_effect_sizes_adds_column():
+    """
+    Ensures fold enrichment is added with expected values.
+    """
+    df = pd.DataFrame(
+        {
+            "k": [2, 1],
+            "K": [4, 2],
+            "n": [5, 5],
+            "N": [20, 20],
+        }
+    )
+    res = Results(df, method="test")
+    out = res.with_effect_sizes()
+
+    assert "fe" in out.df.columns
+    assert out.df["fe"].to_numpy(dtype=float) == pytest.approx([2.0, 2.0])
+
+
+@pytest.mark.api
 def test_results_subset_requires_matrix_and_clusters():
     """
     Ensures subsetting requires matrix and clusters.

@@ -400,6 +400,49 @@ class Results:
 
         return out
 
+    def with_effect_sizes(self, fe_col: str = "fe") -> Results:
+        """
+        Returns a new Results with fold enrichment added as `fe_col`. Does not mutate
+        the original Results.
+
+        Fold enrichment is computed as:
+            FE = (k / n) / (K / N) = (k * N) / (n * K)
+
+        Args:
+            fe_col (str): Column name for fold enrichment. Defaults to "fe".
+
+        Returns:
+            Results: New Results object with fold enrichment added.
+
+        Raises:
+            KeyError: If required overlap/count columns are missing.
+        """
+        # Validation
+        required_cols = ["k", "K", "n", "N"]
+        missing = [col for col in required_cols if col not in self.df.columns]
+        if missing:
+            raise KeyError(f"Missing columns required for fold enrichment: {missing}")
+
+        # Compute FE while preserving row alignment
+        df2 = self.df.copy()
+        k = pd.to_numeric(df2["k"], errors="coerce").to_numpy(dtype=float)
+        K = pd.to_numeric(df2["K"], errors="coerce").to_numpy(dtype=float)
+        n = pd.to_numeric(df2["n"], errors="coerce").to_numpy(dtype=float)
+        N = pd.to_numeric(df2["N"], errors="coerce").to_numpy(dtype=float)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            fe = (k * N) / (n * K)
+        fe[~np.isfinite(fe)] = np.nan
+        df2[fe_col] = fe
+
+        return Results(
+            df2,
+            method=self.method,
+            matrix=self.matrix,
+            clusters=self.clusters,
+            layout=self._layout,
+            parent=self,
+        )
+
     def with_qvalues(self, pval_col: str = "pval", qval_col: str = "qval") -> Results:
         """
         Returns a new Results with BH-FDR q-values added as `qval_col`. Does not mutate

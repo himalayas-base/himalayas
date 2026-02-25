@@ -130,9 +130,10 @@ class Analysis:
         col_cluster: bool = False,
     ) -> Analysis:
         """
-        Finalizes the analysis by computing a layout, attaching context, and adding q-values to produce
-        a presentation-ready Results object. This step is required for plotting and downstream
-        visualization, but may be skipped if only raw enrichment statistics are needed.
+        Finalizes the analysis by computing a layout, attaching context, and adding effect sizes
+        and q-values to produce a presentation-ready Results object. This step is required for
+        plotting and downstream visualization, but may be skipped if only raw enrichment statistics
+        are needed.
 
         Kwargs:
             col_cluster (bool): Whether to compute column order by clustering. Defaults to False.
@@ -174,6 +175,6 @@ class Analysis:
             layout=self.layout,
             parent=self.results.parent,
         )
-        self.results = self.results.with_qvalues()
+        self.results = self.results.with_effect_sizes().with_qvalues()
 
         return self
