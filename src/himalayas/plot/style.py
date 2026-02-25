@@ -48,8 +48,6 @@ class StyleDefaults(TypedDict):
     label_bar_missing_color: str
     sigbar_width: float
     sigbar_cmap: Union[str, Colormap]
-    sigbar_min_logp: float
-    sigbar_max_logp: float
     sigbar_alpha: float
     label_bar_pad: float
     boundary_color: str
@@ -105,11 +103,8 @@ DEFAULT_STYLE: StyleDefaults = {
     # (label_bar_default_width, label_bar_default_gap removed)
     # Default settings for cluster score bars (e.g., sigbar)
     # NOTE: scaling is controlled by an explicit `norm` passed to plot_cluster_bar
-    # `sigbar_min_logp` / `sigbar_max_logp` are defaults used only for the legend
     "sigbar_width": 0.015,
     "sigbar_cmap": "YlOrBr",
-    "sigbar_min_logp": 2.0,
-    "sigbar_max_logp": 10.0,
     "sigbar_alpha": 0.9,
     # (Sigbar_gap removed)
     # Label panel bar/text spacing

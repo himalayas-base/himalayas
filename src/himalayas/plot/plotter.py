@@ -20,7 +20,6 @@ from .renderers import (
     DendrogramRenderer,
     MatrixRenderer,
     render_cluster_bar_track,
-    SigbarLegendRenderer,
 )
 from .renderers.label_bar import render_label_bar_track
 from .style import StyleConfig
@@ -421,20 +420,6 @@ class Plotter:
         )
         return self
 
-    def plot_sigbar_legend(self, **kwargs) -> Plotter:
-        """
-        Declares a significance bar legend. Explains the color mapping of the cluster-level significance bar
-        (based on -log10(score)). Off by default.
-
-        Kwargs:
-            **kwargs: Renderer keyword arguments. Defaults to {}.
-
-        Returns:
-            Plotter: Self for chaining.
-        """
-        self._layers.append(("sigbar_legend", kwargs))
-        return self
-
     def plot_matrix(self, **kwargs) -> Plotter:
         """
         Declares the main matrix heatmap layer.
@@ -816,9 +801,6 @@ class Plotter:
                 renderer.render(fig, ax, self.matrix, layout, self._style)
             elif layer == "cluster_labels":
                 self._render_label_panel(fig, layout, bar_kwargs=bar_kwargs, cluster_kwargs=kwargs)
-            elif layer == "sigbar_legend":
-                renderer = SigbarLegendRenderer(**kwargs)
-                renderer.render(fig, self._style)
             elif layer == "bar_labels":
                 # Consumed inside the cluster label panel; no direct rendering
                 continue
