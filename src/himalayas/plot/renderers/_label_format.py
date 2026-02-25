@@ -50,7 +50,7 @@ def collect_label_stats(
         elif field == "q" and qval is not None:
             stats.append(rf"$q$={qval:.2e}")
         elif field == "fe" and fe is not None:
-            stats.append(f"FE={fe:.2f}x")
+            stats.append(f"FE={fe:.2f}")
     return has_label, stats
 
 
