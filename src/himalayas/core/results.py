@@ -19,7 +19,7 @@ from .matrix import Matrix
 _TERM_FIELD = "term"
 _CLUSTER_FIELD = "cluster"
 _TERM_NAME_FIELD = "term_name"
-_CLUSTER_LABEL_OUTPUT_FIELDS = ["cluster", "label", "pval", "qval", "score", "n", "term"]
+_CLUSTER_LABEL_OUTPUT_FIELDS = ["cluster", "label", "pval", "qval", "score", "n", "term", "fe"]
 
 
 def _summarize_terms(
@@ -520,7 +520,7 @@ class Results:
             max_words (int): Maximum words for compressed labels. Defaults to 6.
 
         Returns:
-            pd.DataFrame: Columns ["cluster", "label", "pval", "qval", "score", "n", "term"].
+            pd.DataFrame: Columns ["cluster", "label", "pval", "qval", "score", "n", "term", "fe"].
 
         Raises:
             KeyError: If required columns are missing.
@@ -574,11 +574,13 @@ class Results:
             best_pval = None
             best_qval = None
             best_score = None
+            best_fe = None
             if best_idx is not None:
                 best_row = df.loc[best_idx]
                 best_pval = _as_optional_float(best_row.get("pval", None))
                 best_qval = _as_optional_float(best_row.get("qval", None))
                 best_score = _as_optional_float(best_row.get(score_col, None))
+                best_fe = _as_optional_float(best_row.get("fe", None))
 
             # Prefer explicit enrichment `n`; otherwise infer from attached clusters.
             n_members = _cluster_size_from_rows(sub)
@@ -596,6 +598,7 @@ class Results:
                     "score": best_score,
                     "n": n_members,
                     "term": best_term,
+                    "fe": best_fe,
                 }
             )
 

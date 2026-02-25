@@ -15,6 +15,7 @@ def collect_label_stats(
     n_members: Optional[int] = None,
     pval: Optional[float] = None,
     qval: Optional[float] = None,
+    fe: Optional[float] = None,
     force_label: bool = False,
 ) -> Tuple[bool, List[str]]:
     """
@@ -27,6 +28,7 @@ def collect_label_stats(
         n_members (Optional[int]): Cluster size for "n". Defaults to None.
         pval (Optional[float]): P-value for "p". Defaults to None.
         qval (Optional[float]): Q-value for "q". Defaults to None.
+        fe (Optional[float]): Fold enrichment for "fe". Defaults to None.
         force_label (bool): Force inclusion of label text even when "label" is absent
             from label_fields. Defaults to False.
 
@@ -47,6 +49,8 @@ def collect_label_stats(
             stats.append(rf"$p$={pval:.2e}")
         elif field == "q" and qval is not None:
             stats.append(rf"$q$={qval:.2e}")
+        elif field == "fe" and fe is not None:
+            stats.append(f"FE={fe:.2f}x")
     return has_label, stats
 
 

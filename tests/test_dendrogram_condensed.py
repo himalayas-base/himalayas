@@ -266,7 +266,7 @@ def test_dendrogram_condensed_plot_handle_rebuilds_closed_figure(toy_results, tm
 @pytest.mark.api
 def test_dendrogram_condensed_label_fields_respect_np_order(toy_results):
     """
-    Ensures condensed dendrogram labels keep label first while respecting q/p/n order
+    Ensures condensed dendrogram labels keep label first while respecting q/fe/p/n order
     from label_fields and emitting a single stats block.
 
     Args:
@@ -278,19 +278,21 @@ def test_dendrogram_condensed_label_fields_respect_np_order(toy_results):
         results_q = toy_results.with_qvalues()
         plot = plot_dendrogram_condensed(
             results_q,
-            label_fields=("label", "q", "p", "n"),
+            label_fields=("label", "q", "fe", "p", "n"),
         )
         texts = [t.get_text() for ax in plot.fig.axes for t in ax.texts]
         # Cluster labels are asserted via rendered text fragments rather than data objects.
-        label_texts = [t for t in texts if "$q$=" in t and "$p$=" in t and "n=" in t]
+        label_texts = [t for t in texts if "$q$=" in t and "FE=" in t and "$p$=" in t and "n=" in t]
         assert label_texts, "Expected cluster label text to be rendered."
         for txt in label_texts:
             assert " (" in txt
             assert txt.strip().endswith(")")
             assert "$q$=" in txt
+            assert "FE=" in txt
             assert "$p$=" in txt
             assert "n=" in txt
-            assert txt.find("$q$=") < txt.find("$p$=")
+            assert txt.find("$q$=") < txt.find("FE=")
+            assert txt.find("FE=") < txt.find("$p$=")
             assert txt.find("$p$=") < txt.find("n=")
     finally:
         if plot is not None:
@@ -333,12 +335,13 @@ def test_dendrogram_condensed_label_prefix_cid_supports_compressed_labels(toy_re
         plot = plot_dendrogram_condensed(
             toy_results,
             label_mode="compressed",
-            label_fields=("label",),
+            label_fields=("label", "fe"),
             label_prefix="cid",
             wrap_text=False,
         )
         texts = [t.get_text().strip() for ax in plot.fig.axes for t in ax.texts if t.get_text().strip()]
         assert any(txt.split(". ", 1)[0].isdigit() for txt in texts if ". " in txt)
+        assert any("FE=" in txt for txt in texts)
     finally:
         if plot is not None:
             plt.close(plot.fig)

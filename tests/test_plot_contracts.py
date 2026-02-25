@@ -291,7 +291,7 @@ def test_plot_label_bar_requires_colors(toy_results):
 @pytest.mark.api
 def test_plot_cluster_labels_respect_np_order(toy_results):
     """
-    Ensures cluster labels keep label first while respecting q/p/n order from label_fields
+    Ensures cluster labels keep label first while respecting q/fe/p/n order from label_fields
     and emitting a single stats block.
 
     Args:
@@ -306,22 +306,24 @@ def test_plot_cluster_labels_respect_np_order(toy_results):
             Plotter(results_q)
             .plot_matrix()
             .plot_cluster_labels(
-                label_fields=("label", "q", "p", "n"),
+                label_fields=("label", "q", "fe", "p", "n"),
             )
         )
         plotter.show()
         fig = plotter._fig
         texts = [t.get_text() for ax in fig.axes for t in ax.texts]
         # Cluster labels are asserted via rendered text fragments rather than data objects.
-        label_texts = [t for t in texts if "$q$=" in t and "$p$=" in t and "n=" in t]
+        label_texts = [t for t in texts if "$q$=" in t and "FE=" in t and "$p$=" in t and "n=" in t]
         assert label_texts, "Expected cluster label text to be rendered."
         for txt in label_texts:
             assert " (" in txt
             assert txt.strip().endswith(")")
             assert "$q$=" in txt
+            assert "FE=" in txt
             assert "$p$=" in txt
             assert "n=" in txt
-            assert txt.find("$q$=") < txt.find("$p$=")
+            assert txt.find("$q$=") < txt.find("FE=")
+            assert txt.find("FE=") < txt.find("$p$=")
             assert txt.find("$p$=") < txt.find("n=")
     finally:
         plt.show = plt_show
@@ -399,7 +401,7 @@ def test_plot_cluster_labels_label_prefix_cid_supports_compressed_labels(toy_res
             .plot_matrix()
             .plot_cluster_labels(
                 label_mode="compressed",
-                label_fields=("label",),
+                label_fields=("label", "fe"),
                 label_prefix="cid",
                 wrap_text=False,
             )
@@ -407,6 +409,7 @@ def test_plot_cluster_labels_label_prefix_cid_supports_compressed_labels(toy_res
         plotter.show()
         texts = [t.get_text().strip() for ax in plotter._fig.axes for t in ax.texts if t.get_text().strip()]
         assert any(txt.split(". ", 1)[0].isdigit() for txt in texts if ". " in txt)
+        assert any("FE=" in txt for txt in texts)
     finally:
         plt.show = plt_show
 
@@ -592,7 +595,7 @@ def test_plot_cluster_labels_override_with_np_fields_keeps_label_and_stats(toy_r
             .plot_matrix()
             .plot_cluster_labels(
                 overrides={cid: "CustomLabelVisibleWithFields"},
-                label_fields=("n", "q", "p"),
+                label_fields=("n", "q", "fe", "p"),
                 wrap_text=False,
             )
         )
@@ -604,9 +607,11 @@ def test_plot_cluster_labels_override_with_np_fields_keeps_label_and_stats(toy_r
         for txt in custom_texts:
             assert "n=" in txt
             assert "$q$=" in txt
+            assert "FE=" in txt
             assert "$p$=" in txt
             assert txt.find("n=") < txt.find("$q$=")
-            assert txt.find("$q$=") < txt.find("$p$=")
+            assert txt.find("$q$=") < txt.find("FE=")
+            assert txt.find("FE=") < txt.find("$p$=")
     finally:
         plt.show = plt_show
 
@@ -623,12 +628,14 @@ def test_plot_cluster_label_override_keeps_deterministic_stats(toy_results):
     df = toy_results.cluster_labels()
     cid = int(df.loc[0, "cluster"])
     base_pval = float(df.loc[df["cluster"] == cid, "pval"].iloc[0])
+    base_fe = float(df.loc[df["cluster"] == cid, "fe"].iloc[0])
     override_map = _parse_label_overrides({cid: f"Custom-{cid}"})
     label_map = _build_label_map(df, override_map)
 
     assert label_map[cid][0] == f"Custom-{cid}"
     assert float(label_map[cid][1]) == pytest.approx(base_pval)
     assert float(label_map[cid][3]) == pytest.approx(base_pval)
+    assert float(label_map[cid][4]) == pytest.approx(base_fe)
 
 
 @pytest.mark.api

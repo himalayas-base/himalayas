@@ -176,13 +176,14 @@ def test_results_cluster_labels_top_term_defaults():
             "term": ["t_a", "t_b", "t_c"],
             "term_name": ["Term A", None, "Term C"],
             "pval": [0.2, 0.01, 0.4],
+            "fe": [1.2, 2.5, 0.8],
             "n": [7, 7, 3],
         }
     )
     res = Results(df, method="test")
     out = res.cluster_labels()
 
-    assert list(out.columns) == ["cluster", "label", "pval", "qval", "score", "n", "term"]
+    assert list(out.columns) == ["cluster", "label", "pval", "qval", "score", "n", "term", "fe"]
     c1 = out.loc[out["cluster"] == 1].iloc[0]
     c2 = out.loc[out["cluster"] == 2].iloc[0]
 
@@ -192,11 +193,13 @@ def test_results_cluster_labels_top_term_defaults():
     assert c1["pval"] == pytest.approx(0.01)
     assert c1["qval"] is None
     assert c1["score"] == pytest.approx(0.01)
+    assert c1["fe"] == pytest.approx(2.5)
     assert c1["n"] == 7
     assert c2["label"] == "Term C"
     assert c2["term"] == "t_c"
     assert c2["qval"] is None
     assert c2["score"] == pytest.approx(0.4)
+    assert c2["fe"] == pytest.approx(0.8)
 
 
 @pytest.mark.api
@@ -251,6 +254,7 @@ def test_results_cluster_labels_rank_by_q_changes_top_term_and_score():
             "term_name": ["Term A", "Term B"],
             "pval": [0.01, 0.02],
             "qval": [0.20, 0.05],
+            "fe": [1.1, 3.2],
             "n": [5, 5],
         }
     )
@@ -267,6 +271,7 @@ def test_results_cluster_labels_rank_by_q_changes_top_term_and_score():
     # Display stats remain semantically named regardless of ranking signal.
     assert row_q["pval"] == pytest.approx(0.02)
     assert row_q["qval"] == pytest.approx(0.05)
+    assert row_q["fe"] == pytest.approx(3.2)
 
 
 @pytest.mark.api
