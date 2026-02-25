@@ -119,7 +119,7 @@ def test_plotter_requires_layout(toy_matrix):
         ValueError: If Results has no attached layout.
     """
     clusters = cluster(toy_matrix, linkage_threshold=1.0)
-    results = Results(pd.DataFrame(), method="test", matrix=toy_matrix, clusters=clusters)
+    results = Results(pd.DataFrame(), matrix=toy_matrix, clusters=clusters)
 
     plt = _use_agg_backend()
     plt_show = plt.show

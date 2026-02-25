@@ -35,7 +35,6 @@ def test_dendrogram_condensed_missing_term_column_raises(toy_results):
     bad_df = toy_results.df.drop(columns=["term"])
     results = Results(
         bad_df,
-        method=toy_results.method,
         matrix=toy_results.matrix,
         clusters=toy_results.clusters,
         layout=toy_results.cluster_layout(),
@@ -407,7 +406,6 @@ def test_dendrogram_condensed_missing_linkage_raises(toy_results):
 
     results = Results(
         toy_results.df,
-        method=toy_results.method,
         matrix=toy_results.matrix,
         clusters=_DummyClusters(),
         layout=toy_results.cluster_layout(),
@@ -433,7 +431,6 @@ def test_dendrogram_condensed_no_clusters_raises(toy_results):
 
     results = Results(
         toy_results.df,
-        method=toy_results.method,
         matrix=toy_results.matrix,
         clusters=toy_results.clusters,
         layout=_EmptyLayout(),
@@ -463,7 +460,6 @@ def test_dendrogram_condensed_unmapped_clusters_raises(toy_results):
     )
     results = Results(
         toy_results.df,
-        method=toy_results.method,
         matrix=toy_results.matrix,
         clusters=bad_clusters,
         layout=toy_results.cluster_layout(),

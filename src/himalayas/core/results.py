@@ -214,7 +214,6 @@ class Results:
     def __init__(
         self,
         df: pd.DataFrame,
-        method: str,
         *,
         matrix: Optional[Matrix] = None,
         clusters: Optional[Clusters] = None,
@@ -226,7 +225,6 @@ class Results:
 
         Args:
             df (pd.DataFrame): Results table.
-            method (str): Analysis method identifier.
 
         Kwargs:
             matrix (Optional[Matrix]): Matrix associated with these results. Defaults to None.
@@ -235,7 +233,6 @@ class Results:
             parent (Optional[Results]): Parent results for provenance. Defaults to None.
         """
         self.df = df
-        self.method = method
         self.matrix = matrix
         self.clusters = clusters
         self.parent = parent
@@ -257,7 +254,6 @@ class Results:
         filtered_df = self.df.query(expr, **kwargs)
         return Results(
             filtered_df,
-            method=self.method,
             matrix=self.matrix,
             clusters=self.clusters,
             layout=self._layout,
@@ -290,7 +286,6 @@ class Results:
         )
         return Results(
             df=pd.DataFrame(),
-            method="subset",
             matrix=sub_matrix,
             clusters=None,
             layout=None,
@@ -433,7 +428,6 @@ class Results:
 
         return Results(
             df2,
-            method=self.method,
             matrix=self.matrix,
             clusters=self.clusters,
             layout=self._layout,
@@ -470,7 +464,6 @@ class Results:
 
         return Results(
             df2,
-            method=self.method,
             matrix=self.matrix,
             clusters=self.clusters,
             layout=self._layout,

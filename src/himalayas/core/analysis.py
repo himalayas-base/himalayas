@@ -169,7 +169,6 @@ class Analysis:
         self.layout = self.clusters.layout(col_order=col_order)
         self.results = Results(
             self.results.df,
-            method=self.results.method,
             matrix=self.matrix,
             clusters=self.clusters,
             layout=self.layout,
