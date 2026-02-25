@@ -27,6 +27,15 @@ def _use_agg_backend():
     return plt
 
 
+@pytest.fixture(autouse=True)
+def _close_all_figures_after_each_test():
+    """
+    Ensures pyplot figures do not accumulate across tests in this module.
+    """
+    yield
+    plt.close("all")
+
+
 @pytest.mark.api
 def test_plotter_smoke(toy_results):
     """
