@@ -240,9 +240,6 @@ class Results:
         self.clusters = clusters
         self.parent = parent
         self._layout = layout
-        self.params: Dict[str, Any] = {}
-        if clusters is not None:
-            self.params["linkage_threshold"] = clusters.threshold
 
     def filter(self, expr, **kwargs) -> Results:
         """
@@ -493,15 +490,6 @@ class Results:
         if self._layout is None:
             raise ValueError("Results has no attached ClusterLayout")
         return self._layout
-
-    def cluster_spans(self) -> List[Tuple[int, int, int]]:
-        """
-        Returns cluster spans in dendrogram order.
-
-        Returns:
-            List[Tuple[int, int, int]]: List of (cluster_id, start, end) spans.
-        """
-        return self.cluster_layout().cluster_spans
 
     def cluster_labels(
         self,
