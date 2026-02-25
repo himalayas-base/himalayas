@@ -420,9 +420,19 @@ def test_plot_cluster_labels_label_prefix_cid_supports_compressed_labels(toy_res
     [("label",), ("n", "p"), None],
     ids=["with_label_fields", "np_only", "without_label_fields"],
 )
-def test_plot_cluster_labels_label_prefix_precedence_override_wins(toy_results, label_fields):
+@pytest.mark.parametrize(
+    "label_prefix, override_template",
+    [(None, "DNA replication & repair"), ("cid", "{cid}. DNA replication & repair")],
+    ids=["without_prefix", "with_cid_prefix"],
+)
+def test_plot_cluster_labels_label_prefix_precedence_override_wins(
+    toy_results,
+    label_fields,
+    label_prefix,
+    override_template,
+):
     """
-    Ensures label_prefix is applied before overrides and explicit overrides win.
+    Ensures explicit overrides win with and without cid prefix mode.
 
     Args:
         toy_results (Results): Results fixture with clusters and layout.
@@ -435,13 +445,13 @@ def test_plot_cluster_labels_label_prefix_precedence_override_wins(toy_results, 
         assert len(spans) >= 2
         override_cid = int(spans[0][0])
         regular_cid = int(spans[1][0])
-        override_label = "Custom Prefix Override"
+        override_label = override_template.format(cid=override_cid)
         plotter = (
             Plotter(toy_results)
             .plot_matrix()
             .plot_cluster_labels(
                 label_fields=label_fields,
-                label_prefix="cid",
+                label_prefix=label_prefix,
                 overrides={override_cid: override_label},
                 wrap_text=False,
             )
@@ -453,10 +463,13 @@ def test_plot_cluster_labels_label_prefix_precedence_override_wins(toy_results, 
         else:
             assert any(txt.startswith(override_label) for txt in texts)
         assert all(txt != f"{override_cid}. {override_label}" for txt in texts)
-        if label_fields is None:
-            assert f"{regular_cid}." in texts
+        if label_prefix == "cid":
+            if label_fields is None:
+                assert f"{regular_cid}." in texts
+            else:
+                assert any(txt.startswith(f"{regular_cid}. ") for txt in texts)
         else:
-            assert any(txt.startswith(f"{regular_cid}. ") for txt in texts)
+            assert all(not txt.startswith(f"{regular_cid}. ") for txt in texts)
     finally:
         plt.show = plt_show
 
