@@ -7,19 +7,11 @@ import matplotlib.pyplot as plt
 import pytest
 from matplotlib.colors import to_rgba
 
+from conftest import extract_figure_text, use_agg_backend
 from himalayas import Analysis
 from himalayas.core.clustering import Clusters
 from himalayas.core.results import Results
 from himalayas.plot import CondensedDendrogramPlot, plot_dendrogram_condensed
-
-
-def _use_agg_backend() -> None:
-    """
-    Configures Matplotlib to use the Agg backend for tests.
-    """
-    matplotlib = pytest.importorskip("matplotlib")
-    matplotlib.use("Agg", force=True)
-
 
 @pytest.mark.api
 def test_dendrogram_condensed_missing_term_column_raises(toy_results):
@@ -123,7 +115,7 @@ def test_dendrogram_condensed_placeholder_controls_match_cluster_label_parity(to
     Args:
         toy_results (Results): Results fixture with clusters and layout.
     """
-    _use_agg_backend()
+    use_agg_backend()
     first_cluster = int(toy_results.cluster_layout().cluster_spans[0][0])
     # Keep layout unchanged but drop one cluster from labels to force placeholder rendering.
     filtered = toy_results.filter(f"cluster == {first_cluster}")
@@ -163,7 +155,7 @@ def test_dendrogram_condensed_placeholder_controls_match_cluster_label_parity(to
             placeholder_text=placeholder_text,
             skip_unlabeled=True,
         )
-        texts2 = [t.get_text().strip() for ax in plot2.fig.axes for t in ax.texts if t.get_text().strip()]
+        texts2 = extract_figure_text(plot2.fig, strip=True, nonempty=True)
         assert placeholder_text not in texts2
         assert texts2, "Expected non-placeholder labels to remain rendered."
     finally:
@@ -181,7 +173,7 @@ def test_dendrogram_condensed_smoke(toy_results):
     Args:
         toy_results (Results): Results fixture with clusters and layout.
     """
-    _use_agg_backend()
+    use_agg_backend()
     plot = plot_dendrogram_condensed(toy_results)
     assert isinstance(plot, CondensedDendrogramPlot)
     assert plot.fig.axes
@@ -196,7 +188,7 @@ def test_dendrogram_condensed_does_not_auto_show(toy_results):
     Args:
         toy_results (Results): Results fixture with clusters and layout.
     """
-    _use_agg_backend()
+    use_agg_backend()
     show_calls = []
     plot = None
     plt_show = plt.show
@@ -219,7 +211,7 @@ def test_dendrogram_condensed_plot_handle_save_supports_kwargs(toy_results, tmp_
         toy_results (Results): Results fixture with clusters and layout.
         tmp_path (Path): Temporary output directory.
     """
-    _use_agg_backend()
+    use_agg_backend()
     out = tmp_path / "condensed.png"
     plot = plot_dendrogram_condensed(toy_results)
     try:
@@ -239,7 +231,7 @@ def test_dendrogram_condensed_plot_handle_rebuilds_closed_figure(toy_results, tm
         toy_results (Results): Results fixture with clusters and layout.
         tmp_path (Path): Temporary output directory.
     """
-    _use_agg_backend()
+    use_agg_backend()
     out = tmp_path / "condensed_rebuild.png"
     plot = plot_dendrogram_condensed(toy_results)
     plt_show = plt.show
@@ -271,7 +263,7 @@ def test_dendrogram_condensed_label_fields_respect_np_order(toy_results):
     Args:
         toy_results (Results): Results fixture with clusters and layout.
     """
-    _use_agg_backend()
+    use_agg_backend()
     plot = None
     try:
         results_q = toy_results.with_qvalues()
@@ -279,7 +271,7 @@ def test_dendrogram_condensed_label_fields_respect_np_order(toy_results):
             results_q,
             label_fields=("label", "q", "fe", "p", "n"),
         )
-        texts = [t.get_text() for ax in plot.fig.axes for t in ax.texts]
+        texts = extract_figure_text(plot.fig)
         # Cluster labels are asserted via rendered text fragments rather than data objects.
         label_texts = [t for t in texts if "$q$=" in t and "FE=" in t and "$p$=" in t and "n=" in t]
         assert label_texts, "Expected cluster label text to be rendered."
@@ -306,14 +298,14 @@ def test_dendrogram_condensed_none_label_fields_hides_text(toy_results):
     Args:
         toy_results (Results): Results fixture with clusters and layout.
     """
-    _use_agg_backend()
+    use_agg_backend()
     plot = None
     try:
         plot = plot_dendrogram_condensed(
             toy_results,
             label_fields=None,
         )
-        texts = [t.get_text().strip() for ax in plot.fig.axes for t in ax.texts if t.get_text().strip()]
+        texts = extract_figure_text(plot.fig, strip=True, nonempty=True)
         assert not texts
     finally:
         if plot is not None:
@@ -328,7 +320,7 @@ def test_dendrogram_condensed_label_prefix_cid_supports_compressed_labels(toy_re
     Args:
         toy_results (Results): Results fixture with clusters and layout.
     """
-    _use_agg_backend()
+    use_agg_backend()
     plot = None
     try:
         plot = plot_dendrogram_condensed(
@@ -338,7 +330,7 @@ def test_dendrogram_condensed_label_prefix_cid_supports_compressed_labels(toy_re
             label_prefix="cid",
             wrap_text=False,
         )
-        texts = [t.get_text().strip() for ax in plot.fig.axes for t in ax.texts if t.get_text().strip()]
+        texts = extract_figure_text(plot.fig, strip=True, nonempty=True)
         assert any(txt.split(". ", 1)[0].isdigit() for txt in texts if ". " in txt)
         assert any("FE=" in txt for txt in texts)
     finally:
@@ -359,7 +351,7 @@ def test_dendrogram_condensed_label_prefix_precedence_override_wins(toy_results,
     Args:
         toy_results (Results): Results fixture with clusters and layout.
     """
-    _use_agg_backend()
+    use_agg_backend()
     spans = toy_results.cluster_layout().cluster_spans
     assert len(spans) >= 2
     override_cid = int(spans[0][0])
@@ -374,7 +366,7 @@ def test_dendrogram_condensed_label_prefix_precedence_override_wins(toy_results,
             label_overrides={override_cid: override_label},
             wrap_text=False,
         )
-        texts = [t.get_text().strip() for ax in plot.fig.axes for t in ax.texts if t.get_text().strip()]
+        texts = extract_figure_text(plot.fig, strip=True, nonempty=True)
         if label_fields is None:
             assert override_label in texts
         else:

@@ -8,23 +8,12 @@ import pandas as pd
 import pytest
 from matplotlib.colors import Normalize, to_rgba
 
+from conftest import extract_figure_text, use_agg_backend
 from himalayas import Results
 from himalayas.core.clustering import cluster
 from himalayas.plot import Plotter
 from himalayas.plot.renderers.cluster_labels import _build_label_map, _parse_label_overrides
 from himalayas.plot.track_layout import TrackLayoutManager
-
-
-def _use_agg_backend():
-    """
-    Configures Matplotlib to use the Agg backend for tests.
-
-    Returns:
-        Any: Matplotlib pyplot module with Agg backend active.
-    """
-    matplotlib = pytest.importorskip("matplotlib")
-    matplotlib.use("Agg", force=True)
-    return plt
 
 
 @pytest.fixture(autouse=True)
@@ -44,7 +33,7 @@ def test_plotter_smoke(toy_results):
     Args:
         toy_results (Results): Results fixture with clusters and layout.
     """
-    plt = _use_agg_backend()
+    plt = use_agg_backend()
     plt_show = plt.show
     plt.show = lambda *args, **kwargs: None
     try:
@@ -70,7 +59,7 @@ def test_plotter_stacked_defaults_smoke(toy_results):
     Args:
         toy_results (Results): Results fixture with clusters and layout.
     """
-    plt = _use_agg_backend()
+    plt = use_agg_backend()
     plt_show = plt.show
     plt.show = lambda *args, **kwargs: None
     try:
@@ -106,7 +95,7 @@ def test_plotter_requires_layers(toy_results):
     Raises:
         RuntimeError: If no plot layers are declared.
     """
-    plt = _use_agg_backend()
+    plt = use_agg_backend()
     plt_show = plt.show
     plt.show = lambda *args, **kwargs: None
     try:
@@ -130,7 +119,7 @@ def test_plotter_requires_layout(toy_matrix):
     clusters = cluster(toy_matrix, linkage_threshold=1.0)
     results = Results(pd.DataFrame(), matrix=toy_matrix, clusters=clusters)
 
-    plt = _use_agg_backend()
+    plt = use_agg_backend()
     plt_show = plt.show
     plt.show = lambda *args, **kwargs: None
     try:
@@ -151,7 +140,7 @@ def test_plot_cluster_bar_requires_cluster_labels_layer(toy_results):
     Raises:
         ValueError: If plot_cluster_bar is used without plot_cluster_labels.
     """
-    plt = _use_agg_backend()
+    plt = use_agg_backend()
     plt_show = plt.show
     plt.show = lambda *args, **kwargs: None
     try:
@@ -169,7 +158,7 @@ def test_plot_cluster_bar_uses_internal_cluster_labels(toy_results):
     Args:
         toy_results (Results): Results fixture with clusters and layout.
     """
-    plt = _use_agg_backend()
+    plt = use_agg_backend()
     plt_show = plt.show
     plt.show = lambda *args, **kwargs: None
     try:
@@ -193,7 +182,7 @@ def test_plotter_plot_handle_rebuilds_closed_figure(toy_results, tmp_path):
         toy_results (Results): Results fixture with clusters and layout.
         tmp_path (Path): Temporary output directory.
     """
-    plt = _use_agg_backend()
+    plt = use_agg_backend()
     plt_show = plt.show
     out = tmp_path / "plotter_rebuild.png"
     plotter = None
@@ -244,7 +233,7 @@ def test_plot_colorbars_tick_decimals_contract(toy_results):
     with pytest.raises(ValueError, match="tick_decimals"):
         Plotter(toy_results).plot_colorbars(tick_decimals=-1)
 
-    plt = _use_agg_backend()
+    plt = use_agg_backend()
     plt_show = plt.show
     plt.show = lambda *args, **kwargs: None
     try:
@@ -282,7 +271,7 @@ def test_plot_label_bar_requires_colors(toy_results):
     Raises:
         TypeError: If categorical mode is missing a colors mapping.
     """
-    plt = _use_agg_backend()
+    plt = use_agg_backend()
     plt_show = plt.show
     plt.show = lambda *args, **kwargs: None
     try:
@@ -306,7 +295,7 @@ def test_plot_cluster_labels_respect_np_order(toy_results):
     Args:
         toy_results (Results): Results fixture with clusters and layout.
     """
-    plt = _use_agg_backend()
+    plt = use_agg_backend()
     plt_show = plt.show
     plt.show = lambda *args, **kwargs: None
     try:
@@ -320,7 +309,7 @@ def test_plot_cluster_labels_respect_np_order(toy_results):
         )
         plotter.show()
         fig = plotter._fig
-        texts = [t.get_text() for ax in fig.axes for t in ax.texts]
+        texts = extract_figure_text(fig)
         # Cluster labels are asserted via rendered text fragments rather than data objects.
         label_texts = [t for t in texts if "$q$=" in t and "FE=" in t and "$p$=" in t and "n=" in t]
         assert label_texts, "Expected cluster label text to be rendered."
@@ -349,7 +338,7 @@ def test_plot_cluster_labels_invalid_label_prefix_raises(toy_results):
     Raises:
         ValueError: If label_prefix is not supported.
     """
-    plt = _use_agg_backend()
+    plt = use_agg_backend()
     plt_show = plt.show
     plt.show = lambda *args, **kwargs: None
     try:
@@ -375,7 +364,7 @@ def test_plot_cluster_labels_none_label_fields_hides_text(toy_results):
     Args:
         toy_results (Results): Results fixture with clusters and layout.
     """
-    plt = _use_agg_backend()
+    plt = use_agg_backend()
     plt_show = plt.show
     plt.show = lambda *args, **kwargs: None
     try:
@@ -387,7 +376,7 @@ def test_plot_cluster_labels_none_label_fields_hides_text(toy_results):
             )
         )
         plotter.show()
-        texts = [t.get_text().strip() for ax in plotter._fig.axes for t in ax.texts if t.get_text().strip()]
+        texts = extract_figure_text(plotter._fig, strip=True, nonempty=True)
         assert not texts
     finally:
         plt.show = plt_show
@@ -401,7 +390,7 @@ def test_plot_cluster_labels_label_prefix_cid_supports_compressed_labels(toy_res
     Args:
         toy_results (Results): Results fixture with clusters and layout.
     """
-    plt = _use_agg_backend()
+    plt = use_agg_backend()
     plt_show = plt.show
     plt.show = lambda *args, **kwargs: None
     try:
@@ -416,7 +405,7 @@ def test_plot_cluster_labels_label_prefix_cid_supports_compressed_labels(toy_res
             )
         )
         plotter.show()
-        texts = [t.get_text().strip() for ax in plotter._fig.axes for t in ax.texts if t.get_text().strip()]
+        texts = extract_figure_text(plotter._fig, strip=True, nonempty=True)
         assert any(txt.split(". ", 1)[0].isdigit() for txt in texts if ". " in txt)
         assert any("FE=" in txt for txt in texts)
     finally:
@@ -446,7 +435,7 @@ def test_plot_cluster_labels_label_prefix_precedence_override_wins(
     Args:
         toy_results (Results): Results fixture with clusters and layout.
     """
-    plt = _use_agg_backend()
+    plt = use_agg_backend()
     plt_show = plt.show
     plt.show = lambda *args, **kwargs: None
     try:
@@ -466,7 +455,7 @@ def test_plot_cluster_labels_label_prefix_precedence_override_wins(
             )
         )
         plotter.show()
-        texts = [t.get_text().strip() for ax in plotter._fig.axes for t in ax.texts if t.get_text().strip()]
+        texts = extract_figure_text(plotter._fig, strip=True, nonempty=True)
         if label_fields is None:
             assert override_label in texts
         else:
@@ -494,7 +483,7 @@ def test_plot_cluster_labels_accepts_override_mapper(toy_results):
     Raises:
         ValueError: If overrides reference unknown cluster ids.
     """
-    plt = _use_agg_backend()
+    plt = use_agg_backend()
     plt_show = plt.show
     plt.show = lambda *args, **kwargs: None
     try:
@@ -515,7 +504,7 @@ def test_plot_cluster_labels_accepts_override_mapper(toy_results):
         )
         plotter.show()
         fig = plotter._fig
-        texts = [t.get_text() for ax in fig.axes for t in ax.texts]
+        texts = extract_figure_text(fig)
         assert any(custom_label in t for t in texts)
 
         # Empty-string override is a valid way to suppress one cluster label and
@@ -545,7 +534,7 @@ def test_plot_cluster_labels_placeholder_style_overrides_global_style(toy_result
     Args:
         toy_results (Results): Results fixture with clusters and layout.
     """
-    plt = _use_agg_backend()
+    plt = use_agg_backend()
     plt_show = plt.show
     plt.show = lambda *args, **kwargs: None
     try:
@@ -606,7 +595,7 @@ def test_plot_cluster_labels_override_with_np_fields_keeps_label_and_stats(toy_r
     Args:
         toy_results (Results): Results fixture with clusters and layout.
     """
-    plt = _use_agg_backend()
+    plt = use_agg_backend()
     plt_show = plt.show
     plt.show = lambda *args, **kwargs: None
     try:
@@ -623,7 +612,7 @@ def test_plot_cluster_labels_override_with_np_fields_keeps_label_and_stats(toy_r
         )
         plotter.show()
         fig = plotter._fig
-        texts = [t.get_text() for ax in fig.axes for t in ax.texts]
+        texts = extract_figure_text(fig)
         custom_texts = [t for t in texts if t.startswith("CustomLabelVisibleWithFields")]
         assert custom_texts, "Expected override label text to remain visible."
         for txt in custom_texts:
@@ -668,7 +657,7 @@ def test_plot_cluster_labels_max_words_controls_label_building_compressed(toy_re
     Args:
         toy_results (Results): Results fixture with clusters and layout.
     """
-    plt = _use_agg_backend()
+    plt = use_agg_backend()
     plt_show = plt.show
     plt.show = lambda *args, **kwargs: None
     try:
@@ -685,7 +674,7 @@ def test_plot_cluster_labels_max_words_controls_label_building_compressed(toy_re
         )
         plotter.show()
         fig = plotter._fig
-        texts = [t.get_text().strip() for ax in fig.axes for t in ax.texts]
+        texts = extract_figure_text(fig, strip=True)
         # Exclude placeholders to focus on generated cluster label text.
         cluster_texts = [t for t in texts if t and t != "—"]
         assert cluster_texts, "Expected generated cluster labels to be rendered."
@@ -703,7 +692,7 @@ def test_plot_cluster_labels_max_words_controls_display(toy_results):
     Args:
         toy_results (Results): Results fixture with clusters and layout.
     """
-    plt = _use_agg_backend()
+    plt = use_agg_backend()
     plt_show = plt.show
     plt.show = lambda *args, **kwargs: None
     try:
@@ -721,7 +710,7 @@ def test_plot_cluster_labels_max_words_controls_display(toy_results):
         )
         plotter.show()
         fig = plotter._fig
-        texts = [t.get_text() for ax in fig.axes for t in ax.texts]
+        texts = extract_figure_text(fig)
         assert any(t.strip() == "Alpha" for t in texts)
         assert not any("Alpha Beta" in t for t in texts)
     finally:
