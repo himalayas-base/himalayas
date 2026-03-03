@@ -316,7 +316,7 @@ def _render_justified_row(
     font: Optional[str],
 ) -> None:
     """
-    Renders one legend row with justified horizontal spacing.
+    Renders one legend row with left-packed horizontal spacing.
 
     Args:
         ax_block (plt.Axes): Legend block axes.
@@ -348,15 +348,9 @@ def _render_justified_row(
     item_widths = [swatch_w + text_gap + text_w for text_w in text_widths]
     k = len(item_widths)
 
-    # Compute horizontal gap to justify items across the row with at least col_gap spacing. If content
-    # is too wide, gaps collapse to col_gap and overflow is visually apparent.
-    gap = 0.0
-    if k > 1:
-        min_total = sum(item_widths) + col_gap * max(k - 1, 0)
-        # Preserve minimum spacing and let overflow be visually apparent if content is too wide.
-        gap = max(col_gap, col_gap + (1.0 - min_total) / float(k - 1))
-
-    # Render items left-to-right with justified spacing and vertical centering within the row.
+    # Left-pack items and treat col_gap as fixed inter-item spacing.
+    gap = col_gap if k > 1 else 0.0
+    # Render items left-to-right with fixed spacing; measured widths prevent overlap.
     x_cursor = 0.0
     for item, label, item_w in zip(row_items, labels, item_widths):
         # Top-pack row content so title_pad directly controls title-to-items spacing.
