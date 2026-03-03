@@ -216,6 +216,26 @@ def _measure_text_width_axes(
     return text_bbox.width / max(ax_bbox.width, 1e-12)
 
 
+def _measure_text_height_axes(
+    ax: plt.Axes,
+    text_obj: plt.Text,
+) -> float:
+    """
+    Measures rendered text height in y-axis normalized units.
+
+    Args:
+        ax (plt.Axes): Legend block axes.
+        text_obj (plt.Text): Rendered text artist.
+
+    Returns:
+        float: Text height in normalized [0, 1] axes units.
+    """
+    renderer = ax.figure.canvas.get_renderer()
+    text_bbox = text_obj.get_window_extent(renderer=renderer)
+    ax_bbox = ax.get_window_extent(renderer=renderer)
+    return text_bbox.height / max(ax_bbox.height, 1e-12)
+
+
 def _resolve_block_geometry(
     fig: plt.Figure,
     *,
@@ -405,14 +425,9 @@ def _render_block(
     fontsize = float(layout["fontsize"])
     text_color = layout["color"]
     font = layout.get("font", None)
-    title_frac = 0.0
+    title_artist = None
     if title:
-        title_frac = _title_fraction(
-            fig,
-            block_height=h,
-            title_pad=float(layout["title_pad"]),
-        )
-        ax_block.text(
+        title_artist = ax_block.text(
             0.0,
             1.0,
             title,
@@ -424,8 +439,17 @@ def _render_block(
             clip_on=False,
         )
 
-    # Resolve row and swatch geometry after reserving title space.
-    content_top = max(0.0, 1.0 - title_frac)
+    # Draw once so title extents can be measured and reserved before row layout.
+    fig.canvas.draw()
+    title_text_frac = 0.0
+    if title_artist is not None:
+        title_text_frac = _measure_text_height_axes(ax_block, title_artist)
+    title_pad_frac = _title_fraction(
+        fig,
+        block_height=h,
+        title_pad=float(layout["title_pad"]),
+    )
+    content_top = max(0.0, 1.0 - title_text_frac - title_pad_frac)
     geom = _resolve_block_geometry(
         fig,
         block_width=w,
@@ -445,9 +469,6 @@ def _render_block(
         if r >= nrows:
             break
         rows[r].append(item)
-
-    # Prime the renderer once before text width measurements.
-    fig.canvas.draw()
 
     # Render each row by justifying items across the row with col_gap as minimum spacing.
     for r, row_items in enumerate(rows):
