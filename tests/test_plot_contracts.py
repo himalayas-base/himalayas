@@ -296,6 +296,116 @@ def test_plot_label_bar_requires_colors(toy_results):
 
 
 @pytest.mark.api
+def test_plot_label_legends_render_categorical_track(toy_results):
+    """
+    Ensures categorical label legends render from a declared categorical row label bar.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        values = {"a": "1", "b": "2", "c": "1", "d": "2"}
+        colors = {
+            "1": "#1b9e77",
+            "2": "#d95f02",
+            "3": "#7570b3",  # Unused in matrix rows
+        }
+        plotter = (
+            Plotter(toy_results)
+            .plot_matrix()
+            .plot_label_bar(
+                values=values,
+                name="orf_category",
+                mode="categorical",
+                colors=colors,
+                title="ORF Category",
+            )
+            .add_label_legend(
+                name="orf_category",
+                nrows=1,
+                row_pad=0.01,
+                col_pad=0.015,
+            )
+            .plot_label_legends(height=0.07, gap=0.02, swatch_scale=0.9)
+        )
+        plotter.show()
+        texts = extract_figure_text(plotter._fig, strip=True, nonempty=True)
+        assert "ORF Category" in texts
+        assert "1" in texts
+        assert "2" in texts
+        assert "3" not in texts
+        assert plotter.label_legend_layout_ is not None
+        assert plotter._label_legends[0]["row_pad"] == pytest.approx(0.01)
+        assert plotter._label_legends[0]["col_pad"] == pytest.approx(0.015)
+        assert plotter.label_legend_layout_["swatch_scale"] == pytest.approx(0.9)
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+def test_plot_label_legends_require_categorical_track_mode(toy_results):
+    """
+    Ensures categorical legends reject non-categorical row label bars.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+
+    Raises:
+        ValueError: If the referenced label bar is not categorical.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        with pytest.raises(ValueError, match="mode='categorical'"):
+            (
+                Plotter(toy_results)
+                .plot_matrix()
+                .plot_label_bar(
+                    values={"a": 0.0, "b": 1.0, "c": 0.5, "d": 1.0},
+                    name="continuous_track",
+                    mode="continuous",
+                    cmap="viridis",
+                )
+                .add_label_legend(name="continuous_track")
+                .plot_label_legends()
+                .show()
+            )
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+def test_plot_label_legends_require_known_row_track(toy_results):
+    """
+    Ensures categorical legends reject unknown row label-bar references.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+
+    Raises:
+        ValueError: If the referenced label-bar name is unknown.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        with pytest.raises(ValueError, match="Unknown label-legend name"):
+            (
+                Plotter(toy_results)
+                .plot_matrix()
+                .add_label_legend(name="missing_track")
+                .plot_label_legends()
+                .show()
+            )
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
 def test_plot_cluster_labels_respect_np_order(toy_results):
     """
     Ensures cluster labels keep label first while respecting q/fe/p/n order from label_fields
