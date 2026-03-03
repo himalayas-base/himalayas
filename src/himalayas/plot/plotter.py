@@ -228,8 +228,9 @@ class Plotter:
             row_pad (Optional[float]): Vertical spacing between rows inside this legend
                 block (block-relative fraction). If None, uses renderer default.
                 Defaults to None.
-            col_pad (Optional[float]): Horizontal spacing between columns inside this legend
-                block (block-relative fraction). If None, uses renderer default.
+            col_pad (Optional[float]): Minimum horizontal spacing between items inside
+                each legend row (block-relative fraction). Extra row width is distributed
+                during justification. If None, uses renderer default.
                 Defaults to None.
             show_only_present (bool): Whether to include only categories present in the
                 plotted matrix rows. Defaults to True.

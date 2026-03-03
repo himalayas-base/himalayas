@@ -155,27 +155,65 @@ def _title_fraction(
     fig: plt.Figure,
     *,
     block_height: float,
-    fontsize: float,
     title_pad: float,
 ) -> float:
     """
-    Converts title line-height + title pad from points to a block-relative fraction.
+    Converts title pad from points to a block-relative fraction.
 
     Args:
         fig (plt.Figure): Matplotlib Figure.
 
     Kwargs:
         block_height (float): Block height in figure-relative units.
-        fontsize (float): Title font size in points.
         title_pad (float): Title padding in points.
 
     Returns:
         float: Title height as a fraction of block height.
     """
     block_inches = max(fig.get_figheight() * block_height, 1e-12)
-    line_inches = (fontsize * 1.2) / 72.0
+    # Matplotlib text sizing APIs use points; typography defines 72 points per inch.
     pad_inches = title_pad / 72.0
-    return min(0.40, (line_inches + pad_inches) / block_inches)
+    return max(0.0, pad_inches / block_inches)
+
+
+def _measure_text_width_axes(
+    ax: plt.Axes,
+    text: str,
+    *,
+    fontsize: float,
+    font: Optional[str],
+) -> float:
+    """
+    Measures text width in x-axis normalized units for a legend block.
+
+    Args:
+        ax (plt.Axes): Legend block axes.
+        text (str): Label text to measure.
+
+    Kwargs:
+        fontsize (float): Font size in points.
+        font (Optional[str]): Font family name.
+
+    Returns:
+        float: Text width in normalized [0, 1] axes units.
+    """
+    renderer = ax.figure.canvas.get_renderer()
+    probe = ax.text(
+        0.0,
+        0.0,
+        text,
+        ha="left",
+        va="bottom",
+        fontsize=fontsize,
+        color="black",
+        fontname=font if font is not None else None,
+        alpha=0.0,
+        clip_on=False,
+    )
+    text_bbox = probe.get_window_extent(renderer=renderer)
+    probe.remove()
+    ax_bbox = ax.get_window_extent(renderer=renderer)
+    return text_bbox.width / max(ax_bbox.width, 1e-12)
 
 
 def _render_block(
@@ -202,8 +240,6 @@ def _render_block(
         block (Dict[str, Any]): Resolved block specification.
         layout (LabelLegendLayout): Resolved legend-strip layout.
 
-    Raises:
-        ValueError: If computed cell geometry is invalid.
     """
     # Create a local axes for this legend block in normalized [0, 1] coordinates.
     ax_block = fig.add_axes([x0, y0, w, h], frameon=False)
@@ -211,10 +247,10 @@ def _render_block(
     ax_block.set_ylim(0.0, 1.0)
     ax_block.set_xticks([])
     ax_block.set_yticks([])
+
     # Read block metadata and reserve optional vertical space for the title.
     nrows = int(block["nrows"])
     ncols = int(block["ncols"])
-    name = str(block.get("name", "<unknown>"))
     title = str(block.get("title", ""))
     fontsize = float(layout["fontsize"])
     text_color = layout["color"]
@@ -224,7 +260,6 @@ def _render_block(
         title_frac = _title_fraction(
             fig,
             block_height=h,
-            fontsize=fontsize,
             title_pad=float(layout["title_pad"]),
         )
         ax_block.text(
@@ -239,7 +274,8 @@ def _render_block(
             clip_on=False,
         )
 
-    content_top = 1.0 - title_frac
+    # Compute geometry for laying out items in a grid within the remaining content area.
+    content_top = max(0.0, 1.0 - title_frac)
     content_h = content_top
     # Use per-legend row/column spacing when provided, otherwise keep v1 defaults.
     col_pad = block.get("col_pad", None)
@@ -252,61 +288,87 @@ def _render_block(
         row_gap = float(row_pad) if row_pad is not None else 0.02
     else:
         row_gap = 0.0
-    # Compute per-cell geometry after applying internal row/column gaps.
-    cell_w = (1.0 - col_gap * (ncols - 1)) / float(ncols)
-    cell_h = (content_h - row_gap * (nrows - 1)) / float(nrows)
-    # Validation
-    if cell_w <= 0 or cell_h <= 0:
-        raise ValueError(
-            "label legend geometry is too tight for "
-            f"{name!r}; increase plot_label_legends(height=...)"
-        )
+    # Compute row geometry once; items in each row are laid out with horizontal justification.
+    row_h = (content_h - row_gap * (nrows - 1)) / float(max(nrows, 1))
+    # Clamp to a tiny positive value and let visual clipping reflect over-constrained settings.
+    row_h = max(row_h, 1e-6)
 
     # Convert data-unit widths so swatches remain visually square in screen space.
     x_unit_in = w * fig.get_figwidth()
     y_unit_in = h * fig.get_figheight()
     xy_ratio = y_unit_in / max(x_unit_in, 1e-12)
-
-    # Render each legend item into its grid cell as a color swatch plus label text.
+    # Group items by requested row-major grid rows.
+    rows: list[list[dict[str, Any]]] = [[] for _ in range(nrows)]
     for idx, item in enumerate(block["items"]):
         r = idx // ncols
-        c = idx % ncols
         if r >= nrows:
             break
-        cell_x0 = c * (cell_w + col_gap)
-        cell_y0 = content_top - (r + 1) * cell_h - r * row_gap
+        rows[r].append(item)
 
-        swatch_h = min(
-            cell_h * float(layout["swatch_scale"]),
-            cell_h * 0.95,
-        )
-        swatch_w = min(swatch_h * xy_ratio, cell_w * 0.35)
-        swatch_x0 = cell_x0
-        swatch_y0 = cell_y0 + 0.5 * (cell_h - swatch_h)
-        ax_block.add_patch(
-            plt.Rectangle(
-                (swatch_x0, swatch_y0),
-                swatch_w,
-                swatch_h,
-                facecolor=item["color"],
-                edgecolor="none",
-                zorder=2,
+    # Prime the renderer once before text width measurements.
+    fig.canvas.draw()
+    swatch_h = min(
+        row_h * float(layout["swatch_scale"]),
+        row_h * 0.95,
+    )
+    # Keep swatches visually square while capping width so labels retain room.
+    nominal_cell_w = 1.0 / float(max(ncols, 1))
+    swatch_w = min(swatch_h * xy_ratio, nominal_cell_w * 0.35)
+    text_gap = 0.012
+
+    # Render each row by justifying items across the row with col_gap as minimum spacing.
+    for r, row_items in enumerate(rows):
+        if not row_items:
+            continue
+        row_top = content_top - r * (row_h + row_gap)
+        # Measure text widths to compute justification gap for this row; all items share the same row_gap.
+        labels = [str(item.get("label", item.get("value", ""))) for item in row_items]
+        text_widths = [
+            _measure_text_width_axes(
+                ax_block,
+                label,
+                fontsize=fontsize,
+                font=font,
             )
-        )
-        # Use a fixed swatch-to-text gap so labels align consistently across cells.
-        text_gap = 0.012
-        label = str(item.get("label", item.get("value", "")))
-        ax_block.text(
-            swatch_x0 + swatch_w + text_gap,
-            cell_y0 + 0.5 * cell_h,
-            label,
-            ha="left",
-            va="center",
-            fontsize=fontsize,
-            color=text_color,
-            fontname=font if font is not None else None,
-            clip_on=False,
-        )
+            for label in labels
+        ]
+        item_widths = [swatch_w + text_gap + text_w for text_w in text_widths]
+        k = len(item_widths)
+        min_total = sum(item_widths) + col_gap * max(k - 1, 0)
+
+        gap = 0.0
+        if k > 1:
+            # Preserve minimum spacing and let overflow be visually apparent if content is too wide.
+            gap = max(col_gap, col_gap + (1.0 - min_total) / float(k - 1))
+
+        # Iterate through items in this row and render swatch + label with horizontal justification.
+        x_cursor = 0.0
+        for item, label, item_w in zip(row_items, labels, item_widths):
+            # Top-pack row content so title_pad directly controls title-to-items spacing.
+            swatch_y0 = row_top - swatch_h
+            row_mid_y = swatch_y0 + 0.5 * swatch_h
+            ax_block.add_patch(
+                plt.Rectangle(
+                    (x_cursor, swatch_y0),
+                    swatch_w,
+                    swatch_h,
+                    facecolor=item["color"],
+                    edgecolor="none",
+                    zorder=2,
+                )
+            )
+            ax_block.text(
+                x_cursor + swatch_w + text_gap,
+                row_mid_y,
+                label,
+                ha="left",
+                va="center",
+                fontsize=fontsize,
+                color=text_color,
+                fontname=font if font is not None else None,
+                clip_on=False,
+            )
+            x_cursor += item_w + gap
 
 
 class LabelLegendRenderer:
@@ -353,7 +415,7 @@ class LabelLegendRenderer:
             LabelLegendLayout: Resolved legend-strip layout.
 
         Raises:
-            ValueError: If strip/block geometry cannot fit requested content.
+            ValueError: If a legend grid declaration cannot fit requested items.
         """
         # Resolve defaults once so downstream geometry and styling use concrete values.
         layout = _resolve_label_legend_layout(self.layout, style)
@@ -390,11 +452,8 @@ class LabelLegendRenderer:
         n_blocks = len(blocks)
         block_vpad = float(layout["vpad"])
         usable_h = geom["strip_h"] - block_vpad * (n_blocks - 1)
-        if usable_h <= 0:
-            raise ValueError(
-                "label legend strip height is too small for requested vpad; "
-                "increase plot_label_legends(height=...)"
-            )
+        # Clamp to a tiny positive strip height and let overflow/clipping remain visual.
+        usable_h = max(usable_h, 1e-6)
 
         # Allocate block heights proportionally to row counts for stable cell sizing.
         weights = [float(block["nrows"]) for block in blocks]
