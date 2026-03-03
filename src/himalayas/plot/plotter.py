@@ -129,6 +129,7 @@ class Plotter:
         font: Optional[str] = None,
         color: Optional[str] = None,
         label_position: str = "below",
+        label_pad: float = 2.0,
         tick_decimals: Optional[int] = None,
     ) -> Plotter:
         """
@@ -148,6 +149,8 @@ class Plotter:
             font (Optional[str]): Tick/label font family. Defaults to None.
             color (Optional[str]): Tick/label color. Defaults to None.
             label_position (str): Label placement ("below" or "above"). Defaults to "below".
+            label_pad (float): Padding between colorbar and its label text (points).
+                Defaults to 2.0.
             tick_decimals (Optional[int]): Maximum decimals shown on colorbar ticks.
                 Trailing zeros are trimmed. Defaults to None.
 
@@ -155,12 +158,19 @@ class Plotter:
             Plotter: Self for chaining.
 
         Raises:
-            TypeError: If tick_decimals is not an integer when provided.
-            ValueError: If label_position is not "below" or "above", or tick_decimals is negative.
+            TypeError: If tick_decimals is not an integer when provided, or label_pad
+                is not numeric.
+            ValueError: If label_position is not "below" or "above", tick_decimals
+                is negative, or label_pad is negative.
         """
         # Validation
         if label_position not in {"below", "above"}:
             raise ValueError("label_position must be 'below' or 'above'")
+        if isinstance(label_pad, bool) or not isinstance(label_pad, (int, float)):
+            raise TypeError("label_pad must be a float >= 0")
+        label_pad = float(label_pad)
+        if label_pad < 0:
+            raise ValueError("label_pad must be >= 0")
         if tick_decimals is not None:
             if isinstance(tick_decimals, bool) or not isinstance(tick_decimals, int):
                 raise TypeError("tick_decimals must be an int >= 0 or None")
@@ -180,6 +190,7 @@ class Plotter:
             "font": font,
             "color": color,
             "label_position": label_position,
+            "label_pad": label_pad,
             "tick_decimals": tick_decimals,
         }
         return self

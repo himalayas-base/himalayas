@@ -42,6 +42,7 @@ class ColorbarLayout(TypedDict, total=False):
     vpad: float
     gap: float
     label_position: str
+    label_pad: float
     border_color: str
     border_width: float
     border_alpha: float
@@ -104,6 +105,7 @@ def _resolve_colorbar_layout(
     colorbar_layout.setdefault("vpad", 0.01)
     colorbar_layout.setdefault("gap", 0.02)
     colorbar_layout.setdefault("label_position", "below")
+    colorbar_layout.setdefault("label_pad", 2.0)
     colorbar_layout.setdefault("tick_decimals", None)
     # Resolve border properties
     border_color = colorbar_layout.get("border_color")
@@ -229,7 +231,7 @@ def _render_colorbar_cell(
                 label,
                 fontsize=layout["fontsize"],
                 color=text_color,
-                labelpad=2,
+                labelpad=layout["label_pad"],
                 fontname=font if font is not None else None,
             )
         else:
@@ -237,7 +239,7 @@ def _render_colorbar_cell(
                 label,
                 fontsize=layout["fontsize"],
                 color=text_color,
-                pad=2,
+                pad=layout["label_pad"],
                 fontname=font if font is not None else None,
             )
 

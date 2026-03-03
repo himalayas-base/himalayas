@@ -217,14 +217,14 @@ def test_plotter_plot_handle_rebuilds_closed_figure(toy_results, tmp_path):
 @pytest.mark.api
 def test_plot_colorbars_tick_decimals_contract(toy_results):
     """
-    Ensures tick_decimals validation and display precision behavior are consistent.
+    Ensures colorbar precision and label spacing contracts are consistent.
 
     Args:
         toy_results (Results): Results fixture with clusters and layout.
 
     Raises:
-        TypeError: If tick_decimals is not an integer.
-        ValueError: If tick_decimals is negative.
+        TypeError: If tick_decimals is not an integer or label_pad is invalid.
+        ValueError: If tick_decimals is negative or label_pad is negative.
     """
     with pytest.raises(TypeError, match="tick_decimals"):
         Plotter(toy_results).plot_colorbars(tick_decimals=1.5)
@@ -232,6 +232,12 @@ def test_plot_colorbars_tick_decimals_contract(toy_results):
         Plotter(toy_results).plot_colorbars(tick_decimals=True)
     with pytest.raises(ValueError, match="tick_decimals"):
         Plotter(toy_results).plot_colorbars(tick_decimals=-1)
+    with pytest.raises(TypeError, match="label_pad"):
+        Plotter(toy_results).plot_colorbars(label_pad="2")
+    with pytest.raises(TypeError, match="label_pad"):
+        Plotter(toy_results).plot_colorbars(label_pad=True)
+    with pytest.raises(ValueError, match="label_pad"):
+        Plotter(toy_results).plot_colorbars(label_pad=-0.1)
 
     plt = use_agg_backend()
     plt_show = plt.show
@@ -247,7 +253,7 @@ def test_plot_colorbars_tick_decimals_contract(toy_results):
                 ticks=[0.0, 0.1234, 1.0],
                 label="Precision",
             )
-            .plot_colorbars(tick_decimals=2)
+            .plot_colorbars(tick_decimals=2, label_pad=7.0)
         )
         plotter.show()
         fig = plotter._fig
@@ -256,6 +262,9 @@ def test_plot_colorbars_tick_decimals_contract(toy_results):
         assert "0.12" in tick_texts
         assert "0.1234" not in tick_texts
         assert all("." not in txt or len(txt.split(".", 1)[1]) <= 2 for txt in tick_texts)
+        precision_axes = [ax for ax in fig.axes if ax.get_xlabel() == "Precision"]
+        assert len(precision_axes) == 1
+        assert precision_axes[0].xaxis.labelpad == pytest.approx(7.0)
     finally:
         plt.show = plt_show
 
