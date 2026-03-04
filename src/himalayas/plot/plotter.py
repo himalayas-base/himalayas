@@ -5,7 +5,7 @@ himalayas/plot/plotter
 
 from __future__ import annotations
 
-from collections.abc import Hashable, Mapping
+from collections.abc import Callable, Hashable, Mapping
 from os import PathLike
 from typing import Any, Optional, Sequence, Union
 
@@ -419,7 +419,7 @@ class Plotter:
         *,
         name: str,
         kind: str,
-        renderer,
+        renderer: Callable[..., None],
         left_pad: float,
         width: float,
         right_pad: float,

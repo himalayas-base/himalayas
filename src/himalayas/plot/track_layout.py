@@ -5,6 +5,7 @@ himalayas/plot/track_layout
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 
@@ -25,7 +26,7 @@ class TrackLayoutManager:
     def register_track(
         self,
         name: str,
-        renderer: Any,
+        renderer: Callable[..., None],
         width: float,
         left_pad: float = 0.0,
         right_pad: float = 0.0,
@@ -38,7 +39,7 @@ class TrackLayoutManager:
 
         Args:
             name (str): Track name.
-            renderer (Any): Track renderer instance.
+            renderer (Callable[..., None]): Track renderer callable.
             width (float): Track width in figure coordinates.
             left_pad (float): Left padding in figure coordinates. Defaults to 0.0.
             right_pad (float): Right padding in figure coordinates. Defaults to 0.0.

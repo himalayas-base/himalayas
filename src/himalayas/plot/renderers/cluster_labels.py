@@ -38,7 +38,7 @@ class TrackSpec(TypedDict, total=False):
 
     name: str
     kind: str
-    renderer: Callable[..., Any]
+    renderer: Callable[..., None]
     left_pad: float
     width: float
     right_pad: float
