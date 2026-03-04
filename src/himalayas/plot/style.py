@@ -123,6 +123,7 @@ DEFAULT_STYLE: StyleDefaults = {
     # Default text color (used unless overridden via kwargs)
     "text_color": "black",
     "title_fontsize": 14,
+    # Matrix title padding in points (Matplotlib text units).
     "title_pad": 15,
     "label_fontsize": 9,
     # Separator lines in label panel

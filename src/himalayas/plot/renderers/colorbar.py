@@ -226,12 +226,14 @@ def _render_colorbar_cell(
     # Set colorbar label
     label = cb.get("label")
     if label:
+        # Matplotlib label spacing APIs interpret padding in points.
+        label_pad_pts = layout["label_pad"]
         if layout["label_position"] == "below":
             ax_cb.set_xlabel(
                 label,
                 fontsize=layout["fontsize"],
                 color=text_color,
-                labelpad=layout["label_pad"],
+                labelpad=label_pad_pts,
                 fontname=font if font is not None else None,
             )
         else:
@@ -239,7 +241,7 @@ def _render_colorbar_cell(
                 label,
                 fontsize=layout["fontsize"],
                 color=text_color,
-                pad=layout["label_pad"],
+                pad=label_pad_pts,
                 fontname=font if font is not None else None,
             )
 

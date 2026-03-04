@@ -229,8 +229,8 @@ class Plotter:
                 block (block-relative fraction). If None, uses renderer default.
                 Defaults to None.
             col_pad (Optional[float]): Minimum horizontal spacing between items inside
-                each legend row (block-relative fraction). Extra row width is distributed
-                during justification. If None, uses renderer default.
+                each legend row (block-relative fraction). Items are left-packed and this
+                value is used as fixed inter-item spacing. If None, uses renderer default.
                 Defaults to None.
             show_only_present (bool): Whether to include only categories present in the
                 plotted matrix rows. Defaults to True.
@@ -680,11 +680,19 @@ class Plotter:
             fontsize (float): Font size for both axis labels. Defaults to 12.
             font (str): Font family to apply to both axis labels. Defaults to None.
             color (str): Text color for both axis labels. Defaults to style text_color.
+            xlabel_pad (float): Padding between x-axis label and axis (points).
+                Defaults to renderer default.
+            ylabel_pad (float): Padding between matrix and external y-label axis
+                (figure fraction). Defaults to style ylabel_pad.
             **kwargs: Renderer keyword arguments. Defaults to {}.
 
         Returns:
             Plotter: Self for chaining.
         """
+        if "xlabel_pad" in kwargs and kwargs["xlabel_pad"] is not None:
+            kwargs["xlabel_pad"] = float(kwargs["xlabel_pad"])
+        if "ylabel_pad" in kwargs and kwargs["ylabel_pad"] is not None:
+            kwargs["ylabel_pad"] = float(kwargs["ylabel_pad"])
         self._layers.append(("matrix_axis_labels", kwargs))
         return self
 
@@ -725,11 +733,15 @@ class Plotter:
         Declares titles for bar tracks (shown below bars in label panel).
 
         Kwargs:
+            pad (float): Vertical offset from track to title text (points).
+                Defaults to renderer default.
             **kwargs: Renderer keyword arguments. Defaults to {}.
 
         Returns:
             Plotter: Self for chaining.
         """
+        if "pad" in kwargs and kwargs["pad"] is not None:
+            kwargs["pad"] = float(kwargs["pad"])
         self._layers.append(("bar_labels", kwargs))
         return self
 
@@ -899,11 +911,15 @@ class Plotter:
             title (str): Title text.
 
         Kwargs:
+            pad (float): Padding between title text and matrix axis (points).
+                Defaults to style title_pad.
             **kwargs: Renderer keyword arguments. Defaults to {}.
 
         Returns:
             Plotter: Self for chaining.
         """
+        if "pad" in kwargs and kwargs["pad"] is not None:
+            kwargs["pad"] = float(kwargs["pad"])
         self._layers.append(("title", {"title": title, **kwargs}))
         return self
 

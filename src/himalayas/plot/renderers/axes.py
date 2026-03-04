@@ -83,7 +83,8 @@ class AxesRenderer:
         ylabel = self.kwargs.get("ylabel", "")
         fontsize = self.kwargs.get("fontsize", 12)
         fontweight = self.kwargs.get("fontweight", "normal")
-        xlabel_pad = self.kwargs.get("xlabel_pad", 8)
+        # X-label padding uses Matplotlib text units (points).
+        xlabel_pad_pts = self.kwargs.get("xlabel_pad", 8)
         font = self.kwargs.get("font", None)
         color = self.kwargs.get("color", style.get("text_color", "black"))
         alpha = self.kwargs.get("alpha", 1.0)
@@ -91,7 +92,7 @@ class AxesRenderer:
         txt_xlabel = ax.set_xlabel(
             xlabel,
             fontweight=fontweight,
-            labelpad=xlabel_pad,
+            labelpad=xlabel_pad_pts,
         )
         self._apply_text_style(
             txt_xlabel,
@@ -104,8 +105,10 @@ class AxesRenderer:
         # Apply y-axis label
         if isinstance(ylabel, str) and ylabel.strip():
             bbox = ax.get_position()
-            pad_frac = self.kwargs.get("ylabel_pad", style.get("ylabel_pad", 0.015))
-            x = bbox.x1 + pad_frac
+            # Y-label padding is geometric spacing (figure fraction), because the y-label
+            # is rendered in a dedicated auxiliary axes.
+            ylabel_pad_frac = self.kwargs.get("ylabel_pad", style.get("ylabel_pad", 0.015))
+            x = bbox.x1 + ylabel_pad_frac
             y = bbox.y0
             width = 0.015
             height = bbox.height
@@ -249,6 +252,7 @@ class AxesRenderer:
         ax.set_title(
             self.kwargs["title"],
             fontsize=self.kwargs.get("fontsize", style.get("title_fontsize", 14)),
+            # Title padding follows Matplotlib text units (points).
             pad=self.kwargs.get("pad", style.get("title_pad", 15)),
             color=self.kwargs.get("color", style.get("text_color", "black")),
         )
