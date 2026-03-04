@@ -41,15 +41,15 @@ def _build_tree_arrays(Z: np.ndarray, n_leaves: int) -> Tuple[np.ndarray, np.nda
     Returns:
         Tuple[np.ndarray, np.ndarray, np.ndarray]: Left child, right child, and parent arrays.
     """
-    # Normalize linkage matrix and derive node counts
+    # Normalize linkage matrix and derive node counts.
     Z = np.asarray(Z)
     m = int(Z.shape[0])
     n_nodes = int(n_leaves + m)
-    # Allocate explicit binary-tree representation
+    # Allocate explicit binary-tree representation.
     left = np.full(n_nodes, -1, dtype=np.int32)
     right = np.full(n_nodes, -1, dtype=np.int32)
     parent = np.full(n_nodes, -1, dtype=np.int32)
-    # Populate child and parent pointers for each merge
+    # Populate child and parent pointers for each merge.
     for i in range(m):
         a = int(Z[i, 0])
         b = int(Z[i, 1])
@@ -74,15 +74,15 @@ def _compute_subtree_sizes(left: np.ndarray, right: np.ndarray, n_leaves: int) -
     Returns:
         np.ndarray: Array of subtree sizes for each node.
     """
-    # Initialize sizes array
+    # Initialize sizes array.
     n_nodes = int(left.size)
     sizes = np.zeros(n_nodes, dtype=np.int32)
     sizes[:n_leaves] = 1
-    # Internal nodes are laid out in increasing index order
+    # Internal nodes are laid out in increasing index order.
     for node in range(n_leaves, n_nodes):
         a = int(left[node])
         b = int(right[node])
-        # Defensive: linkage format guarantees these exist for internal nodes
+        # Defensive: linkage format guarantees these exist for internal nodes.
         sizes[node] = int(sizes[a] + sizes[b])
 
     return sizes
@@ -103,14 +103,14 @@ def _lca_pair(a: int, b: int, parent: np.ndarray) -> int:
     Raises:
         RuntimeError: If no common ancestor is found (should not happen in a valid tree).
     """
-    # Collect ancestors of `a`, then walk `b`'s ancestors until we find a match
+    # Collect ancestors of `a`, then walk `b`'s ancestors until we find a match.
     seen = set()
     x = int(a)
     while x != -1:
         seen.add(x)
         x = int(parent[x])
 
-    # Now walk up from `b`, looking for the first ancestor in `seen`
+    # Now walk up from `b`, looking for the first ancestor in `seen`.
     y = int(b)
     while y not in seen:
         y = int(parent[y])
@@ -139,7 +139,7 @@ def _lca_many(nodes: Sequence[int], parent: np.ndarray) -> int:
     # Validation
     if not nodes:
         raise ValueError("LCA requested for empty node set")
-    # Iteratively compute LCA pairwise
+    # Iteratively compute LCA pairwise.
     cur = int(nodes[0])
     for x in nodes[1:]:
         cur = _lca_pair(cur, int(x), parent)
@@ -166,13 +166,13 @@ def _node_leaves(
     Returns:
         np.ndarray: Sorted array of leaf indices under the specified node.
     """
-    # Check cache first
+    # Check cache first.
     node = int(node)
     got = cache.get(node)
     if got is not None:
         return got
 
-    # Iterative DFS to collect leaves
+    # Iterative DFS to collect leaves.
     out: List[int] = []
     stack: List[int] = [node]
     while stack:
@@ -182,11 +182,11 @@ def _node_leaves(
             continue
         a = int(left[u])
         b = int(right[u])
-        # Push both children
+        # Push both children.
         stack.append(a)
         stack.append(b)
 
-    # Sort leaves for deterministic output
+    # Sort leaves for deterministic output.
     arr = np.asarray(out, dtype=np.int32)
     if arr.size > 1:
         arr.sort()
@@ -225,17 +225,17 @@ def _relabel_by_dendrogram_order(cluster_ids: np.ndarray, leaf_order: np.ndarray
     """
     cluster_ids = np.asarray(cluster_ids)
     leaf_order = np.asarray(leaf_order, dtype=int)
-    # Map cluster ID to first position in dendrogram order
+    # Map cluster ID to first position in dendrogram order.
     first_pos: Dict[int, int] = {}
     for pos, leaf in enumerate(leaf_order.tolist()):
         cid = int(cluster_ids[int(leaf)])
         if cid not in first_pos:
             first_pos[cid] = int(pos)
 
-    # Order cluster IDs by first appearance
+    # Order cluster IDs by first appearance.
     ordered = [cid for cid, _ in sorted(first_pos.items(), key=lambda kv: kv[1])]
     mapping = {cid: i + 1 for i, cid in enumerate(ordered)}
-    # Apply mapping to original cluster IDs
+    # Apply mapping to original cluster IDs.
     out = np.empty_like(cluster_ids, dtype=np.int32)
     for i, cid in enumerate(cluster_ids.tolist()):
         out[i] = int(mapping[int(cid)])
@@ -265,9 +265,9 @@ def _enforce_min_cluster_size(
         ValueError: If min_cluster_size exceeds the number of leaves.
     """
     cluster_ids = np.asarray(cluster_ids, dtype=np.int32)
-    # Number of leaves
+    # Number of leaves.
     n = int(labels.shape[0])
-    # Return early if no enforcement needed
+    # Return early if no enforcement needed.
     if min_cluster_size <= 1:
         return cluster_ids
     if min_cluster_size > n:
@@ -276,20 +276,20 @@ def _enforce_min_cluster_size(
             "Decrease min_cluster_size or cluster fewer items."
         )
 
-    # Build tree structure
+    # Build tree structure.
     left, right, parent = _build_tree_arrays(Z, n)
     sizes = _compute_subtree_sizes(left, right, n)
-    # Deterministic ordering uses the dendrogram leaf order
+    # Deterministic ordering uses the dendrogram leaf order.
     leaf_order = leaves_list(Z)
-    # Group leaves by initial cluster IDs
+    # Group leaves by initial cluster IDs.
     groups = _group_leaves_by_cluster(cluster_ids)
 
-    # Map each initial cluster to target subtree node
+    # Map each initial cluster to target subtree node.
     target_for_cluster: Dict[int, int] = {}
     for cid, leaves in groups.items():
         lca = _lca_many(leaves, parent)
         node = int(lca)
-        # Climb until minimum size satisfied
+        # Climb until minimum size satisfied.
         while sizes[node] < int(min_cluster_size):
             p = int(parent[node])
             if p == -1:
@@ -298,15 +298,15 @@ def _enforce_min_cluster_size(
 
         target_for_cluster[int(cid)] = int(node)
 
-    # Collect unique target nodes
+    # Collect unique target nodes.
     target_nodes: Set[int] = set(target_for_cluster.values())
-    # Prune overlaps: if a node has an ancestor also selected, drop the node
+    # Prune overlaps: if a node has an ancestor also selected, drop the node.
     keep: Set[int] = set()
     for node in target_nodes:
         cur = int(node)
         covered = False
         p = int(parent[cur])
-        # Walk up to root
+        # Walk up to root.
         while p != -1:
             if p in target_nodes:
                 covered = True
@@ -316,15 +316,15 @@ def _enforce_min_cluster_size(
         if not covered:
             keep.add(cur)
 
-    # Assign leaves by kept nodes
+    # Assign leaves by kept nodes.
     assigned = np.full(n, -1, dtype=np.int32)
     leaf_cache: Dict[int, np.ndarray] = {}
 
-    # Deterministic: assign kept nodes by first appearance in dendrogram order
+    # Deterministic: assign kept nodes by first appearance in dendrogram order.
     keep_list = list(keep)
     keep_first_pos: Dict[int, int] = {}
     pos_map = {int(leaf): int(pos) for pos, leaf in enumerate(leaf_order.tolist())}
-    # Compute first positions
+    # Compute first positions.
     for node in keep_list:
         leaves = _node_leaves(node, left, right, n, leaf_cache)
         keep_first_pos[int(node)] = min(pos_map[int(x)] for x in leaves.tolist())
@@ -337,7 +337,7 @@ def _enforce_min_cluster_size(
     if np.any(assigned < 0):
         raise RuntimeError("Minimum cluster size enforcement failed to assign all leaves")
 
-    # Relabel to 1..K in dendrogram order for stable downstream presentation
+    # Relabel to 1..K in dendrogram order for stable downstream presentation.
     return _relabel_by_dendrogram_order(assigned, leaf_order)
 
 
@@ -380,8 +380,8 @@ class Clusters:
         if self.labels.shape[0] != self.cluster_ids.shape[0]:
             raise ValueError("labels and cluster_ids length mismatch")
 
-        # Optional post-process: enforce a minimum cluster size by merging upward
-        # Along the dendrogram (nearest neighbor defined by lowest merge height)
+        # Optional post-process: enforce a minimum cluster size by merging upward.
+        # Along the dendrogram (nearest neighbor defined by lowest merge height).
         if min_cluster_size > 1:
             self.cluster_ids = _enforce_min_cluster_size(
                 self.linkage_matrix,
@@ -390,7 +390,7 @@ class Clusters:
                 min_cluster_size,
             ).astype(int)
 
-        # Lazy caches for computed properties
+        # Lazy caches for computed properties.
         self._leaf_order: Optional[np.ndarray] = None
         self._label_to_cluster: Optional[Dict[Any, int]] = None
         self._cluster_to_labels: Optional[Dict[int, Set[Any]]] = None
@@ -535,13 +535,13 @@ class Clusters:
         Raises:
             ValueError: If `strict` is True and any cluster is non-contiguous in the requested order.
         """
-        # Get cluster IDs in the requested order
+        # Get cluster IDs in the requested order.
         cids = self.ordered_cluster_ids(order)
         spans: List[Tuple[int, int, int]] = []
         if cids.size == 0:
             return spans
 
-        # Identify contiguous spans
+        # Identify contiguous spans.
         start = 0
         cur = int(cids[0])
         for i in range(1, cids.size):
@@ -553,7 +553,7 @@ class Clusters:
         spans.append((cur, start, int(cids.size - 1)))
 
         if strict:
-            # Verify each cluster appears in a single span
+            # Verify each cluster appears in a single span.
             seen: Dict[int, Tuple[int, int]] = {}
             for cid, s, e in spans:
                 if cid in seen:

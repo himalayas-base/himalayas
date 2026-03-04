@@ -9,6 +9,42 @@ import pytest
 from himalayas import Analysis, Annotations, Matrix
 
 
+def use_agg_backend():
+    """
+    Configures Matplotlib to use the Agg backend and returns pyplot.
+
+    Returns:
+        Any: Matplotlib pyplot module with Agg backend active.
+    """
+    matplotlib = pytest.importorskip("matplotlib")
+    matplotlib.use("Agg", force=True)
+    import matplotlib.pyplot as plt
+
+    return plt
+
+
+def extract_figure_text(fig, *, strip=False, nonempty=False):
+    """
+    Collects rendered text strings from all text artists in a Matplotlib figure.
+
+    Args:
+        fig (matplotlib.figure.Figure): Figure to inspect.
+
+    Kwargs:
+        strip (bool): Whether to strip leading/trailing whitespace. Defaults to False.
+        nonempty (bool): Whether to drop empty strings after optional stripping. Defaults to False.
+
+    Returns:
+        list[str]: Text content from all axes text artists.
+    """
+    texts = [t.get_text() for ax in fig.axes for t in ax.texts]
+    if strip:
+        texts = [txt.strip() for txt in texts]
+    if nonempty:
+        texts = [txt for txt in texts if txt]
+    return texts
+
+
 @pytest.fixture(scope="session")
 def toy_df():
     """

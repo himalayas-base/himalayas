@@ -78,20 +78,21 @@ class AxesRenderer:
             ax (plt.Axes): Matplotlib Axes to base geometry on.
             style (StyleConfig): Plot style configuration.
         """
-        # Gather label styling and content
+        # Gather label styling and content.
         xlabel = self.kwargs.get("xlabel", "")
         ylabel = self.kwargs.get("ylabel", "")
         fontsize = self.kwargs.get("fontsize", 12)
         fontweight = self.kwargs.get("fontweight", "normal")
-        xlabel_pad = self.kwargs.get("xlabel_pad", 8)
+        # X-label padding uses Matplotlib text units (points).
+        xlabel_pad_pts = self.kwargs.get("xlabel_pad", 8)
         font = self.kwargs.get("font", None)
         color = self.kwargs.get("color", style.get("text_color", "black"))
         alpha = self.kwargs.get("alpha", 1.0)
-        # Apply x-axis label
+        # Apply x-axis label.
         txt_xlabel = ax.set_xlabel(
             xlabel,
             fontweight=fontweight,
-            labelpad=xlabel_pad,
+            labelpad=xlabel_pad_pts,
         )
         self._apply_text_style(
             txt_xlabel,
@@ -101,11 +102,13 @@ class AxesRenderer:
             alpha=alpha,
             fontweight=fontweight,
         )
-        # Apply y-axis label
+        # Apply y-axis label.
         if isinstance(ylabel, str) and ylabel.strip():
             bbox = ax.get_position()
-            pad_frac = self.kwargs.get("ylabel_pad", style.get("ylabel_pad", 0.015))
-            x = bbox.x1 + pad_frac
+            # Y-label padding is geometric spacing (figure fraction), because the y-label.
+            # is rendered in a dedicated auxiliary axes.
+            ylabel_pad_frac = self.kwargs.get("ylabel_pad", style.get("ylabel_pad", 0.015))
+            x = bbox.x1 + ylabel_pad_frac
             y = bbox.y0
             width = 0.015
             height = bbox.height
@@ -148,7 +151,7 @@ class AxesRenderer:
             matrix (Matrix): Matrix object providing the row index.
             layout (ClusterLayout): Cluster layout providing `leaf_order`.
         """
-        # Build ordered labels and tick visibility mask
+        # Build ordered labels and tick visibility mask.
         labels = self.kwargs.get("labels", None)
         font_size = self.kwargs.get("fontsize", 9)
         max_labels = self.kwargs.get("max_labels", None)
@@ -157,13 +160,13 @@ class AxesRenderer:
         base_labels = labels if labels is not None else list(matrix.df.index)
         ordered_labels = np.array(base_labels)[row_order]
         n = len(ordered_labels)
-        # Determine which labels to show based on max_labels
+        # Determine which labels to show based on max_labels.
         visible = np.ones(n, dtype=bool)
         if max_labels is not None and max_labels < n:
             idxs = np.linspace(0, n - 1, num=max_labels, dtype=int)
             visible[:] = False
             visible[idxs] = True
-        # Create new axes for row labels and set properties
+        # Create new axes for row labels and set properties.
         bbox = ax.get_position()
         ax_row = fig.add_axes(bbox, frameon=False, zorder=10)
         ax_row.set_xlim(ax.get_xlim())
@@ -179,7 +182,7 @@ class AxesRenderer:
             labelright=(position == "right"),
         )
         ax_row.set_xticks([])
-        # Set visibility for each tick label
+        # Set visibility for each tick label.
         for tick, vis in zip(ax_row.get_yticklabels(), visible):
             tick.set_visible(vis)
 
@@ -199,26 +202,26 @@ class AxesRenderer:
             matrix (Matrix): Matrix object providing the column index.
             layout (ClusterLayout): Cluster layout providing `col_order`.
         """
-        # Build ordered labels and tick visibility mask
+        # Build ordered labels and tick visibility mask.
         labels = self.kwargs.get("labels", None)
         font_size = self.kwargs.get("fontsize", 9)
         rotation = self.kwargs.get("rotation", 90)
         max_labels = self.kwargs.get("max_labels", None)
         position = self.kwargs.get("position", "top")
-        # Determine ordered labels
+        # Determine ordered labels.
         base_labels = labels if labels is not None else list(matrix.df.columns)
         if layout.col_order is not None:
             ordered_labels = np.array(base_labels)[layout.col_order]
         else:
             ordered_labels = np.array(base_labels)
         n = len(ordered_labels)
-        # Determine which labels to show based on max_labels
+        # Determine which labels to show based on max_labels.
         visible = np.ones(n, dtype=bool)
         if max_labels is not None and max_labels < n:
             idxs = np.linspace(0, n - 1, num=max_labels, dtype=int)
             visible[:] = False
             visible[idxs] = True
-        # Create new axes for column labels and set properties
+        # Create new axes for column labels and set properties.
         bbox = ax.get_position()
         ax_col = fig.add_axes(bbox, frameon=False, zorder=10)
         ax_col.set_xlim(ax.get_xlim())
@@ -234,7 +237,7 @@ class AxesRenderer:
             labelbottom=(position == "bottom"),
         )
         ax_col.set_yticks([])
-        # Set visibility for each tick label
+        # Set visibility for each tick label.
         for tick, vis in zip(ax_col.get_xticklabels(), visible):
             tick.set_visible(vis)
 
@@ -249,6 +252,7 @@ class AxesRenderer:
         ax.set_title(
             self.kwargs["title"],
             fontsize=self.kwargs.get("fontsize", style.get("title_fontsize", 14)),
+            # Title padding follows Matplotlib text units (points).
             pad=self.kwargs.get("pad", style.get("title_pad", 15)),
             color=self.kwargs.get("color", style.get("text_color", "black")),
         )

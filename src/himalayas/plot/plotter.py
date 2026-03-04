@@ -5,9 +5,9 @@ himalayas/plot/plotter
 
 from __future__ import annotations
 
-from collections.abc import Hashable
+from collections.abc import Callable, Hashable, Mapping
 from os import PathLike
-from typing import Any, Mapping, Optional, Sequence, Union
+from typing import Any, Optional, Sequence, Union
 
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -17,6 +17,7 @@ from .renderers import (
     BoundaryRegistry,
     ClusterLabelsRenderer,
     ColorbarRenderer,
+    LabelLegendRenderer,
     DendrogramRenderer,
     MatrixRenderer,
     render_cluster_bar_track,
@@ -53,22 +54,26 @@ class Plotter:
             raise ValueError("Plotter expects Results with a non-null matrix")
 
         self.matrix = results.matrix
-        # Declarative plot plan (ordered)
+        # Declarative plot plan (ordered).
         self._layers = []
-        # Declarative colorbar specs (global, figure-aligned)
+        # Declarative colorbar specs (global, figure-aligned).
         self._colorbars = []
         self._colorbar_layout = None
-        # Label panel track layout manager
+        # Declarative categorical label-legend specs (global, figure-aligned).
+        self._label_legends = []
+        self._label_legend_layout = None
+        # Label panel track layout manager.
         self._track_layout = TrackLayoutManager()
-        # Default styling config
+        # Default styling config.
         self.style = StyleConfig()
         self._style = self.style
-        # Figure-level configuration (explicit, opt-in)
+        # Figure-level configuration (explicit, opt-in).
         self._background = None
         self._fig = None
-        # Render metadata (attached after first render)
+        # Render metadata (attached after first render).
         self.layout_ = None
         self.colorbar_layout_ = None
+        self.label_legend_layout_ = None
 
     def add_colorbar(
         self,
@@ -129,6 +134,7 @@ class Plotter:
         font: Optional[str] = None,
         color: Optional[str] = None,
         label_position: str = "below",
+        label_pad: float = 2.0,
         tick_decimals: Optional[int] = None,
     ) -> Plotter:
         """
@@ -148,6 +154,8 @@ class Plotter:
             font (Optional[str]): Tick/label font family. Defaults to None.
             color (Optional[str]): Tick/label color. Defaults to None.
             label_position (str): Label placement ("below" or "above"). Defaults to "below".
+            label_pad (float): Padding between colorbar and its label text (points).
+                Defaults to 2.0.
             tick_decimals (Optional[int]): Maximum decimals shown on colorbar ticks.
                 Trailing zeros are trimmed. Defaults to None.
 
@@ -155,12 +163,19 @@ class Plotter:
             Plotter: Self for chaining.
 
         Raises:
-            TypeError: If tick_decimals is not an integer when provided.
-            ValueError: If label_position is not "below" or "above", or tick_decimals is negative.
+            TypeError: If tick_decimals is not an integer when provided, or label_pad
+                is not numeric.
+            ValueError: If label_position is not "below" or "above", tick_decimals
+                is negative, or label_pad is negative.
         """
         # Validation
         if label_position not in {"below", "above"}:
             raise ValueError("label_position must be 'below' or 'above'")
+        if isinstance(label_pad, bool) or not isinstance(label_pad, (int, float)):
+            raise TypeError("label_pad must be a float >= 0")
+        label_pad = float(label_pad)
+        if label_pad < 0:
+            raise ValueError("label_pad must be >= 0")
         if tick_decimals is not None:
             if isinstance(tick_decimals, bool) or not isinstance(tick_decimals, int):
                 raise TypeError("tick_decimals must be an int >= 0 or None")
@@ -180,7 +195,144 @@ class Plotter:
             "font": font,
             "color": color,
             "label_position": label_position,
+            "label_pad": label_pad,
             "tick_decimals": tick_decimals,
+        }
+        return self
+
+    def add_label_legend(
+        self,
+        *,
+        name: str,
+        title: Optional[str] = None,
+        nrows: Optional[int] = None,
+        ncols: Optional[int] = None,
+        row_pad: Optional[float] = None,
+        col_pad: Optional[float] = None,
+        show_only_present: bool = True,
+    ) -> Plotter:
+        """
+        Declares a categorical legend block for a row-level label bar.
+        The referenced bar must be declared with plot_label_bar(name=..., mode="categorical", ...).
+
+        Kwargs:
+            name (str): Label-bar name to explain.
+            title (Optional[str]): Legend title override. Defaults to None.
+            nrows (Optional[int]): Grid rows for legend items. If None, infer from ncols.
+                Defaults to None.
+            ncols (Optional[int]): Grid columns for legend items. If None, infer from nrows.
+                Defaults to None.
+            row_pad (Optional[float]): Vertical spacing between rows inside this legend
+                block (block-relative fraction). If None, uses renderer default.
+                Defaults to None.
+            col_pad (Optional[float]): Minimum horizontal spacing between items inside
+                each legend row (block-relative fraction). Items are left-packed and this
+                value is used as fixed inter-item spacing. If None, uses renderer default.
+                Defaults to None.
+            show_only_present (bool): Whether to include only categories present in the
+                plotted matrix rows. Defaults to True.
+
+        Returns:
+            Plotter: Self for chaining.
+
+        Raises:
+            ValueError: If options are invalid.
+        """
+        # Validation
+        if not isinstance(name, str) or not name:
+            raise ValueError("label legend `name` must be a non-empty string")
+        if any(spec.get("name") == name for spec in self._label_legends):
+            raise ValueError(f"label legend already declared for name {name!r}")
+        if nrows is not None:
+            nrows = int(nrows)
+            if nrows <= 0:
+                raise ValueError("nrows must be > 0")
+        if ncols is not None:
+            ncols = int(ncols)
+            if ncols <= 0:
+                raise ValueError("ncols must be > 0")
+        if row_pad is not None:
+            row_pad = float(row_pad)
+            if row_pad < 0:
+                raise ValueError("row_pad must be >= 0")
+        if col_pad is not None:
+            col_pad = float(col_pad)
+            if col_pad < 0:
+                raise ValueError("col_pad must be >= 0")
+
+        self._label_legends.append(
+            {
+                "name": name,
+                "title": title,
+                "nrows": nrows,
+                "ncols": ncols,
+                "row_pad": row_pad,
+                "col_pad": col_pad,
+                "show_only_present": bool(show_only_present),
+            }
+        )
+        return self
+
+    def plot_label_legends(
+        self,
+        *,
+        height: float = 0.08,
+        gap: float = 0.01,
+        vpad: float = 0.01,
+        title_pad: float = 2.0,
+        swatch_scale: float = 0.75,
+        fontsize: Optional[float] = None,
+        font: Optional[str] = None,
+        color: Optional[str] = None,
+    ) -> Plotter:
+        """
+        Declares layout for categorical label-legend blocks beneath the colorbar strip.
+
+        Kwargs:
+            height (float): Total strip height (figure fraction). Defaults to 0.08.
+            gap (float): Gap from the anchor strip above (figure fraction). Defaults to 0.01.
+            vpad (float): Vertical spacing between legend blocks (figure fraction).
+                Defaults to 0.01.
+            title_pad (float): Padding between legend title and items (points).
+                Defaults to 2.0.
+            swatch_scale (float): Relative swatch size inside each legend cell.
+                Defaults to 0.75.
+            fontsize (Optional[float]): Legend font size. Defaults to None.
+            font (Optional[str]): Legend font family. Defaults to None.
+            color (Optional[str]): Legend text color. Defaults to None.
+
+        Returns:
+            Plotter: Self for chaining.
+
+        Raises:
+            ValueError: If geometric arguments are invalid.
+        """
+        height = float(height)
+        gap = float(gap)
+        vpad = float(vpad)
+        title_pad = float(title_pad)
+        swatch_scale = float(swatch_scale)
+        # Validation
+        if height <= 0:
+            raise ValueError("height must be > 0")
+        if gap < 0:
+            raise ValueError("gap must be >= 0")
+        if vpad < 0:
+            raise ValueError("vpad must be >= 0")
+        if title_pad < 0:
+            raise ValueError("title_pad must be >= 0")
+        if swatch_scale <= 0:
+            raise ValueError("swatch_scale must be > 0")
+
+        self._label_legend_layout = {
+            "height": height,
+            "gap": gap,
+            "vpad": vpad,
+            "title_pad": title_pad,
+            "swatch_scale": swatch_scale,
+            "fontsize": fontsize,
+            "font": font,
+            "color": color,
         }
         return self
 
@@ -263,12 +415,12 @@ class Plotter:
         *,
         name: str,
         kind: str,
-        renderer,
+        renderer: Callable[..., None],
         left_pad: float,
         width: float,
         right_pad: float,
         enabled: bool,
-        payload: dict[str, Any],
+        payload: Dict[str, Any],
     ) -> None:
         """
         Registers a label-panel track if enabled.
@@ -281,7 +433,7 @@ class Plotter:
             width (float): Track width.
             right_pad (float): Right padding.
             enabled (bool): Whether to register.
-            payload (dict[str, Any]): Renderer payload.
+            payload (Dict[str, Any]): Renderer payload.
         """
         if not enabled:
             return
@@ -313,12 +465,12 @@ class Plotter:
 
     def _collect_layer_kwargs(
         self,
-    ) -> tuple[Optional[dict[str, Any]], Optional[dict[str, Any]], Optional[dict[str, Any]]]:
+    ) -> tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
         """
         Collects frequently used layer kwargs, using last-one-wins semantics.
 
         Returns:
-            tuple[Optional[dict[str, Any]], Optional[dict[str, Any]], Optional[dict[str, Any]]]:
+            tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
                 Matrix kwargs, cluster-label kwargs, and bar-label kwargs.
         """
         matrix_kwargs = None
@@ -333,13 +485,91 @@ class Plotter:
                 bar_label_kwargs = kwargs
         return matrix_kwargs, cluster_label_kwargs, bar_label_kwargs
 
+    def _resolve_label_legend_specs(self) -> list[Dict[str, Any]]:
+        """
+        Resolves categorical label-legend specs against declared row-level label tracks.
+
+        Returns:
+            list[Dict[str, Any]]: Normalized label-legend specs.
+
+        Raises:
+            ValueError: If referenced tracks are invalid for categorical legends.
+        """
+        if not self._label_legends:
+            return []
+
+        # Index enabled tracks by name and collect row-track names for legend validation.
+        enabled_tracks = [t for t in self._track_layout.tracks if t.get("enabled", True)]
+        track_by_name = {track["name"]: track for track in enabled_tracks}
+        row_track_names = [t["name"] for t in enabled_tracks if t.get("kind") == "row"]
+        available_row_tracks = sorted(row_track_names)
+        resolved = []
+        for spec in self._label_legends:
+            name = spec["name"]
+            track = track_by_name.get(name, None)
+            # Validation
+            if track is None:
+                raise ValueError(
+                    "Unknown label-legend name "
+                    f"{name!r}. Available row label bars: {available_row_tracks}"
+                )
+            if track.get("kind") != "row":
+                raise ValueError(f"label legend {name!r} must reference a row-level label bar")
+
+            payload = track.get("payload", {})
+            mode = payload.get("mode", "categorical")
+            # Validation
+            if mode != "categorical":
+                raise ValueError(
+                    f"label legend {name!r} must use plot_label_bar(..., mode='categorical')"
+                )
+
+            colors = payload.get("colors", None)
+            # Validation
+            if not isinstance(colors, Mapping) or not colors:
+                raise ValueError(f"label legend {name!r} requires a non-empty `colors` mapping")
+
+            # Resolve visible categories and legend title from bar payload plus legend overrides.
+            values = payload.get("values", {})
+            row_ids = list(self.matrix.df.index)
+            present_categories = {values.get(row_id, None) for row_id in row_ids}
+            show_only_present = bool(spec.get("show_only_present", True))
+            title = spec.get("title", None)
+            if title is None or str(title) == "":
+                title = payload.get("title", None)
+            if title is None or str(title) == "":
+                title = name
+
+            items = [
+                {
+                    "value": category,
+                    "label": str(category),
+                    "color": color,
+                }
+                for category, color in colors.items()
+                if (category in present_categories) or (not show_only_present)
+            ]
+            resolved.append(
+                {
+                    "name": name,
+                    "title": str(title),
+                    "items": items,
+                    "nrows": spec.get("nrows"),
+                    "ncols": spec.get("ncols"),
+                    "row_pad": spec.get("row_pad"),
+                    "col_pad": spec.get("col_pad"),
+                }
+            )
+
+        return resolved
+
     def _render_label_panel(
         self,
         fig,
         layout,
         *,
-        bar_kwargs: Optional[dict[str, Any]],
-        cluster_kwargs: Optional[dict[str, Any]] = None,
+        bar_kwargs: Optional[Dict[str, Any]],
+        cluster_kwargs: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Renders the shared label panel with optional cluster labels.
@@ -347,8 +577,8 @@ class Plotter:
         Args:
             fig: Matplotlib figure.
             layout: Cluster layout object.
-            bar_kwargs (Optional[dict[str, Any]]): Bar-label renderer kwargs.
-            cluster_kwargs (Optional[dict[str, Any]]): Cluster-label layer kwargs.
+            bar_kwargs (Optional[Dict[str, Any]]): Bar-label renderer kwargs.
+            cluster_kwargs (Optional[Dict[str, Any]]): Cluster-label layer kwargs.
                 If None, renders tracks only without cluster text.
         """
         if cluster_kwargs is None:
@@ -444,11 +674,19 @@ class Plotter:
             fontsize (float): Font size for both axis labels. Defaults to 12.
             font (str): Font family to apply to both axis labels. Defaults to None.
             color (str): Text color for both axis labels. Defaults to style text_color.
+            xlabel_pad (float): Padding between x-axis label and axis (points).
+                Defaults to renderer default.
+            ylabel_pad (float): Padding between matrix and external y-label axis
+                (figure fraction). Defaults to style ylabel_pad.
             **kwargs: Renderer keyword arguments. Defaults to {}.
 
         Returns:
             Plotter: Self for chaining.
         """
+        if "xlabel_pad" in kwargs and kwargs["xlabel_pad"] is not None:
+            kwargs["xlabel_pad"] = float(kwargs["xlabel_pad"])
+        if "ylabel_pad" in kwargs and kwargs["ylabel_pad"] is not None:
+            kwargs["ylabel_pad"] = float(kwargs["ylabel_pad"])
         self._layers.append(("matrix_axis_labels", kwargs))
         return self
 
@@ -489,11 +727,15 @@ class Plotter:
         Declares titles for bar tracks (shown below bars in label panel).
 
         Kwargs:
+            pad (float): Vertical offset from track to title text (points).
+                Defaults to renderer default.
             **kwargs: Renderer keyword arguments. Defaults to {}.
 
         Returns:
             Plotter: Self for chaining.
         """
+        if "pad" in kwargs and kwargs["pad"] is not None:
+            kwargs["pad"] = float(kwargs["pad"])
         self._layers.append(("bar_labels", kwargs))
         return self
 
@@ -545,7 +787,7 @@ class Plotter:
             except Exception as exc:
                 raise TypeError("plot_label_bar expects values convertible to dict") from exc
 
-        # Always register as an explicit track in the label panel
+        # Always register as an explicit track in the label panel.
         if "placement" in kwargs:
             raise TypeError("plot_label_bar() got an unexpected keyword argument 'placement'")
         width = kwargs.pop("width", self._style.get("label_bar_width", 0.015))
@@ -567,7 +809,7 @@ class Plotter:
     def plot_cluster_labels(
         self,
         *,
-        overrides: Optional[dict[int, str]] = None,
+        overrides: Optional[Dict[int, str]] = None,
         **kwargs,
     ) -> Plotter:
         """
@@ -575,7 +817,7 @@ class Plotter:
         Labels are generated from attached Results by default.
 
         Kwargs:
-            overrides (dict[int, str]): Per-cluster label overrides keyed by cluster id.
+            overrides (Dict[int, str]): Per-cluster label overrides keyed by cluster id.
                 Override labels do not change bar values.
             rank_by (str): Ranking statistic for representative terms, one of {"p", "q"}.
                 Defaults to "p".
@@ -663,11 +905,15 @@ class Plotter:
             title (str): Title text.
 
         Kwargs:
+            pad (float): Padding between title text and matrix axis (points).
+                Defaults to style title_pad.
             **kwargs: Renderer keyword arguments. Defaults to {}.
 
         Returns:
             Plotter: Self for chaining.
         """
+        if "pad" in kwargs and kwargs["pad"] is not None:
+            kwargs["pad"] = float(kwargs["pad"])
         self._layers.append(("title", {"title": title, **kwargs}))
         return self
 
@@ -692,11 +938,11 @@ class Plotter:
                 "plot_cluster_bar() requires plot_cluster_labels() in the same plotting chain."
             )
         matrix_kwargs, cluster_boundary_kwargs, bar_kwargs = self._collect_layer_kwargs()
-        # Consume authoritative geometry from Results
+        # Consume authoritative geometry from Results.
         layout = self.results.cluster_layout()
         # NOTE:
-        #   - Layout.leaf_order controls row ordering (statistically meaningful)
-        #   - Layout.col_order controls column ordering (visual only)
+        #   - Layout.leaf_order controls row ordering (statistically meaningful).
+        #   - Layout.col_order controls column ordering (visual only).
         row_order = layout.leaf_order
         col_order = layout.col_order
         if row_order is None:
@@ -708,16 +954,16 @@ class Plotter:
                 raise ValueError("Column order does not match matrix dimensions.")
 
         n_rows = self.matrix.df.shape[0]
-        # Create figure and main axis
+        # Create figure and main axis.
         fig, ax = plt.subplots(figsize=self._style["figsize"])
         fig.subplots_adjust(**self._style["subplots_adjust"])
         if self._background is not None:
             fig.patch.set_facecolor(self._background)
 
-        # Single-ownership boundary registry (matrix-aligned horizontals)
+        # Single-ownership boundary registry (matrix-aligned horizontals).
         boundary_registry = BoundaryRegistry()
 
-        # Minor row gridlines (internal only; suppress axis extremes)
+        # Minor row gridlines (internal only; suppress axis extremes).
         if matrix_kwargs is not None and matrix_kwargs.get("show_minor_rows", True):
             step = matrix_kwargs.get("minor_row_step", 1)
             lw = matrix_kwargs.get("minor_row_lw", 0.15)
@@ -728,7 +974,7 @@ class Plotter:
                     continue
                 boundary_registry.register(b, lw=lw, color="black", alpha=alpha)
 
-        # Cluster boundaries (suppress axis extremes; cluster lines override minor lines)
+        # Cluster boundaries (suppress axis extremes; cluster lines override minor lines).
         if cluster_boundary_kwargs is not None:
             lw = cluster_boundary_kwargs.get("boundary_lw", self._style["boundary_lw"])
             alpha = cluster_boundary_kwargs.get("boundary_alpha", self._style["boundary_alpha"])
@@ -739,7 +985,7 @@ class Plotter:
                     continue
                 boundary_registry.register(b, lw=lw, color=color, alpha=alpha)
 
-        # Derive dendrogram boundary styling from label panel settings
+        # Derive dendrogram boundary styling from label panel settings.
         dendro_boundary_style = None
         if cluster_boundary_kwargs is not None:
             dendro_boundary_style = {
@@ -757,7 +1003,7 @@ class Plotter:
                 ),
             }
 
-        # Render declared layers in order
+        # Render declared layers in order.
         for layer, kwargs in self._layers:
             if layer == "matrix":
                 figsize = kwargs.get("figsize", None)
@@ -775,8 +1021,8 @@ class Plotter:
                     boundary_registry=boundary_registry,
                 )
 
-            # Note: orientation="left" already handles axis direction
-            # Do NOT manually reverse x-limits or the dendrogram will be mirrored
+            # Note: orientation="left" already handles axis direction.
+            # Do NOT manually reverse x-limits or the dendrogram will be mirrored.
             elif layer == "matrix_axis_labels":
                 renderer = AxesRenderer("matrix_axis_labels", **kwargs)
                 renderer.render(fig, ax, self.matrix, layout, self._style)
@@ -802,7 +1048,7 @@ class Plotter:
             elif layer == "cluster_labels":
                 self._render_label_panel(fig, layout, bar_kwargs=bar_kwargs, cluster_kwargs=kwargs)
             elif layer == "bar_labels":
-                # Consumed inside the cluster label panel; no direct rendering
+                # Consumed inside the cluster label panel; no direct rendering.
                 continue
             else:
                 raise NotImplementedError(f"Unknown plot layer: {layer}")
@@ -810,17 +1056,29 @@ class Plotter:
         if has_row_track and not has_cluster_label_layer:
             self._render_label_panel(fig, layout, bar_kwargs=bar_kwargs)
 
-        # Render bottom colorbar strip (global legends)
+        # Render bottom colorbar strip (global legends).
         colorbar_layout = None
         if self._colorbars:
             renderer = ColorbarRenderer(self._colorbars, self._colorbar_layout)
             colorbar_layout = renderer.render(fig, ax, self._style)
-        # Matrix axis never owns ticks; always keep clean
+        # Render categorical label-legend blocks beneath colorbars/matrix.
+        label_legend_layout = None
+        if self._label_legends:
+            specs = self._resolve_label_legend_specs()
+            renderer = LabelLegendRenderer(specs, self._label_legend_layout)
+            label_legend_layout = renderer.render(
+                fig,
+                ax,
+                self._style,
+                colorbar_layout=colorbar_layout,
+            )
+        # Matrix axis never owns ticks; always keep clean.
         ax.set_xticks([])
         ax.set_yticks([])
-        # Attach layout metadata for advanced users
+        # Attach layout metadata for advanced users.
         self.layout_ = layout
         self.colorbar_layout_ = colorbar_layout
+        self.label_legend_layout_ = label_legend_layout
         self._fig = fig
 
     def _figure_is_open(self) -> bool:

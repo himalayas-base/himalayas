@@ -42,6 +42,7 @@ class ColorbarLayout(TypedDict, total=False):
     vpad: float
     gap: float
     label_position: str
+    label_pad: float
     border_color: str
     border_width: float
     border_alpha: float
@@ -85,18 +86,18 @@ def _resolve_colorbar_layout(
     Returns:
         ColorbarLayout: Resolved layout parameters.
     """
-    # Determine number of rows and columns
+    # Determine number of rows and columns.
     colorbar_layout = dict(layout)
     nrows = colorbar_layout.get("nrows")
     ncols = colorbar_layout.get("ncols")
-    # Auto-calculate rows/columns if not specified
+    # Auto-calculate rows/columns if not specified.
     if nrows is None and ncols is None:
         nrows, ncols = 1, n_colorbars
     elif nrows is None:
         nrows = int(np.ceil(n_colorbars / ncols))
     elif ncols is None:
         ncols = int(np.ceil(n_colorbars / nrows))
-    # Set resolved values back into layout
+    # Set resolved values back into layout.
     colorbar_layout["nrows"] = nrows
     colorbar_layout["ncols"] = ncols
     colorbar_layout.setdefault("height", 0.05)
@@ -104,20 +105,21 @@ def _resolve_colorbar_layout(
     colorbar_layout.setdefault("vpad", 0.01)
     colorbar_layout.setdefault("gap", 0.02)
     colorbar_layout.setdefault("label_position", "below")
+    colorbar_layout.setdefault("label_pad", 2.0)
     colorbar_layout.setdefault("tick_decimals", None)
-    # Resolve border properties
+    # Resolve border properties.
     border_color = colorbar_layout.get("border_color")
     if border_color is None:
         border_color = style.get("text_color", "black")
     colorbar_layout["border_color"] = border_color
     colorbar_layout.setdefault("border_width", 0.8)
     colorbar_layout.setdefault("border_alpha", 1.0)
-    # Resolve font properties
+    # Resolve font properties.
     fontsize = colorbar_layout.get("fontsize")
     if fontsize is None:
         fontsize = style.get("label_fontsize", 9)
     colorbar_layout["fontsize"] = fontsize
-    # Resolve text color
+    # Resolve text color.
     text_color = colorbar_layout.get("color")
     if text_color is None:
         text_color = style.get("text_color", "black")
@@ -141,12 +143,12 @@ def _compute_colorbar_geometry(
         Dict[str, float]: Computed geometry with keys: strip_x0, strip_y0, cell_w, cell_h.
     """
     bbox = ax.get_position()
-    # Compute strip geometry
+    # Compute strip geometry.
     strip_h = layout["height"]
     strip_y0 = bbox.y0 - strip_h - layout["gap"]
     strip_x0 = bbox.x0
     strip_w = bbox.width
-    # Compute cell geometry
+    # Compute cell geometry.
     nrows = layout["nrows"]
     ncols = layout["ncols"]
     cell_w = (strip_w - layout["hpad"] * (ncols - 1)) / ncols
@@ -181,7 +183,7 @@ def _render_colorbar_cell(
         layout (ColorbarLayout): Layout parameters.
     """
     ax_cb = fig.add_axes([x0, y0, w, h], frameon=True)
-    # Determine text color and font
+    # Determine text color and font.
     text_color = cb.get("color", layout["color"])
     if text_color is None:
         text_color = layout["color"]
@@ -198,7 +200,7 @@ def _render_colorbar_cell(
     if tick_decimals is not None:
         cbar.formatter = _max_decimal_formatter(int(tick_decimals))
         cbar.update_ticks()
-    # Style colorbar outline and ticks
+    # Style colorbar outline and ticks.
     outline = getattr(cbar, "outline", None)
     if outline is not None:
         outline.set_edgecolor(layout["border_color"])
@@ -210,26 +212,28 @@ def _render_colorbar_cell(
             spine.set_linewidth(layout["border_width"])
             spine.set_edgecolor(layout["border_color"])
             spine.set_alpha(layout["border_alpha"])
-    # Style ticks and labels
+    # Style ticks and labels.
     ax_cb.tick_params(
         axis="x",
         labelsize=layout["fontsize"],
         colors=text_color,
     )
     ax_cb.set_yticks([])
-    # Apply font to tick labels
+    # Apply font to tick labels.
     if font is not None:
         for t in ax_cb.get_xticklabels():
             t.set_fontname(font)
-    # Set colorbar label
+    # Set colorbar label.
     label = cb.get("label")
     if label:
+        # Matplotlib label spacing APIs interpret padding in points.
+        label_pad_pts = layout["label_pad"]
         if layout["label_position"] == "below":
             ax_cb.set_xlabel(
                 label,
                 fontsize=layout["fontsize"],
                 color=text_color,
-                labelpad=2,
+                labelpad=label_pad_pts,
                 fontname=font if font is not None else None,
             )
         else:
@@ -237,7 +241,7 @@ def _render_colorbar_cell(
                 label,
                 fontsize=layout["fontsize"],
                 color=text_color,
-                pad=2,
+                pad=label_pad_pts,
                 fontname=font if font is not None else None,
             )
 
@@ -276,7 +280,7 @@ class ColorbarRenderer:
         """
         layout = _resolve_colorbar_layout(self.layout, style, len(self.colorbars))
         geom = _compute_colorbar_geometry(ax, layout)
-        # Render each colorbar cell
+        # Render each colorbar cell.
         for i, cb in enumerate(self.colorbars):
             r = i // layout["ncols"]
             c = i % layout["ncols"]

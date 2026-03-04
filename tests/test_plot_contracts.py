@@ -8,6 +8,7 @@ import pandas as pd
 import pytest
 from matplotlib.colors import Normalize, to_rgba
 
+from conftest import extract_figure_text, use_agg_backend
 from himalayas import Results
 from himalayas.core.clustering import cluster
 from himalayas.plot import Plotter
@@ -15,16 +16,13 @@ from himalayas.plot.renderers.cluster_labels import _build_label_map, _parse_lab
 from himalayas.plot.track_layout import TrackLayoutManager
 
 
-def _use_agg_backend():
+@pytest.fixture(autouse=True)
+def _close_all_figures_after_each_test():
     """
-    Configures Matplotlib to use the Agg backend for tests.
-
-    Returns:
-        Any: Matplotlib pyplot module with Agg backend active.
+    Ensures pyplot figures do not accumulate across tests in this module.
     """
-    matplotlib = pytest.importorskip("matplotlib")
-    matplotlib.use("Agg", force=True)
-    return plt
+    yield
+    plt.close("all")
 
 
 @pytest.mark.api
@@ -35,7 +33,7 @@ def test_plotter_smoke(toy_results):
     Args:
         toy_results (Results): Results fixture with clusters and layout.
     """
-    plt = _use_agg_backend()
+    plt = use_agg_backend()
     plt_show = plt.show
     plt.show = lambda *args, **kwargs: None
     try:
@@ -61,7 +59,7 @@ def test_plotter_stacked_defaults_smoke(toy_results):
     Args:
         toy_results (Results): Results fixture with clusters and layout.
     """
-    plt = _use_agg_backend()
+    plt = use_agg_backend()
     plt_show = plt.show
     plt.show = lambda *args, **kwargs: None
     try:
@@ -87,6 +85,141 @@ def test_plotter_stacked_defaults_smoke(toy_results):
 
 
 @pytest.mark.api
+@pytest.mark.parametrize(
+    "stack",
+    [
+        # Keep this matrix to valid combinations only: legend requires row_bar,
+        # and cluster_bar requires cluster_labels.
+        {
+            "cluster_labels": False,
+            "cluster_bar": False,
+            "row_bar": False,
+            "legend": False,
+            "colorbar": False,
+        },
+        {
+            "cluster_labels": True,
+            "cluster_bar": False,
+            "row_bar": False,
+            "legend": False,
+            "colorbar": False,
+        },
+        {
+            "cluster_labels": True,
+            "cluster_bar": True,
+            "row_bar": False,
+            "legend": False,
+            "colorbar": False,
+        },
+        {
+            "cluster_labels": False,
+            "cluster_bar": False,
+            "row_bar": True,
+            "legend": False,
+            "colorbar": False,
+        },
+        {
+            "cluster_labels": False,
+            "cluster_bar": False,
+            "row_bar": True,
+            "legend": True,
+            "colorbar": False,
+        },
+        {
+            "cluster_labels": False,
+            "cluster_bar": False,
+            "row_bar": False,
+            "legend": False,
+            "colorbar": True,
+        },
+        {
+            "cluster_labels": False,
+            "cluster_bar": False,
+            "row_bar": True,
+            "legend": True,
+            "colorbar": True,
+        },
+        {
+            "cluster_labels": True,
+            "cluster_bar": True,
+            "row_bar": True,
+            "legend": True,
+            "colorbar": True,
+        },
+    ],
+    ids=[
+        "matrix_only",
+        "matrix_plus_cluster_labels",
+        "matrix_plus_cluster_labels_and_bar",
+        "matrix_plus_row_bar",
+        "matrix_plus_row_bar_and_legend",
+        "matrix_plus_colorbar",
+        "matrix_plus_row_bar_legend_and_colorbar",
+        "full_stack",
+    ],
+)
+def test_plotter_stack_combinations_smoke(toy_results, stack):
+    """
+    Ensures representative plot-layer stack combinations render without fatal interactions.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+        stack (dict): Boolean feature switches for enabled layers.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        plotter = Plotter(toy_results).plot_matrix()
+        # Each layer is tested in isolation in other tests, so we do not assert on the
+        # presence of rendered elements here. We just want to ensure no fatal errors occur
+        # when stacking layers in various combinations.
+        if stack["cluster_labels"]:
+            plotter = plotter.plot_cluster_labels(label_fields=("label",))
+        if stack["cluster_bar"]:
+            plotter = plotter.plot_cluster_bar(name="sig")
+        if stack["row_bar"]:
+            plotter = plotter.plot_label_bar(
+                values={"a": "1", "b": "2", "c": "1", "d": "2"},
+                name="orf_category",
+                mode="categorical",
+                colors={"1": "#1b9e77", "2": "#d95f02"},
+                title="ORF Category",
+            )
+        if stack["legend"]:
+            plotter = (
+                plotter
+                .add_label_legend(name="orf_category")
+                .plot_label_legends(height=0.07, gap=0.02, swatch_scale=0.9)
+            )
+        if stack["colorbar"]:
+            plotter = (
+                plotter
+                .add_colorbar(
+                    name="score",
+                    cmap="viridis",
+                    norm=Normalize(vmin=0.0, vmax=1.0),
+                    ticks=[0.0, 1.0],
+                    label="Score",
+                )
+                .plot_colorbars()
+            )
+
+        plotter.show()
+        assert plotter._fig is not None
+        if stack["legend"]:
+            assert plotter.label_legend_layout_ is not None
+        else:
+            assert plotter.label_legend_layout_ is None
+        if stack["colorbar"]:
+            assert plotter.colorbar_layout_ is not None
+        else:
+            assert plotter.colorbar_layout_ is None
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
 def test_plotter_requires_layers(toy_results):
     """
     Ensures Plotter refuses to render with no declared layers.
@@ -97,7 +230,7 @@ def test_plotter_requires_layers(toy_results):
     Raises:
         RuntimeError: If no plot layers are declared.
     """
-    plt = _use_agg_backend()
+    plt = use_agg_backend()
     plt_show = plt.show
     plt.show = lambda *args, **kwargs: None
     try:
@@ -121,7 +254,7 @@ def test_plotter_requires_layout(toy_matrix):
     clusters = cluster(toy_matrix, linkage_threshold=1.0)
     results = Results(pd.DataFrame(), matrix=toy_matrix, clusters=clusters)
 
-    plt = _use_agg_backend()
+    plt = use_agg_backend()
     plt_show = plt.show
     plt.show = lambda *args, **kwargs: None
     try:
@@ -142,7 +275,7 @@ def test_plot_cluster_bar_requires_cluster_labels_layer(toy_results):
     Raises:
         ValueError: If plot_cluster_bar is used without plot_cluster_labels.
     """
-    plt = _use_agg_backend()
+    plt = use_agg_backend()
     plt_show = plt.show
     plt.show = lambda *args, **kwargs: None
     try:
@@ -160,7 +293,7 @@ def test_plot_cluster_bar_uses_internal_cluster_labels(toy_results):
     Args:
         toy_results (Results): Results fixture with clusters and layout.
     """
-    plt = _use_agg_backend()
+    plt = use_agg_backend()
     plt_show = plt.show
     plt.show = lambda *args, **kwargs: None
     try:
@@ -184,7 +317,7 @@ def test_plotter_plot_handle_rebuilds_closed_figure(toy_results, tmp_path):
         toy_results (Results): Results fixture with clusters and layout.
         tmp_path (Path): Temporary output directory.
     """
-    plt = _use_agg_backend()
+    plt = use_agg_backend()
     plt_show = plt.show
     out = tmp_path / "plotter_rebuild.png"
     plotter = None
@@ -219,14 +352,14 @@ def test_plotter_plot_handle_rebuilds_closed_figure(toy_results, tmp_path):
 @pytest.mark.api
 def test_plot_colorbars_tick_decimals_contract(toy_results):
     """
-    Ensures tick_decimals validation and display precision behavior are consistent.
+    Ensures colorbar precision and label spacing contracts are consistent.
 
     Args:
         toy_results (Results): Results fixture with clusters and layout.
 
     Raises:
-        TypeError: If tick_decimals is not an integer.
-        ValueError: If tick_decimals is negative.
+        TypeError: If tick_decimals is not an integer or label_pad is invalid.
+        ValueError: If tick_decimals is negative or label_pad is negative.
     """
     with pytest.raises(TypeError, match="tick_decimals"):
         Plotter(toy_results).plot_colorbars(tick_decimals=1.5)
@@ -234,8 +367,15 @@ def test_plot_colorbars_tick_decimals_contract(toy_results):
         Plotter(toy_results).plot_colorbars(tick_decimals=True)
     with pytest.raises(ValueError, match="tick_decimals"):
         Plotter(toy_results).plot_colorbars(tick_decimals=-1)
+    with pytest.raises(TypeError, match="label_pad"):
+        Plotter(toy_results).plot_colorbars(label_pad="2")
+    with pytest.raises(TypeError, match="label_pad"):
+        Plotter(toy_results).plot_colorbars(label_pad=True)
+    with pytest.raises(ValueError, match="label_pad"):
+        Plotter(toy_results).plot_colorbars(label_pad=-0.1)
 
-    plt = _use_agg_backend()
+    # Also test that valid arguments are accepted and reflected in the rendered colorbar.
+    plt = use_agg_backend()
     plt_show = plt.show
     plt.show = lambda *args, **kwargs: None
     try:
@@ -249,7 +389,7 @@ def test_plot_colorbars_tick_decimals_contract(toy_results):
                 ticks=[0.0, 0.1234, 1.0],
                 label="Precision",
             )
-            .plot_colorbars(tick_decimals=2)
+            .plot_colorbars(tick_decimals=2, label_pad=7.0)
         )
         plotter.show()
         fig = plotter._fig
@@ -258,6 +398,9 @@ def test_plot_colorbars_tick_decimals_contract(toy_results):
         assert "0.12" in tick_texts
         assert "0.1234" not in tick_texts
         assert all("." not in txt or len(txt.split(".", 1)[1]) <= 2 for txt in tick_texts)
+        precision_axes = [ax for ax in fig.axes if ax.get_xlabel() == "Precision"]
+        assert len(precision_axes) == 1
+        assert precision_axes[0].xaxis.labelpad == pytest.approx(7.0)
     finally:
         plt.show = plt_show
 
@@ -273,7 +416,7 @@ def test_plot_label_bar_requires_colors(toy_results):
     Raises:
         TypeError: If categorical mode is missing a colors mapping.
     """
-    plt = _use_agg_backend()
+    plt = use_agg_backend()
     plt_show = plt.show
     plt.show = lambda *args, **kwargs: None
     try:
@@ -289,6 +432,279 @@ def test_plot_label_bar_requires_colors(toy_results):
 
 
 @pytest.mark.api
+@pytest.mark.parametrize(
+    "kwargs, add_once_first, expected_match",
+    [
+        ({"name": ""}, False, "non-empty string"),
+        ({"name": "orf_category"}, True, "already declared"),
+        ({"name": "orf_category", "nrows": 0}, False, "nrows"),
+        ({"name": "orf_category", "ncols": -1}, False, "ncols"),
+        ({"name": "orf_category", "row_pad": -0.01}, False, "row_pad"),
+        ({"name": "orf_category", "col_pad": -0.01}, False, "col_pad"),
+    ],
+    ids=[
+        "empty_name",
+        "duplicate_name",
+        "nrows_nonpositive",
+        "ncols_nonpositive",
+        "row_pad_negative",
+        "col_pad_negative",
+    ],
+)
+def test_add_label_legend_rejects_invalid_inputs(
+    toy_results,
+    kwargs,
+    add_once_first,
+    expected_match,
+):
+    """
+    Ensures add_label_legend validates name uniqueness and geometry arguments.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+        kwargs (dict): Keyword arguments for add_label_legend.
+        add_once_first (bool): Whether to add a valid legend before asserting duplicate rejection.
+        expected_match (str): Regex fragment expected in the raised error message.
+
+    Raises:
+        ValueError: If legend declaration arguments are invalid.
+    """
+    plotter = (
+        Plotter(toy_results)
+        .plot_matrix()
+        .plot_label_bar(
+            values={"a": "1", "b": "2", "c": "1", "d": "2"},
+            name="orf_category",
+            mode="categorical",
+            colors={"1": "#1b9e77", "2": "#d95f02"},
+        )
+    )
+    if add_once_first:
+        plotter.add_label_legend(name="orf_category")
+
+    with pytest.raises(ValueError, match=expected_match):
+        plotter.add_label_legend(**kwargs)
+
+
+@pytest.mark.api
+@pytest.mark.parametrize(
+    "kwargs, expected_match",
+    [
+        ({"height": 0.0}, "height"),
+        ({"gap": -0.01}, "gap"),
+        ({"vpad": -0.01}, "vpad"),
+        ({"title_pad": -1.0}, "title_pad"),
+        ({"swatch_scale": 0.0}, "swatch_scale"),
+    ],
+    ids=[
+        "height_nonpositive",
+        "gap_negative",
+        "vpad_negative",
+        "title_pad_negative",
+        "swatch_scale_nonpositive",
+    ],
+)
+def test_plot_label_legends_rejects_invalid_geometry(
+    toy_results,
+    kwargs,
+    expected_match,
+):
+    """
+    Ensures plot_label_legends validates strip geometry arguments.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+        kwargs (dict): Keyword arguments for plot_label_legends.
+        expected_match (str): Regex fragment expected in the raised error message.
+
+    Raises:
+        ValueError: If legend strip geometry arguments are invalid.
+    """
+    with pytest.raises(ValueError, match=expected_match):
+        Plotter(toy_results).plot_label_legends(**kwargs)
+
+
+@pytest.mark.api
+def test_plot_label_legends_require_source_colors_mapping(toy_results):
+    """
+    Ensures label legends fail when the referenced row bar payload lacks colors mapping.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+
+    Raises:
+        ValueError: If the referenced categorical row label bar has no colors mapping.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        plotter = (
+            Plotter(toy_results)
+            .plot_matrix()
+            .plot_label_bar(
+                values={"a": "1", "b": "2", "c": "1", "d": "2"},
+                name="orf_category",
+                mode="categorical",
+                colors={"1": "#1b9e77", "2": "#d95f02"},
+            )
+            .add_label_legend(name="orf_category")
+            .plot_label_legends()
+        )
+        # Corrupt track payload intentionally to verify legend source integrity checks.
+        # Replace the row-track renderer to avoid earlier label-bar color validation.
+        plotter._track_layout.tracks[0]["renderer"] = lambda *args, **kwargs: None
+        plotter._track_layout.tracks[0]["payload"]["colors"] = None
+        with pytest.raises(ValueError, match="non-empty `colors` mapping"):
+            plotter.show()
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+def test_plot_label_legends_grid_overflow_raises(toy_results):
+    """
+    Ensures legend rendering errors when configured grid cannot fit all categories.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+
+    Raises:
+        ValueError: If nrows * ncols is smaller than the number of legend entries.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        with pytest.raises(ValueError, match="cannot fit all categories"):
+            (
+                Plotter(toy_results)
+                .plot_matrix()
+                .plot_label_bar(
+                    values={"a": "1", "b": "2", "c": "3", "d": "1"},
+                    name="orf_category",
+                    mode="categorical",
+                    colors={"1": "#1b9e77", "2": "#d95f02", "3": "#7570b3"},
+                )
+                .add_label_legend(name="orf_category", nrows=1, ncols=2)
+                .plot_label_legends()
+                .show()
+            )
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+def test_plot_label_legends_render_categorical_track(toy_results):
+    """
+    Ensures categorical label legends render from a declared categorical row label bar.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        values = {"a": "1", "b": "2", "c": "1", "d": "2"}
+        colors = {
+            "1": "#1b9e77",
+            "2": "#d95f02",
+            "3": "#7570b3",  # Unused in matrix rows
+        }
+        plotter = (
+            Plotter(toy_results)
+            .plot_matrix()
+            .plot_label_bar(
+                values=values,
+                name="orf_category",
+                mode="categorical",
+                colors=colors,
+                title="ORF Category",
+            )
+            .add_label_legend(
+                name="orf_category",
+                nrows=1,
+                row_pad=0.01,
+                col_pad=0.015,
+            )
+            .plot_label_legends(height=0.07, gap=0.02, swatch_scale=0.9)
+        )
+        plotter.show()
+        texts = extract_figure_text(plotter._fig, strip=True, nonempty=True)
+        assert "ORF Category" in texts
+        assert "1" in texts
+        assert "2" in texts
+        assert "3" not in texts
+        assert plotter.label_legend_layout_ is not None
+        assert plotter._label_legends[0]["row_pad"] == pytest.approx(0.01)
+        assert plotter._label_legends[0]["col_pad"] == pytest.approx(0.015)
+        assert plotter.label_legend_layout_["swatch_scale"] == pytest.approx(0.9)
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+def test_plot_label_legends_require_categorical_track_mode(toy_results):
+    """
+    Ensures categorical legends reject non-categorical row label bars.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+
+    Raises:
+        ValueError: If the referenced label bar is not categorical.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        with pytest.raises(ValueError, match="mode='categorical'"):
+            (
+                Plotter(toy_results)
+                .plot_matrix()
+                .plot_label_bar(
+                    values={"a": 0.0, "b": 1.0, "c": 0.5, "d": 1.0},
+                    name="continuous_track",
+                    mode="continuous",
+                    cmap="viridis",
+                )
+                .add_label_legend(name="continuous_track")
+                .plot_label_legends()
+                .show()
+            )
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+def test_plot_label_legends_require_known_row_track(toy_results):
+    """
+    Ensures categorical legends reject unknown row label-bar references.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+
+    Raises:
+        ValueError: If the referenced label-bar name is unknown.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        with pytest.raises(ValueError, match="Unknown label-legend name"):
+            (
+                Plotter(toy_results)
+                .plot_matrix()
+                .add_label_legend(name="missing_track")
+                .plot_label_legends()
+                .show()
+            )
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
 def test_plot_cluster_labels_respect_np_order(toy_results):
     """
     Ensures cluster labels keep label first while respecting q/fe/p/n order from label_fields
@@ -297,7 +713,7 @@ def test_plot_cluster_labels_respect_np_order(toy_results):
     Args:
         toy_results (Results): Results fixture with clusters and layout.
     """
-    plt = _use_agg_backend()
+    plt = use_agg_backend()
     plt_show = plt.show
     plt.show = lambda *args, **kwargs: None
     try:
@@ -311,7 +727,7 @@ def test_plot_cluster_labels_respect_np_order(toy_results):
         )
         plotter.show()
         fig = plotter._fig
-        texts = [t.get_text() for ax in fig.axes for t in ax.texts]
+        texts = extract_figure_text(fig)
         # Cluster labels are asserted via rendered text fragments rather than data objects.
         label_texts = [t for t in texts if "$q$=" in t and "FE=" in t and "$p$=" in t and "n=" in t]
         assert label_texts, "Expected cluster label text to be rendered."
@@ -340,7 +756,7 @@ def test_plot_cluster_labels_invalid_label_prefix_raises(toy_results):
     Raises:
         ValueError: If label_prefix is not supported.
     """
-    plt = _use_agg_backend()
+    plt = use_agg_backend()
     plt_show = plt.show
     plt.show = lambda *args, **kwargs: None
     try:
@@ -366,7 +782,7 @@ def test_plot_cluster_labels_none_label_fields_hides_text(toy_results):
     Args:
         toy_results (Results): Results fixture with clusters and layout.
     """
-    plt = _use_agg_backend()
+    plt = use_agg_backend()
     plt_show = plt.show
     plt.show = lambda *args, **kwargs: None
     try:
@@ -378,7 +794,7 @@ def test_plot_cluster_labels_none_label_fields_hides_text(toy_results):
             )
         )
         plotter.show()
-        texts = [t.get_text().strip() for ax in plotter._fig.axes for t in ax.texts if t.get_text().strip()]
+        texts = extract_figure_text(plotter._fig, strip=True, nonempty=True)
         assert not texts
     finally:
         plt.show = plt_show
@@ -392,7 +808,7 @@ def test_plot_cluster_labels_label_prefix_cid_supports_compressed_labels(toy_res
     Args:
         toy_results (Results): Results fixture with clusters and layout.
     """
-    plt = _use_agg_backend()
+    plt = use_agg_backend()
     plt_show = plt.show
     plt.show = lambda *args, **kwargs: None
     try:
@@ -407,7 +823,7 @@ def test_plot_cluster_labels_label_prefix_cid_supports_compressed_labels(toy_res
             )
         )
         plotter.show()
-        texts = [t.get_text().strip() for ax in plotter._fig.axes for t in ax.texts if t.get_text().strip()]
+        texts = extract_figure_text(plotter._fig, strip=True, nonempty=True)
         assert any(txt.split(". ", 1)[0].isdigit() for txt in texts if ". " in txt)
         assert any("FE=" in txt for txt in texts)
     finally:
@@ -420,14 +836,24 @@ def test_plot_cluster_labels_label_prefix_cid_supports_compressed_labels(toy_res
     [("label",), ("n", "p"), None],
     ids=["with_label_fields", "np_only", "without_label_fields"],
 )
-def test_plot_cluster_labels_label_prefix_precedence_override_wins(toy_results, label_fields):
+@pytest.mark.parametrize(
+    "label_prefix, override_template",
+    [(None, "DNA replication & repair"), ("cid", "{cid}. DNA replication & repair")],
+    ids=["without_prefix", "with_cid_prefix"],
+)
+def test_plot_cluster_labels_label_prefix_precedence_override_wins(
+    toy_results,
+    label_fields,
+    label_prefix,
+    override_template,
+):
     """
-    Ensures label_prefix is applied before overrides and explicit overrides win.
+    Ensures explicit overrides win with and without cid prefix mode.
 
     Args:
         toy_results (Results): Results fixture with clusters and layout.
     """
-    plt = _use_agg_backend()
+    plt = use_agg_backend()
     plt_show = plt.show
     plt.show = lambda *args, **kwargs: None
     try:
@@ -435,28 +861,31 @@ def test_plot_cluster_labels_label_prefix_precedence_override_wins(toy_results, 
         assert len(spans) >= 2
         override_cid = int(spans[0][0])
         regular_cid = int(spans[1][0])
-        override_label = "Custom Prefix Override"
+        override_label = override_template.format(cid=override_cid)
         plotter = (
             Plotter(toy_results)
             .plot_matrix()
             .plot_cluster_labels(
                 label_fields=label_fields,
-                label_prefix="cid",
+                label_prefix=label_prefix,
                 overrides={override_cid: override_label},
                 wrap_text=False,
             )
         )
         plotter.show()
-        texts = [t.get_text().strip() for ax in plotter._fig.axes for t in ax.texts if t.get_text().strip()]
+        texts = extract_figure_text(plotter._fig, strip=True, nonempty=True)
         if label_fields is None:
             assert override_label in texts
         else:
             assert any(txt.startswith(override_label) for txt in texts)
         assert all(txt != f"{override_cid}. {override_label}" for txt in texts)
-        if label_fields is None:
-            assert f"{regular_cid}." in texts
+        if label_prefix == "cid":
+            if label_fields is None:
+                assert f"{regular_cid}." in texts
+            else:
+                assert any(txt.startswith(f"{regular_cid}. ") for txt in texts)
         else:
-            assert any(txt.startswith(f"{regular_cid}. ") for txt in texts)
+            assert all(not txt.startswith(f"{regular_cid}. ") for txt in texts)
     finally:
         plt.show = plt_show
 
@@ -472,7 +901,7 @@ def test_plot_cluster_labels_accepts_override_mapper(toy_results):
     Raises:
         ValueError: If overrides reference unknown cluster ids.
     """
-    plt = _use_agg_backend()
+    plt = use_agg_backend()
     plt_show = plt.show
     plt.show = lambda *args, **kwargs: None
     try:
@@ -493,7 +922,7 @@ def test_plot_cluster_labels_accepts_override_mapper(toy_results):
         )
         plotter.show()
         fig = plotter._fig
-        texts = [t.get_text() for ax in fig.axes for t in ax.texts]
+        texts = extract_figure_text(fig)
         assert any(custom_label in t for t in texts)
 
         # Empty-string override is a valid way to suppress one cluster label and
@@ -523,7 +952,7 @@ def test_plot_cluster_labels_placeholder_style_overrides_global_style(toy_result
     Args:
         toy_results (Results): Results fixture with clusters and layout.
     """
-    plt = _use_agg_backend()
+    plt = use_agg_backend()
     plt_show = plt.show
     plt.show = lambda *args, **kwargs: None
     try:
@@ -584,7 +1013,7 @@ def test_plot_cluster_labels_override_with_np_fields_keeps_label_and_stats(toy_r
     Args:
         toy_results (Results): Results fixture with clusters and layout.
     """
-    plt = _use_agg_backend()
+    plt = use_agg_backend()
     plt_show = plt.show
     plt.show = lambda *args, **kwargs: None
     try:
@@ -601,7 +1030,7 @@ def test_plot_cluster_labels_override_with_np_fields_keeps_label_and_stats(toy_r
         )
         plotter.show()
         fig = plotter._fig
-        texts = [t.get_text() for ax in fig.axes for t in ax.texts]
+        texts = extract_figure_text(fig)
         custom_texts = [t for t in texts if t.startswith("CustomLabelVisibleWithFields")]
         assert custom_texts, "Expected override label text to remain visible."
         for txt in custom_texts:
@@ -646,7 +1075,7 @@ def test_plot_cluster_labels_max_words_controls_label_building_compressed(toy_re
     Args:
         toy_results (Results): Results fixture with clusters and layout.
     """
-    plt = _use_agg_backend()
+    plt = use_agg_backend()
     plt_show = plt.show
     plt.show = lambda *args, **kwargs: None
     try:
@@ -663,7 +1092,7 @@ def test_plot_cluster_labels_max_words_controls_label_building_compressed(toy_re
         )
         plotter.show()
         fig = plotter._fig
-        texts = [t.get_text().strip() for ax in fig.axes for t in ax.texts]
+        texts = extract_figure_text(fig, strip=True)
         # Exclude placeholders to focus on generated cluster label text.
         cluster_texts = [t for t in texts if t and t != "—"]
         assert cluster_texts, "Expected generated cluster labels to be rendered."
@@ -681,7 +1110,7 @@ def test_plot_cluster_labels_max_words_controls_display(toy_results):
     Args:
         toy_results (Results): Results fixture with clusters and layout.
     """
-    plt = _use_agg_backend()
+    plt = use_agg_backend()
     plt_show = plt.show
     plt.show = lambda *args, **kwargs: None
     try:
@@ -699,7 +1128,7 @@ def test_plot_cluster_labels_max_words_controls_display(toy_results):
         )
         plotter.show()
         fig = plotter._fig
-        texts = [t.get_text() for ax in fig.axes for t in ax.texts]
+        texts = extract_figure_text(fig)
         assert any(t.strip() == "Alpha" for t in texts)
         assert not any("Alpha Beta" in t for t in texts)
     finally:

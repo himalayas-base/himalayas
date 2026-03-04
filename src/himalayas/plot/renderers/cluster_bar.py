@@ -65,10 +65,10 @@ def _scale_cluster_values(
     Returns:
         np.ndarray: Scaled values in [0, 1], NaN preserved.
     """
-    # Convert to -log10 scale
+    # Convert to -log10 scale.
     with np.errstate(divide="ignore", invalid="ignore"):
         logp = -np.log10(values)
-    # Identify valid entries
+    # Identify valid entries.
     valid = np.isfinite(logp) & (logp >= 0)
     if not np.any(valid):
         return np.full_like(logp, np.nan, dtype=float)
@@ -113,7 +113,7 @@ def render_cluster_bar_track(
     cmap = plt.get_cmap(cmap_in) if isinstance(cmap_in, str) else cmap_in
     alpha = payload.get("alpha", style["sigbar_alpha"])
     norm = payload.get("norm", None)
-    # Resolve raw values and scale
+    # Resolve raw values and scale.
     raw_values = _resolve_cluster_values(
         cluster_spans=cluster_spans,
         label_map=label_map,
@@ -122,9 +122,9 @@ def render_cluster_bar_track(
         raw_values,
         norm=norm,
     )
-    # Render bars per cluster
+    # Render bars per cluster.
     for (_cid, s, e), sv in zip(cluster_spans, scaled):
-        # Keep condensed/main sigbar semantics aligned:
+        # Keep condensed/main sigbar semantics aligned:.
         # unlabeled clusters (NaN scale) render at minimum colormap value.
         bar_value = float(sv) if np.isfinite(sv) else 0.0
         bar_value = float(np.clip(bar_value, 0.0, 1.0))
