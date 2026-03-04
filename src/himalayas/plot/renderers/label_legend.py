@@ -247,7 +247,7 @@ def _resolve_block_geometry(
     row_pad: Optional[float],
     col_pad: Optional[float],
     swatch_scale: float,
-) -> dict[str, float]:
+) -> Dict[str, float]:
     """
     Resolves row and swatch geometry for one legend block.
 
@@ -265,7 +265,7 @@ def _resolve_block_geometry(
         swatch_scale (float): Relative swatch size inside one row.
 
     Returns:
-        dict[str, float]: Geometry values for row and swatch rendering.
+        Dict[str, float]: Geometry values for row and swatch rendering.
     """
     # Compute row and column gaps with defaults that preserve visual balance across typical grid shapes.
     if ncols > 1:

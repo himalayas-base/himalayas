@@ -424,7 +424,7 @@ class Plotter:
         width: float,
         right_pad: float,
         enabled: bool,
-        payload: dict[str, Any],
+        payload: Dict[str, Any],
     ) -> None:
         """
         Registers a label-panel track if enabled.
@@ -437,7 +437,7 @@ class Plotter:
             width (float): Track width.
             right_pad (float): Right padding.
             enabled (bool): Whether to register.
-            payload (dict[str, Any]): Renderer payload.
+            payload (Dict[str, Any]): Renderer payload.
         """
         if not enabled:
             return
@@ -469,12 +469,12 @@ class Plotter:
 
     def _collect_layer_kwargs(
         self,
-    ) -> tuple[Optional[dict[str, Any]], Optional[dict[str, Any]], Optional[dict[str, Any]]]:
+    ) -> tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
         """
         Collects frequently used layer kwargs, using last-one-wins semantics.
 
         Returns:
-            tuple[Optional[dict[str, Any]], Optional[dict[str, Any]], Optional[dict[str, Any]]]:
+            tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
                 Matrix kwargs, cluster-label kwargs, and bar-label kwargs.
         """
         matrix_kwargs = None
@@ -489,12 +489,12 @@ class Plotter:
                 bar_label_kwargs = kwargs
         return matrix_kwargs, cluster_label_kwargs, bar_label_kwargs
 
-    def _resolve_label_legend_specs(self) -> list[dict[str, Any]]:
+    def _resolve_label_legend_specs(self) -> list[Dict[str, Any]]:
         """
         Resolves categorical label-legend specs against declared row-level label tracks.
 
         Returns:
-            list[dict[str, Any]]: Normalized label-legend specs.
+            list[Dict[str, Any]]: Normalized label-legend specs.
 
         Raises:
             ValueError: If referenced tracks are invalid for categorical legends.
@@ -574,8 +574,8 @@ class Plotter:
         fig,
         layout,
         *,
-        bar_kwargs: Optional[dict[str, Any]],
-        cluster_kwargs: Optional[dict[str, Any]] = None,
+        bar_kwargs: Optional[Dict[str, Any]],
+        cluster_kwargs: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Renders the shared label panel with optional cluster labels.
@@ -583,8 +583,8 @@ class Plotter:
         Args:
             fig: Matplotlib figure.
             layout: Cluster layout object.
-            bar_kwargs (Optional[dict[str, Any]]): Bar-label renderer kwargs.
-            cluster_kwargs (Optional[dict[str, Any]]): Cluster-label layer kwargs.
+            bar_kwargs (Optional[Dict[str, Any]]): Bar-label renderer kwargs.
+            cluster_kwargs (Optional[Dict[str, Any]]): Cluster-label layer kwargs.
                 If None, renders tracks only without cluster text.
         """
         if cluster_kwargs is None:
@@ -815,7 +815,7 @@ class Plotter:
     def plot_cluster_labels(
         self,
         *,
-        overrides: Optional[dict[int, str]] = None,
+        overrides: Optional[Dict[int, str]] = None,
         **kwargs,
     ) -> Plotter:
         """
@@ -823,7 +823,7 @@ class Plotter:
         Labels are generated from attached Results by default.
 
         Kwargs:
-            overrides (dict[int, str]): Per-cluster label overrides keyed by cluster id.
+            overrides (Dict[int, str]): Per-cluster label overrides keyed by cluster id.
                 Override labels do not change bar values.
             rank_by (str): Ranking statistic for representative terms, one of {"p", "q"}.
                 Defaults to "p".
