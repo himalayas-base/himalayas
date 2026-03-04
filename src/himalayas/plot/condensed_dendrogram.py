@@ -263,13 +263,13 @@ def _resolve_cluster_order(
     Raises:
         ValueError: If no cluster ids could be mapped from master leaf order.
     """
-    # Map master leaf order to cluster ids
+    # Map master leaf order to cluster ids.
     row_labels = results.matrix.labels
     cluster_to_rows = clusters.cluster_to_labels
     row_to_cluster = {row_id: int(cid) for cid, rows in cluster_to_rows.items() for row_id in rows}
     ordered_cluster_ids: list[int] = []
     seen: set[int] = set()
-    # Scan master leaf order and collect cluster ids
+    # Scan master leaf order and collect cluster ids.
     for i in leaves_list(Z_master):
         cid = row_to_cluster.get(row_labels[int(i)], None)
         if cid is None or cid in seen:
@@ -343,7 +343,7 @@ def _prepare_cluster_labels(
     """
     if label_overrides is None:
         label_overrides = {}
-    # Build label map from DataFrame
+    # Build label map from DataFrame.
     lab_map: Dict[int, ClusterLabelInfo] = {}
     for _, row in cluster_labels.iterrows():
         pval_raw = row.get("pval", np.nan)
@@ -364,7 +364,7 @@ def _prepare_cluster_labels(
     cluster_sizes = getattr(clusters, "cluster_sizes", None) if clusters is not None else None
     cluster_sizes = dict(cluster_sizes) if cluster_sizes is not None else None
 
-    # Prepare labels and ranking scores in order
+    # Prepare labels and ranking scores in order.
     labels: list[str] = []
     scores: list[float] = []
     for cid in cluster_ids:
@@ -376,7 +376,7 @@ def _prepare_cluster_labels(
             labels.append(placeholder_text)
             scores.append(np.nan)
             continue
-        # Apply overrides and formatting, then collect
+        # Apply overrides and formatting, then collect.
         lab_info = lab_map[cid]
         lab = lab_info.label
         if (label_fields is None or "label" not in label_fields) and cid not in label_overrides:
@@ -396,7 +396,7 @@ def _prepare_cluster_labels(
             )
         )
         scores.append(lab_info.score)
-    # Convert ranking scores to array
+    # Convert ranking scores to array.
     score_arr = np.asarray(scores, float)
     y = np.arange(len(cluster_ids)) * 10.0 + 5.0
 
@@ -516,7 +516,7 @@ def _compute_condensed_dendrogram(
             "Skip condensed plotting for this run or adjust clustering settings."
         )
 
-    # Build condensed linkage matrix
+    # Build condensed linkage matrix.
     n_master = Z_master.shape[0] + 1
     row_index_to_cluster = {
         i: row_to_cluster[row_labels[int(i)]]
@@ -542,7 +542,7 @@ def _setup_condensed_axes(
         label_left_pad (float): Left padding for labels (axes fraction).
         background_color (Optional[str]): Background color for figure and axes. Defaults to None.
     """
-    # Build axes layout for dendrogram, sigbar, and labels
+    # Build axes layout for dendrogram, sigbar, and labels.
     fig = plt.figure(figsize=figsize)
     ax_den = fig.add_axes([0.05, 0.05, 0.60, 0.90], frameon=False)
     ax_sig = fig.add_axes([0.66, 0.05, sigbar_width, 0.90], frameon=False)
@@ -594,7 +594,7 @@ def _condense_linkage_to_clusters(
         ValueError: If the condensed linkage is incomplete.
     """
     cluster_index = {cid: i for i, cid in enumerate(cluster_ids)}
-    # Build leaf group mapping
+    # Build leaf group mapping.
     n_master = Z_master.shape[0] + 1
     leaf_groups: list[Optional[int]] = []
     for i in range(n_master):
@@ -608,7 +608,7 @@ def _condense_linkage_to_clusters(
     node_groups: Dict[int, set[int]] = {}
     for i, grp in enumerate(leaf_groups):
         node_groups[i] = set() if grp is None else {int(grp)}
-    # Build condensed linkage rows by scanning master merges
+    # Build condensed linkage rows by scanning master merges.
     Zc_rows: list[list[float]] = []
     rep_to_id = {frozenset({i}): i for i in range(len(cluster_ids))}
     next_id = len(cluster_ids)
@@ -621,10 +621,10 @@ def _condense_linkage_to_clusters(
         Gb = node_groups.get(b, set())
         G = Ga | Gb
         node_groups[n_master + t] = G
-        # Only record merge if it connects two distinct cluster groups
+        # Only record merge if it connects two distinct cluster groups.
         if len(G) <= 1 or Ga == Gb:
             continue
-        # Map group representatives to ids
+        # Map group representatives to ids.
         ra = frozenset(Ga)
         rb = frozenset(Gb)
         rg = frozenset(G)
@@ -634,7 +634,7 @@ def _condense_linkage_to_clusters(
         if rb not in rep_to_id:
             rep_to_id[rb] = next_id
             next_id += 1
-        # Create condensed linkage row
+        # Create condensed linkage row.
         ida = rep_to_id[ra]
         idb = rep_to_id[rb]
         if rg in rep_to_id:
@@ -677,7 +677,7 @@ def _get_cluster_size(
     Returns:
         Optional[int]: Cluster size, or None if not found.
     """
-    # Check label map first, then cluster_sizes, then compute from cluster_to_labels
+    # Check label map first, then cluster_sizes, then compute from cluster_to_labels.
     if cluster_id in label_map:
         n0 = label_map[cluster_id].n_members
         if n0 is not None:
@@ -716,7 +716,7 @@ def _render_condensed(spec: CondensedDendrogramSpec) -> CondensedDendrogramPlot:
         label_mode=spec.label_mode,
         max_words=spec.max_words,
     )
-    # Get master linkage and clusters
+    # Get master linkage and clusters.
     Z_master, clusters = _get_master_linkage(spec.results)
     cluster_ids, row_to_cluster = _resolve_cluster_order(Z_master, spec.results, clusters)
     labels, scores, lab_map, cluster_sizes, y = _prepare_cluster_labels(
@@ -761,13 +761,13 @@ def _render_condensed(spec: CondensedDendrogramSpec) -> CondensedDendrogramPlot:
         ax_den.plot(xs, mapped, color=spec.dendrogram_color, lw=spec.dendrogram_lw)
     ax_den.set(xlim=(max_h + x_pad, 0.0), ylim=(k * 10, 0))
 
-    # Render significance bar
+    # Render significance bar.
     cmap = plt.get_cmap(spec.sigbar_cmap)
     ax_sig.set(xlim=(0, 1), ylim=(k * 10, 0))
     if not np.isfinite(spec.sigbar_height) or spec.sigbar_height <= 0 or spec.sigbar_height > 1:
         raise ValueError("sigbar_height must be in the range (0, 1]")
 
-    # Normalize scores to [0, 1] based on log-transformed p-values, then render bars
+    # Normalize scores to [0, 1] based on log-transformed p-values, then render bars.
     norm = spec.sigbar_norm
     denom = spec.sigbar_max_logp - spec.sigbar_min_logp
     row_pitch = float(np.mean(np.diff(y))) if len(y) > 1 else 10.0
@@ -795,12 +795,12 @@ def _render_condensed(spec: CondensedDendrogramSpec) -> CondensedDendrogramPlot:
             )
         )
 
-    # Render text labels
+    # Render text labels.
     ax_txt.set(xlim=(0, 1), ylim=(k * 10, 0))
     # Mapping cluster -> row ids is needed for _get_cluster_size.
     cluster_to_rows = getattr(clusters, "cluster_to_labels", None) or {}
     override_map = spec.label_overrides or {}
-    # Format and place per-cluster label text
+    # Format and place per-cluster label text.
     for cid, yi, lab in zip(cluster_ids, y, labels):
         cid_int = int(cid)
         is_placeholder = cid_int not in lab_map
@@ -859,7 +859,7 @@ def _render_condensed(spec: CondensedDendrogramSpec) -> CondensedDendrogramPlot:
             fontweight=spec.label_fontweight,
         )
 
-    # Clean axes and return rendered figure handle
+    # Clean axes and return rendered figure handle.
     _finalize_axes(ax_den, ax_sig, ax_txt)
     return CondensedDendrogramPlot(
         fig=_fig,

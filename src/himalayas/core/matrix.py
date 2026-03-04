@@ -27,7 +27,7 @@ class Matrix:
         Raises:
             ValueError: If the matrix labels are not unique.
         """
-        # Defensive copy: Matrix contents are treated as immutable downstream
+        # Defensive copy: Matrix contents are treated as immutable downstream.
         self.df = df.copy()
         self.values = self.df.values
         self.labels = self.df.index.to_numpy(dtype=object)

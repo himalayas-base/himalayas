@@ -27,7 +27,7 @@ def _encode_label_indices(labels: np.ndarray) -> Dict[Any, int]:
     Returns:
         Dict[Any, int]: Mapping from label to integer index.
     """
-    # Labels are validated to be unique already
+    # Labels are validated to be unique already.
     return {lab: i for i, lab in enumerate(labels.tolist())}
 
 
@@ -42,7 +42,7 @@ def _count_intersection_sorted(a: np.ndarray, b: np.ndarray) -> int:
     Returns:
         int: Size of the intersection between a and b.
     """
-    # Initialize pointers and count
+    # Initialize pointers and count.
     i = 0
     j = 0
     na = int(a.size)
@@ -78,7 +78,7 @@ def _validate_background(matrix: Matrix, background: Optional[Matrix]) -> Tuple[
     Raises:
         ValueError: If background matrix does not contain all analysis matrix labels.
     """
-    # Resolve universe labels and validate background coverage
+    # Resolve universe labels and validate background coverage.
     bg_labels = background.labels if background is not None else matrix.labels
     N = int(bg_labels.shape[0])
     if background is not None:
@@ -109,15 +109,15 @@ def _encode_terms(
     Returns:
         List[Tuple[str, np.ndarray, int]]: List of tuples (term, idx_array, K).
     """
-    term_items: List[Tuple[str, np.ndarray, int]] = []  # (term, idx_array, K)
+    term_items: List[Tuple[str, np.ndarray, int]] = []  # (term, idx_array, K).
     for term, term_labels in annotations.term_to_labels.items():
-        # term_labels already overlap matrix labels by construction
+        # term_labels already overlap matrix labels by construction.
         idx = np.fromiter(
             (label_to_idx[label] for label in term_labels),
             dtype=np.int32,
         )
         idx.sort()
-        # De-dup defensively (should already be unique)
+        # De-dup defensively (should already be unique).
         if idx.size > 1:
             idx = np.unique(idx)
         K = int(idx.size)
@@ -148,7 +148,7 @@ def _encode_clusters(
     """
     cluster_dict: Dict[int, Tuple[np.ndarray, int]] = {}
     cluster_ids = clusters.unique_clusters
-    # Encode each cluster as a sorted index array
+    # Encode each cluster as a sorted index array.
     for cid in cluster_ids:
         cid_int = int(cid)
         cluster_labels = clusters.cluster_to_labels[cid_int]
@@ -156,7 +156,7 @@ def _encode_clusters(
         if n <= 0 or n < int(min_overlap):
             continue
 
-        # Build and de-duplicate cluster index list
+        # Build and de-duplicate cluster index list.
         cidx = np.fromiter(
             (label_to_idx[label] for label in cluster_labels),
             dtype=np.int32,
@@ -201,11 +201,11 @@ def run_cluster_hypergeom(
         ValueError: If background matrix does not contain all analysis matrix labels.
     """
     result_columns = ["cluster", "term", "k", "K", "n", "N", "pval"]
-    # Validate background and get universe labels and size
+    # Validate background and get universe labels and size.
     bg_labels, N = _validate_background(matrix, background)
     label_to_idx = _encode_label_indices(bg_labels)
     term_items = _encode_terms(annotations, label_to_idx, min_overlap=min_overlap)
-    # Early exit if no terms pass filtering
+    # Early exit if no terms pass filtering.
     if not term_items:
         return Results(
             pd.DataFrame(columns=result_columns),
@@ -213,26 +213,26 @@ def run_cluster_hypergeom(
             clusters=clusters,
         )
 
-    # Encode clusters as index arrays
+    # Encode clusters as index arrays.
     cluster_dict = _encode_clusters(clusters, label_to_idx, min_overlap=min_overlap)
     rows: List[Dict[str, Any]] = []
     for cid_int, (cidx, n) in cluster_dict.items():
-        # Cache hypergeom.sf for this cluster (N and n fixed)
+        # Cache hypergeom.sf for this cluster (N and n fixed).
         sf_cache: Dict[Tuple[int, int], float] = {}
-        # Test all terms
+        # Test all terms.
         for term, tidx, K in term_items:
-            # Fast intersection size; skip if below min_overlap
+            # Fast intersection size; skip if below min_overlap.
             k = _count_intersection_sorted(cidx, tidx)
             if k < int(min_overlap):
                 continue
-            # Compute p-value with caching
+            # Compute p-value with caching.
             key = (K, k)
             pval = sf_cache.get(key)
             if pval is None:
-                # P(X >= k) under Hypergeom(N population, K successes, n draws)
+                # P(X >= k) under Hypergeom(N population, K successes, n draws).
                 pval = float(hypergeom.sf(k - 1, N, K, n))
                 sf_cache[key] = pval
-            # Record result row
+            # Record result row.
             rows.append(
                 {
                     "cluster": cid_int,
@@ -245,12 +245,12 @@ def run_cluster_hypergeom(
                 }
             )
 
-    # Assemble results DataFrame
+    # Assemble results DataFrame.
     df = pd.DataFrame(rows, columns=result_columns)
     if not df.empty:
         df = df.sort_values(["pval", "cluster", "term"], kind="mergesort").reset_index(drop=True)
-        # Reduce memory footprint (safe downcasts for typical biology sizes)
-        # Use int32 universally if you anticipate >32767 labels/terms
+        # Reduce memory footprint (safe downcasts for typical biology sizes).
+        # Use int32 universally if you anticipate >32767 labels/terms.
         df = df.astype(
             {
                 "cluster": "int32",

@@ -278,7 +278,7 @@ class Results:
         if self.matrix is None:
             raise ValueError("Results must have matrix to subset")
 
-        # Subset rows by label while preserving matrix row order
+        # Subset rows by label while preserving matrix row order.
         label_list = list(labels)
         df_sub = self.matrix.df.loc[label_list]
         sub_matrix = Matrix(
@@ -334,7 +334,7 @@ class Results:
         if self.matrix is None or self.clusters is None:
             raise ValueError("Results must have matrix and clusters to subset")
 
-        # Deduplicate cluster ids while preserving order
+        # Deduplicate cluster ids while preserving order.
         cluster_ids: List[int] = []
         seen: Set[int] = set()
         for cid in clusters:
@@ -346,7 +346,7 @@ class Results:
         if not cluster_ids:
             raise ValueError("clusters must contain at least one cluster id")
 
-        # Validate cluster ids and resolve to label sets
+        # Validate cluster ids and resolve to label sets.
         cluster_to_labels = self.clusters.cluster_to_labels
         missing = [cid for cid in cluster_ids if cid not in cluster_to_labels]
         if missing:
@@ -354,7 +354,7 @@ class Results:
                 raise KeyError(f"Cluster {missing[0]} not found")
             raise KeyError(f"Clusters not found: {missing}")
 
-        # Subset rows by union of selected cluster labels while preserving matrix row order
+        # Subset rows by union of selected cluster labels while preserving matrix row order.
         selected_labels = set().union(*(cluster_to_labels[cid] for cid in cluster_ids))
         labels = [lab for lab in self.matrix.df.index if lab in selected_labels]
         return self._subset_from_labels(labels)
@@ -381,7 +381,7 @@ class Results:
         if np.any((pvals < 0) | (pvals > 1) | ~np.isfinite(pvals)):
             raise ValueError("p-values must be finite and in [0, 1]")
 
-        # Compute BH q-values and restore original order
+        # Compute BH q-values and restore original order.
         m = pvals.size
         order = np.argsort(pvals)
         ranked = pvals[order]
@@ -416,7 +416,7 @@ class Results:
         if missing:
             raise KeyError(f"Missing columns required for fold enrichment: {missing}")
 
-        # Compute FE while preserving row alignment
+        # Compute FE while preserving row alignment.
         df2 = self.df.copy()
         k = pd.to_numeric(df2["k"], errors="coerce").to_numpy(dtype=float)
         K = pd.to_numeric(df2["K"], errors="coerce").to_numpy(dtype=float)
@@ -454,10 +454,10 @@ class Results:
         if pval_col not in self.df.columns:
             raise KeyError(f"Missing p-value column: {pval_col!r}")
 
-        # Compute q-values while preserving row alignment
+        # Compute q-values while preserving row alignment.
         df2 = self.df.copy()
         pvals = df2[pval_col].to_numpy(dtype=float)
-        # Preserve row alignment: NaN p-values yield NaN q-values
+        # Preserve row alignment: NaN p-values yield NaN q-values.
         qvals = np.full_like(pvals, np.nan, dtype=float)
         mask = np.isfinite(pvals)
         qvals[mask] = self._bh_fdr(pvals[mask])

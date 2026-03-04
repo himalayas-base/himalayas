@@ -54,23 +54,23 @@ class Plotter:
             raise ValueError("Plotter expects Results with a non-null matrix")
 
         self.matrix = results.matrix
-        # Declarative plot plan (ordered)
+        # Declarative plot plan (ordered).
         self._layers = []
-        # Declarative colorbar specs (global, figure-aligned)
+        # Declarative colorbar specs (global, figure-aligned).
         self._colorbars = []
         self._colorbar_layout = None
-        # Declarative categorical label-legend specs (global, figure-aligned)
+        # Declarative categorical label-legend specs (global, figure-aligned).
         self._label_legends = []
         self._label_legend_layout = None
-        # Label panel track layout manager
+        # Label panel track layout manager.
         self._track_layout = TrackLayoutManager()
-        # Default styling config
+        # Default styling config.
         self.style = StyleConfig()
         self._style = self.style
-        # Figure-level configuration (explicit, opt-in)
+        # Figure-level configuration (explicit, opt-in).
         self._background = None
         self._fig = None
-        # Render metadata (attached after first render)
+        # Render metadata (attached after first render).
         self.layout_ = None
         self.colorbar_layout_ = None
         self.label_legend_layout_ = None
@@ -787,7 +787,7 @@ class Plotter:
             except Exception as exc:
                 raise TypeError("plot_label_bar expects values convertible to dict") from exc
 
-        # Always register as an explicit track in the label panel
+        # Always register as an explicit track in the label panel.
         if "placement" in kwargs:
             raise TypeError("plot_label_bar() got an unexpected keyword argument 'placement'")
         width = kwargs.pop("width", self._style.get("label_bar_width", 0.015))
@@ -938,11 +938,11 @@ class Plotter:
                 "plot_cluster_bar() requires plot_cluster_labels() in the same plotting chain."
             )
         matrix_kwargs, cluster_boundary_kwargs, bar_kwargs = self._collect_layer_kwargs()
-        # Consume authoritative geometry from Results
+        # Consume authoritative geometry from Results.
         layout = self.results.cluster_layout()
         # NOTE:
-        #   - Layout.leaf_order controls row ordering (statistically meaningful)
-        #   - Layout.col_order controls column ordering (visual only)
+        #   - Layout.leaf_order controls row ordering (statistically meaningful).
+        #   - Layout.col_order controls column ordering (visual only).
         row_order = layout.leaf_order
         col_order = layout.col_order
         if row_order is None:
@@ -954,16 +954,16 @@ class Plotter:
                 raise ValueError("Column order does not match matrix dimensions.")
 
         n_rows = self.matrix.df.shape[0]
-        # Create figure and main axis
+        # Create figure and main axis.
         fig, ax = plt.subplots(figsize=self._style["figsize"])
         fig.subplots_adjust(**self._style["subplots_adjust"])
         if self._background is not None:
             fig.patch.set_facecolor(self._background)
 
-        # Single-ownership boundary registry (matrix-aligned horizontals)
+        # Single-ownership boundary registry (matrix-aligned horizontals).
         boundary_registry = BoundaryRegistry()
 
-        # Minor row gridlines (internal only; suppress axis extremes)
+        # Minor row gridlines (internal only; suppress axis extremes).
         if matrix_kwargs is not None and matrix_kwargs.get("show_minor_rows", True):
             step = matrix_kwargs.get("minor_row_step", 1)
             lw = matrix_kwargs.get("minor_row_lw", 0.15)
@@ -974,7 +974,7 @@ class Plotter:
                     continue
                 boundary_registry.register(b, lw=lw, color="black", alpha=alpha)
 
-        # Cluster boundaries (suppress axis extremes; cluster lines override minor lines)
+        # Cluster boundaries (suppress axis extremes; cluster lines override minor lines).
         if cluster_boundary_kwargs is not None:
             lw = cluster_boundary_kwargs.get("boundary_lw", self._style["boundary_lw"])
             alpha = cluster_boundary_kwargs.get("boundary_alpha", self._style["boundary_alpha"])
@@ -985,7 +985,7 @@ class Plotter:
                     continue
                 boundary_registry.register(b, lw=lw, color=color, alpha=alpha)
 
-        # Derive dendrogram boundary styling from label panel settings
+        # Derive dendrogram boundary styling from label panel settings.
         dendro_boundary_style = None
         if cluster_boundary_kwargs is not None:
             dendro_boundary_style = {
@@ -1003,7 +1003,7 @@ class Plotter:
                 ),
             }
 
-        # Render declared layers in order
+        # Render declared layers in order.
         for layer, kwargs in self._layers:
             if layer == "matrix":
                 figsize = kwargs.get("figsize", None)
@@ -1021,8 +1021,8 @@ class Plotter:
                     boundary_registry=boundary_registry,
                 )
 
-            # Note: orientation="left" already handles axis direction
-            # Do NOT manually reverse x-limits or the dendrogram will be mirrored
+            # Note: orientation="left" already handles axis direction.
+            # Do NOT manually reverse x-limits or the dendrogram will be mirrored.
             elif layer == "matrix_axis_labels":
                 renderer = AxesRenderer("matrix_axis_labels", **kwargs)
                 renderer.render(fig, ax, self.matrix, layout, self._style)
@@ -1048,7 +1048,7 @@ class Plotter:
             elif layer == "cluster_labels":
                 self._render_label_panel(fig, layout, bar_kwargs=bar_kwargs, cluster_kwargs=kwargs)
             elif layer == "bar_labels":
-                # Consumed inside the cluster label panel; no direct rendering
+                # Consumed inside the cluster label panel; no direct rendering.
                 continue
             else:
                 raise NotImplementedError(f"Unknown plot layer: {layer}")
@@ -1056,7 +1056,7 @@ class Plotter:
         if has_row_track and not has_cluster_label_layer:
             self._render_label_panel(fig, layout, bar_kwargs=bar_kwargs)
 
-        # Render bottom colorbar strip (global legends)
+        # Render bottom colorbar strip (global legends).
         colorbar_layout = None
         if self._colorbars:
             renderer = ColorbarRenderer(self._colorbars, self._colorbar_layout)
@@ -1072,10 +1072,10 @@ class Plotter:
                 self._style,
                 colorbar_layout=colorbar_layout,
             )
-        # Matrix axis never owns ticks; always keep clean
+        # Matrix axis never owns ticks; always keep clean.
         ax.set_xticks([])
         ax.set_yticks([])
-        # Attach layout metadata for advanced users
+        # Attach layout metadata for advanced users.
         self.layout_ = layout
         self.colorbar_layout_ = colorbar_layout
         self.label_legend_layout_ = label_legend_layout

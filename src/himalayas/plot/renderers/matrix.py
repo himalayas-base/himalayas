@@ -45,7 +45,7 @@ def _resolve_matrix_data(
     if len(row_order) != matrix.df.shape[0]:
         raise ValueError("Dendrogram leaf order does not match matrix dimensions.")
 
-    # Reorder data and extract numpy array for plotting
+    # Reorder data and extract numpy array for plotting.
     data = matrix.df.iloc[row_order, :]
     if col_order is not None:
         if len(col_order) != matrix.df.shape[1]:
@@ -125,7 +125,7 @@ def _draw_matrix(
     else:
         # Inherit figure background to avoid edge halos on dark canvases.
         ax.set_facecolor(ax.figure.get_facecolor())
-    # Draw matrix heatmap and set axis limits
+    # Draw matrix heatmap and set axis limits.
     extent = (-0.5, n_cols - 0.5, n_rows - 0.5, -0.5)
     ax.imshow(
         data,
@@ -148,7 +148,7 @@ def _draw_matrix(
             spine.set_visible(True)
             spine.set_linewidth(outer_lw)
             spine.set_color(outer_color)
-    # Draw boundaries if provided
+    # Draw boundaries if provided.
     if isinstance(boundary_registry, BoundaryRegistry):
         boundary_registry.render(ax, -0.5, n_cols - 0.5, zorder=2)
 
@@ -229,7 +229,7 @@ class MatrixRenderer:
             boundary_registry (Optional[BoundaryRegistry]): Boundary registry for overlays. Defaults to None.
         """
         data, n_rows, n_cols = _resolve_matrix_data(matrix, layout)
-        # Resolve color normalization and draw matrix
+        # Resolve color normalization and draw matrix.
         gutter_color = (
             self.gutter_color
             if self.gutter_color is not None

@@ -43,7 +43,7 @@ class Annotations:
         Raises:
             ValueError: If no annotation terms overlap with matrix labels.
         """
-        # Filter term labels to the matrix universe and track dropped terms
+        # Filter term labels to the matrix universe and track dropped terms.
         dropped_terms = []
         for term, labels in term_to_labels.items():
             if isinstance(labels, (str, bytes)):
@@ -52,19 +52,19 @@ class Annotations:
                 )
             if not isinstance(labels, IterableABC):
                 raise TypeError(f"Labels for term {term!r} must be an iterable of labels")
-            # Filter labels to those present in the matrix
+            # Filter labels to those present in the matrix.
             labels = set(labels) & self.matrix_labels
             if len(labels) == 0:
                 dropped_terms.append(term)
                 continue
             self.term_to_labels[term] = labels
 
-        # Validation: check if any terms remain after filtering
+        # Validation: check if any terms remain after filtering.
         if len(self.term_to_labels) == 0:
             raise ValueError(
                 "No annotation terms overlap matrix labels " "(all terms dropped after filtering)"
             )
-        # Warn if any terms were dropped
+        # Warn if any terms were dropped.
         if dropped_terms:
             kept = len(self.term_to_labels)
             dropped = len(dropped_terms)

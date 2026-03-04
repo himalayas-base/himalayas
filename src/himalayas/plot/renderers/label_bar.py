@@ -46,7 +46,7 @@ def _resolve_label_bar_colors(
         TypeError: If `colors` is not provided in categorical mode.
         ValueError: If `mode` is not recognized.
     """
-    # Categorical mode: map categories to colors
+    # Categorical mode: map categories to colors.
     if mode == "categorical":
         if colors is None or not isinstance(colors, dict):
             raise TypeError(
@@ -54,7 +54,7 @@ def _resolve_label_bar_colors(
             )
         return [colors.get(values.get(gid, None), missing_color) for gid in row_ids]
 
-    # Continuous mode: map numeric values to colormap
+    # Continuous mode: map numeric values to colormap.
     if mode == "continuous":
         cmap = plt.get_cmap(cmap_name)
         vals = np.array(
@@ -94,7 +94,7 @@ def _draw_label_bar_cells(
         colors (List[Any]): Facecolors per row.
         zorder (int): Patch z-order. Defaults to 2.
     """
-    # Draw one rectangle per row
+    # Draw one rectangle per row.
     for i, c in enumerate(colors):
         ax.add_patch(
             plt.Rectangle(
@@ -129,7 +129,7 @@ def render_label_bar_track(
         row_order (Sequence[int]): Row ordering indices.
         style (StyleConfig): Plot style configuration.
     """
-    # Resolve facecolors and draw label bar
+    # Resolve facecolors and draw label bar.
     values = payload["values"]
     mode = payload.get("mode", "categorical")
     missing_color = payload.get("missing_color", style["label_bar_missing_color"])

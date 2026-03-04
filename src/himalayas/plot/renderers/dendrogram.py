@@ -56,11 +56,11 @@ def _resolve_linkage_matrix(
     Raises:
         ValueError: If neither `linkage_matrix` nor a `results.clusters` linkage is provided.
     """
-    # Try to get linkage matrix from kwargs
+    # Try to get linkage matrix from kwargs.
     linkage_matrix = kwargs.get("linkage_matrix")
     if linkage_matrix is not None:
         return linkage_matrix
-    # Try to get linkage matrix from results.clusters; raise error if not available
+    # Try to get linkage matrix from results.clusters; raise error if not available.
     results = kwargs.get("results")
     if results is None or not hasattr(results, "clusters"):
         raise ValueError("Dendrogram rendering requires `results` or `linkage_matrix`.")
@@ -81,7 +81,7 @@ def _compute_y_affine_map(
     Returns:
         Tuple[float, float, float, float]: (scale, offset, target_y_min, target_y_max).
     """
-    # Compute dendrogram y-bounds and target y-bounds, then derive scale and offset
+    # Compute dendrogram y-bounds and target y-bounds, then derive scale and offset.
     dendro_y_min = min(min(y) for y in icoord)
     dendro_y_max = max(max(y) for y in icoord)
     target_y_min = -0.5
@@ -113,7 +113,7 @@ def _render_dendrogram_segments(
         color (str): Line color.
         linewidth (float): Line width.
     """
-    # Map dendrogram y-coordinates into matrix row space and draw segments
+    # Map dendrogram y-coordinates into matrix row space and draw segments.
     for icoord, dcoord in zip(dendro["icoord"], dendro["dcoord"]):
         icoord_mapped = [scale * y + offset for y in icoord]
         ax_dend.plot(
@@ -139,10 +139,10 @@ def _render_cluster_boundaries(
         target_y_max (float): Maximum y-value in matrix coordinates.
         boundary_style (Optional[Dict[str, Any]]): Boundary styling dict. Defaults to None.
     """
-    # Skip if no boundary style provided
+    # Skip if no boundary style provided.
     if boundary_style is None:
         return
-    # Compute y-positions for boundaries
+    # Compute y-positions for boundaries.
     ys = [
         s - 0.5
         for _cid, s, _e in layout.cluster_spans
@@ -150,7 +150,7 @@ def _render_cluster_boundaries(
     ]
     if not ys:
         return
-    # Render horizontal lines
+    # Render horizontal lines.
     x0, x1 = ax_dend.get_xlim()
     segs = [((x0, y), (x1, y)) for y in ys]
     boundary_color = to_rgba(
@@ -185,7 +185,7 @@ def _finalize_dendrogram_axis(
         target_y_max (float): Maximum y-value in matrix coordinates.
         data_pad (float): Padding added to y-limits.
     """
-    # Invert axes and set limits
+    # Invert axes and set limits.
     ax_dend.set_ylim(target_y_min - data_pad, target_y_max + data_pad)
     ax_dend.invert_yaxis()
     ax_dend.invert_xaxis()
@@ -244,7 +244,7 @@ class DendrogramRenderer:
         Kwargs:
             **kwargs (Any): Renderer keyword arguments. Defaults to {}.
         """
-        # Resolve configuration and create dendrogram axis
+        # Resolve configuration and create dendrogram axis.
         cfg = _resolve_dendrogram_config(self, style)
         ax_dend = fig.add_axes(cfg["axes"], frameon=False)
         linkage_matrix = _resolve_linkage_matrix(kwargs)
@@ -257,12 +257,12 @@ class DendrogramRenderer:
             distance_sort=False,
             no_plot=True,
         )
-        # Set up coordinate mapping and render dendrogram
+        # Set up coordinate mapping and render dendrogram.
         scale, offset, target_y_min, target_y_max = _compute_y_affine_map(
             dendro["icoord"],
             matrix.df.shape[0],
         )
-        # Render dendrogram segments, cluster boundaries, and finalize axis
+        # Render dendrogram segments, cluster boundaries, and finalize axis.
         _render_dendrogram_segments(
             ax_dend,
             dendro,

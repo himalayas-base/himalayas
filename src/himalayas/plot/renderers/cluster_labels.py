@@ -106,22 +106,22 @@ def _resolve_labels_and_layout(
         TypeError: If inputs have invalid types.
         ValueError: If required columns are missing or invalid.
     """
-    # Validate cluster_labels DataFrame
+    # Validate cluster_labels DataFrame.
     if not isinstance(df, pd.DataFrame):
         raise TypeError("cluster_labels must be a pandas DataFrame.")
     if "cluster" not in df.columns or "label" not in df.columns:
         raise ValueError("cluster_labels DataFrame must contain columns: 'cluster', 'label'.")
 
-    # Parse overrides and build label map
+    # Parse overrides and build label map.
     overrides = kwargs.get("overrides", None)
     override_map = _parse_label_overrides(overrides)
     label_map = _build_label_map(df, override_map)
 
-    # Resolve spans, sizes, and label axis layout
+    # Resolve spans, sizes, and label axis layout.
     spans = layout.cluster_spans
     cluster_sizes = layout.cluster_sizes
     ax_lab, label_text_x, tracks = _setup_label_axis(fig, matrix, style, track_layout)
-    # Resolve separator line positions
+    # Resolve separator line positions.
     sep_xmin = kwargs.get("label_sep_xmin", style.get("label_sep_xmin"))
     sep_xmax = kwargs.get("label_sep_xmax", style.get("label_sep_xmax"))
     if sep_xmin is None:
@@ -132,7 +132,7 @@ def _resolve_labels_and_layout(
     sep_xmax = float(np.clip(sep_xmax, 0.0, 1.0))
     if sep_xmin > sep_xmax:
         sep_xmin, sep_xmax = sep_xmax, sep_xmin
-    # Resolve text style options
+    # Resolve text style options.
     font = kwargs.get("font", "Helvetica")
     fontsize = kwargs.get("fontsize", style.get("label_fontsize", 9))
     skip_unlabeled = kwargs.get("skip_unlabeled", False)
@@ -193,7 +193,7 @@ def _render_tracks(
         style (StyleConfig): Style configuration.
         bar_labels_kwargs (Optional[Dict[str, Any]]): Bar title rendering options. Defaults to None.
     """
-    # Render track content: data tracks and cluster-level tracks
+    # Render track content: data tracks and cluster-level tracks.
     for track in tracks:
         if track["kind"] == "row":
             track["renderer"](
@@ -217,11 +217,11 @@ def _render_tracks(
                 style,
             )
 
-    # Render optional bar titles
+    # Render optional bar titles.
     if bar_labels_kwargs is None:
         return
 
-    # Render bar titles beneath tracks
+    # Render bar titles beneath tracks.
     bar_pad_pts = bar_labels_kwargs.get("pad", 2)
     bar_rotation = bar_labels_kwargs.get("rotation", 0)
     for track in tracks:
@@ -294,7 +294,7 @@ def _render_cluster_text_and_separators(
     """
     for cid, s, e in spans:
         y_center = (s + e) / 2.0
-        # Choose placeholder or formatted label text for the cluster
+        # Choose placeholder or formatted label text for the cluster.
         if cid not in label_map:
             if skip_unlabeled:
                 continue
@@ -340,7 +340,7 @@ def _render_cluster_text_and_separators(
                 "color": kwargs.get("color", style.get("text_color", "black")),
                 "alpha": kwargs.get("alpha", 0.9),
             }
-        # Draw label text and optional separator line
+        # Draw label text and optional separator line.
         ax_lab.text(
             label_text_x,
             y_center,
@@ -389,7 +389,7 @@ def _parse_label_overrides(
         raise TypeError("overrides must be a dict mapping cluster_id -> label string")
 
     # Normalize cluster ids and validate label strings.
-    # Empty strings are allowed so callers can intentionally suppress label text
+    # Empty strings are allowed so callers can intentionally suppress label text.
     # for selected clusters without affecting bar tracks.
     override_map: Dict[int, str] = {}
     for key, value in overrides.items():
@@ -441,7 +441,7 @@ def _build_label_map(
         else:
             label = base_label
         label_map[cid] = (label, base_pval, base_qval, base_score, base_fe)
-    # Reject overrides that do not match any cluster id
+    # Reject overrides that do not match any cluster id.
     if override_map:
         unknown = set(override_map) - set(label_map)
         if unknown:
@@ -472,15 +472,15 @@ def _setup_label_axis(
         Tuple[plt.Axes, float, List[TrackSpec]]: (label axis, text x-position, resolved tracks).
     """
     n_rows = matrix.df.shape[0]
-    # Set up label axis
+    # Set up label axis.
     label_axes = style["label_axes"]
     ax_lab = fig.add_axes(label_axes, frameon=False)
     ax_lab.set_xlim(0, 1)
-    ax_lab.set_ylim(-0.5, n_rows - 0.5)  # align with matrix row indices
+    ax_lab.set_ylim(-0.5, n_rows - 0.5)  # align with matrix row indices.
     ax_lab.invert_yaxis()
     ax_lab.set_xticks([])
     ax_lab.set_yticks([])
-    # Set up label gutter
+    # Set up label gutter.
     gutter_w = style["label_gutter_width"]
     gutter_color = style["label_gutter_color"]
     ax_lab.add_patch(
@@ -493,7 +493,7 @@ def _setup_label_axis(
             zorder=0,
         )
     )
-    # Compute track layout
+    # Compute track layout.
     label_text_pad = style.get("label_bar_pad", 0.01)
     base_x = style["label_x"]
     track_layout.compute_layout(base_x, gutter_w)
@@ -617,7 +617,7 @@ class ClusterLabelsRenderer:
         """
         df = self.df
         kwargs = self.kwargs
-        # Resolve labels, layout, and styling
+        # Resolve labels, layout, and styling.
         (
             ax_lab,
             label_text_x,
@@ -642,7 +642,7 @@ class ClusterLabelsRenderer:
             style,
             track_layout,
         )
-        # Render tracks and cluster labels/separators
+        # Render tracks and cluster labels/separators.
         row_order = layout.leaf_order
         _render_tracks(
             ax_lab,

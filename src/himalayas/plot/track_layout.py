@@ -80,7 +80,7 @@ class TrackLayoutManager:
             TypeError: If order is not None or a list/tuple of strings.
             ValueError: If order contains duplicate or unknown track names.
         """
-        # No reordering requested
+        # No reordering requested.
         if order is None:
             self.order = None
             return
@@ -116,10 +116,10 @@ class TrackLayoutManager:
         if len(set(active_names)) != len(active_names):
             raise ValueError(f"Active label-panel track names must be unique. Got: {active_names}")
 
-        # No reordering requested
+        # No reordering requested.
         if self.order is None:
             return tracks
-        # Validate requested order
+        # Validate requested order.
         names = list(self.order)
         available = set(active_names)
         unknown = [n for n in names if n not in available]
@@ -150,7 +150,7 @@ class TrackLayoutManager:
         Returns:
             Dict[str, Tuple[float, float]]: Mapping track name → (x0, x1).
         """
-        # Compute track positions
+        # Compute track positions.
         tracks = self._ordered_tracks()
         x_cursor = float(base_x) + float(gutter_width)
         for track in tracks:

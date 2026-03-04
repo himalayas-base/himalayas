@@ -26,7 +26,7 @@ class Renderer(Protocol):
         """
         Executes renderer-specific drawing logic.
         """
-        # Protocol stub; no runtime implementation
+        # Protocol stub; no runtime implementation.
         ...
 
 
@@ -53,13 +53,13 @@ class BoundaryRegistry:
             color (str): Line color.
             alpha (float): Line alpha (opacity).
         """
-        # Store the thickest line for each y coordinate
+        # Store the thickest line for each y coordinate.
         y = float(y)
         cur = self._boundaries.get(y)
         if cur is None:
             self._boundaries[y] = (float(lw), color, float(alpha))
             return
-        # Compare line widths and keep the thicker one
+        # Compare line widths and keep the thicker one.
         cur_lw, _cur_color, _cur_alpha = cur
         if float(lw) > float(cur_lw):
             self._boundaries[y] = (float(lw), color, float(alpha))
@@ -78,7 +78,7 @@ class BoundaryRegistry:
         """
         if not self._boundaries:
             return
-        # Prepare line segments and their styles
+        # Prepare line segments and their styles.
         ys = sorted(self._boundaries.keys())
         segments = [((x0, y), (x1, y)) for y in ys]
         lws = []
@@ -87,7 +87,7 @@ class BoundaryRegistry:
             lw, color, alpha = self._boundaries[y]
             lws.append(lw)
             cols.append(to_rgba(color, alpha))
-        # Add line collection to axes
+        # Add line collection to axes.
         ax.add_collection(
             LineCollection(
                 segments,

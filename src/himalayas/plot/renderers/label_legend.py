@@ -336,7 +336,7 @@ def _render_justified_row(
         text_color (str): Label text color.
         font (Optional[str]): Label font family.
     """
-    # Extract labels and measure text widths to inform horizontal justification with respect to
+    # Extract labels and measure text widths to inform horizontal justification with respect to.
     # swatch size and column gap.
     labels = [str(item.get("label", item.get("value", ""))) for item in row_items]
     text_widths = [

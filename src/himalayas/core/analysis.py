@@ -148,7 +148,7 @@ class Analysis:
         if self.clusters is None or self.results is None:
             raise RuntimeError("cluster() and enrich() must be called before finalize()")
 
-        # Resolve column order, then construct finalized Results
+        # Resolve column order, then construct finalized Results.
         col_order = None
         if col_cluster:
             cache_key = (
