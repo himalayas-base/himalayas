@@ -296,6 +296,169 @@ def test_plot_label_bar_requires_colors(toy_results):
 
 
 @pytest.mark.api
+@pytest.mark.parametrize(
+    "kwargs, add_once_first, expected_match",
+    [
+        ({"name": ""}, False, "non-empty string"),
+        ({"name": "orf_category"}, True, "already declared"),
+        ({"name": "orf_category", "nrows": 0}, False, "nrows"),
+        ({"name": "orf_category", "ncols": -1}, False, "ncols"),
+        ({"name": "orf_category", "row_pad": -0.01}, False, "row_pad"),
+        ({"name": "orf_category", "col_pad": -0.01}, False, "col_pad"),
+    ],
+    ids=[
+        "empty_name",
+        "duplicate_name",
+        "nrows_nonpositive",
+        "ncols_nonpositive",
+        "row_pad_negative",
+        "col_pad_negative",
+    ],
+)
+def test_add_label_legend_rejects_invalid_inputs(
+    toy_results,
+    kwargs,
+    add_once_first,
+    expected_match,
+):
+    """
+    Ensures add_label_legend validates name uniqueness and geometry arguments.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+        kwargs (dict): Keyword arguments for add_label_legend.
+        add_once_first (bool): Whether to add a valid legend before asserting duplicate rejection.
+        expected_match (str): Regex fragment expected in the raised error message.
+
+    Raises:
+        ValueError: If legend declaration arguments are invalid.
+    """
+    plotter = (
+        Plotter(toy_results)
+        .plot_matrix()
+        .plot_label_bar(
+            values={"a": "1", "b": "2", "c": "1", "d": "2"},
+            name="orf_category",
+            mode="categorical",
+            colors={"1": "#1b9e77", "2": "#d95f02"},
+        )
+    )
+    if add_once_first:
+        plotter.add_label_legend(name="orf_category")
+
+    with pytest.raises(ValueError, match=expected_match):
+        plotter.add_label_legend(**kwargs)
+
+
+@pytest.mark.api
+@pytest.mark.parametrize(
+    "kwargs, expected_match",
+    [
+        ({"height": 0.0}, "height"),
+        ({"gap": -0.01}, "gap"),
+        ({"vpad": -0.01}, "vpad"),
+        ({"title_pad": -1.0}, "title_pad"),
+        ({"swatch_scale": 0.0}, "swatch_scale"),
+    ],
+    ids=[
+        "height_nonpositive",
+        "gap_negative",
+        "vpad_negative",
+        "title_pad_negative",
+        "swatch_scale_nonpositive",
+    ],
+)
+def test_plot_label_legends_rejects_invalid_geometry(
+    toy_results,
+    kwargs,
+    expected_match,
+):
+    """
+    Ensures plot_label_legends validates strip geometry arguments.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+        kwargs (dict): Keyword arguments for plot_label_legends.
+        expected_match (str): Regex fragment expected in the raised error message.
+
+    Raises:
+        ValueError: If legend strip geometry arguments are invalid.
+    """
+    with pytest.raises(ValueError, match=expected_match):
+        Plotter(toy_results).plot_label_legends(**kwargs)
+
+
+@pytest.mark.api
+def test_plot_label_legends_require_source_colors_mapping(toy_results):
+    """
+    Ensures label legends fail when the referenced row bar payload lacks colors mapping.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+
+    Raises:
+        ValueError: If the referenced categorical row label bar has no colors mapping.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        plotter = (
+            Plotter(toy_results)
+            .plot_matrix()
+            .plot_label_bar(
+                values={"a": "1", "b": "2", "c": "1", "d": "2"},
+                name="orf_category",
+                mode="categorical",
+                colors={"1": "#1b9e77", "2": "#d95f02"},
+            )
+            .add_label_legend(name="orf_category")
+            .plot_label_legends()
+        )
+        # Corrupt track payload intentionally to verify legend source integrity checks.
+        # Replace the row-track renderer to avoid earlier label-bar color validation.
+        plotter._track_layout.tracks[0]["renderer"] = lambda *args, **kwargs: None
+        plotter._track_layout.tracks[0]["payload"]["colors"] = None
+        with pytest.raises(ValueError, match="non-empty `colors` mapping"):
+            plotter.show()
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+def test_plot_label_legends_grid_overflow_raises(toy_results):
+    """
+    Ensures legend rendering errors when configured grid cannot fit all categories.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+
+    Raises:
+        ValueError: If nrows * ncols is smaller than the number of legend entries.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        with pytest.raises(ValueError, match="cannot fit all categories"):
+            (
+                Plotter(toy_results)
+                .plot_matrix()
+                .plot_label_bar(
+                    values={"a": "1", "b": "2", "c": "3", "d": "1"},
+                    name="orf_category",
+                    mode="categorical",
+                    colors={"1": "#1b9e77", "2": "#d95f02", "3": "#7570b3"},
+                )
+                .add_label_legend(name="orf_category", nrows=1, ncols=2)
+                .plot_label_legends()
+                .show()
+            )
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
 def test_plot_label_legends_render_categorical_track(toy_results):
     """
     Ensures categorical label legends render from a declared categorical row label bar.
