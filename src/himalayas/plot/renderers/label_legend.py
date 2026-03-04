@@ -9,6 +9,7 @@ from math import ceil
 from typing import TYPE_CHECKING, Any, Dict, Iterable, Optional, Sequence, TypedDict
 
 import matplotlib.pyplot as plt
+from matplotlib.backend_bases import RendererBase
 
 if TYPE_CHECKING:
     from ..style import StyleConfig
@@ -180,6 +181,7 @@ def _measure_text_width_axes(
     ax: plt.Axes,
     text: str,
     *,
+    renderer: RendererBase,
     fontsize: float,
     font: Optional[str],
 ) -> float:
@@ -197,7 +199,6 @@ def _measure_text_width_axes(
     Returns:
         float: Text width in normalized [0, 1] axes units.
     """
-    renderer = ax.figure.canvas.get_renderer()
     probe = ax.text(
         0.0,
         0.0,
@@ -219,6 +220,8 @@ def _measure_text_width_axes(
 def _measure_text_height_axes(
     ax: plt.Axes,
     text_obj: plt.Text,
+    *,
+    renderer: RendererBase,
 ) -> float:
     """
     Measures rendered text height in y-axis normalized units.
@@ -230,7 +233,6 @@ def _measure_text_height_axes(
     Returns:
         float: Text height in normalized [0, 1] axes units.
     """
-    renderer = ax.figure.canvas.get_renderer()
     text_bbox = text_obj.get_window_extent(renderer=renderer)
     ax_bbox = ax.get_window_extent(renderer=renderer)
     return text_bbox.height / max(ax_bbox.height, 1e-12)
@@ -314,6 +316,7 @@ def _render_justified_row(
     fontsize: float,
     text_color: str,
     font: Optional[str],
+    renderer: RendererBase,
 ) -> None:
     """
     Renders one legend row with left-packed horizontal spacing.
@@ -340,6 +343,7 @@ def _render_justified_row(
         _measure_text_width_axes(
             ax_block,
             label,
+            renderer=renderer,
             fontsize=fontsize,
             font=font,
         )
@@ -383,6 +387,7 @@ def _render_justified_row(
 def _render_block(
     fig: plt.Figure,
     *,
+    renderer: RendererBase,
     x0: float,
     y0: float,
     w: float,
@@ -433,11 +438,13 @@ def _render_block(
             clip_on=False,
         )
 
-    # Draw once so title extents can be measured and reserved before row layout.
-    fig.canvas.draw()
     title_text_frac = 0.0
     if title_artist is not None:
-        title_text_frac = _measure_text_height_axes(ax_block, title_artist)
+        title_text_frac = _measure_text_height_axes(
+            ax_block,
+            title_artist,
+            renderer=renderer,
+        )
     title_pad_frac = _title_fraction(
         fig,
         block_height=h,
@@ -481,6 +488,7 @@ def _render_block(
             fontsize=fontsize,
             text_color=text_color,
             font=font,
+            renderer=renderer,
         )
 
 
@@ -560,6 +568,10 @@ class LabelLegendRenderer:
         if not blocks:
             return layout
 
+        # Draw once and reuse renderer for all text measurements across blocks.
+        fig.canvas.draw()
+        renderer = fig.canvas.get_renderer()
+
         # Compute strip geometry and validate total vertical space across stacked blocks.
         geom = _resolve_strip_geometry(ax, layout, colorbar_layout)
         n_blocks = len(blocks)
@@ -581,6 +593,7 @@ class LabelLegendRenderer:
             block_y0 = y_cursor - block_h
             _render_block(
                 fig,
+                renderer=renderer,
                 x0=geom["strip_x0"],
                 y0=block_y0,
                 w=geom["strip_w"],
