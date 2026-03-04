@@ -5,45 +5,26 @@ himalayas/plot/renderers/base
 
 from __future__ import annotations
 
-from typing import Any, Dict, Protocol, TYPE_CHECKING
+from typing import Dict, Protocol
 
 import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
 from matplotlib.colors import to_rgba
 
-if TYPE_CHECKING:
-    from ...core.layout import ClusterLayout
-    from ...core.matrix import Matrix
-    from ..style import StyleConfig
-
 
 class Renderer(Protocol):
     """
-    Class for defining the renderer interface used by plot layers.
-    Protocol only; implement in concrete renderers.
+    Protocol for plot renderers with intentionally loose call shape.
+    Concrete renderer classes in this package use different render signatures.
     """
 
     def render(
         self,
-        fig: plt.Figure,
-        ax: plt.Axes,
-        matrix: Matrix,
-        layout: ClusterLayout,
-        style: StyleConfig,
-        **kwargs: Any,
+        *args: object,
+        **kwargs: object,
     ) -> None:
         """
-        Executes rendering logic.
-
-        Args:
-            fig (plt.Figure): Target figure.
-            ax (plt.Axes): Target axes.
-            matrix (Matrix): Matrix object.
-            layout (ClusterLayout): Cluster layout.
-            style (StyleConfig): Style configuration.
-
-        Kwargs:
-            **kwargs: Renderer keyword arguments. Defaults to {}.
+        Executes renderer-specific drawing logic.
         """
         # Protocol stub; no runtime implementation
         ...

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import re
 from collections import Counter
+from collections.abc import Hashable
 from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 
 import numpy as np
@@ -172,7 +173,7 @@ def _select_best_term_index(
     sub: pd.DataFrame,
     *,
     score_col: str,
-) -> Any:
+) -> Hashable:
     """
     Selects a deterministic best-row index for a per-cluster term subset.
     Ranking priority:
@@ -187,7 +188,7 @@ def _select_best_term_index(
         score_col (str): Primary score column name.
 
     Returns:
-        Any: Row index label for the selected representative term.
+        Hashable: Row index label for the selected representative term.
     """
     # Normalize score keys to numeric so invalid values are pushed to the end.
     order = pd.DataFrame(index=sub.index)
@@ -260,12 +261,12 @@ class Results:
             parent=self,
         )
 
-    def _subset_from_labels(self, labels: Iterable[Any]) -> Results:
+    def _subset_from_labels(self, labels: Iterable[Hashable]) -> Results:
         """
         Returns a subset Results view from an explicit row-label collection.
 
         Args:
-            labels (Iterable[Any]): Row labels to retain in the subset matrix.
+            labels (Iterable[Hashable]): Row labels to retain in the subset matrix.
 
         Returns:
             Results: New Results object with subset matrix attached.

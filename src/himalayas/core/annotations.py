@@ -6,7 +6,7 @@ himalayas/core/annotations
 from __future__ import annotations
 
 from collections.abc import Iterable as IterableABC
-from typing import Dict, Iterable, Set, cast
+from typing import Dict, Iterable, Set
 
 from .matrix import Matrix
 from ..util.warnings import warn
@@ -96,4 +96,4 @@ class Annotations:
         Returns:
             Annotations: A new Annotations object aligned to `matrix`.
         """
-        return Annotations(cast(Dict[str, Iterable[str]], self.term_to_labels), matrix)
+        return Annotations(self.term_to_labels, matrix)
