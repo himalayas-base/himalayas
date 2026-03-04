@@ -24,7 +24,9 @@ Submitted to _Bioinformatics Advances_.
 ## Documentation and Tutorial
 
 - **Full Documentation**: [himalayas-base.github.io/himalayas-docs](https://himalayas-base.github.io/himalayas-docs)
-- **Try in Browser (Binder)**: [![Launch in Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/himalayas-base/himalayas-docs/HEAD?filepath=notebooks/quickstart.ipynb)
+- **Try in Browser (Binder)**:
+  - Quickstart: [![Launch Quickstart in Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/himalayas-base/himalayas-docs/main?filepath=notebooks/quickstart.ipynb)
+  - Advanced Quickstart: [![Launch Advanced Quickstart in Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/himalayas-base/himalayas-docs/main?filepath=notebooks/quickstart_advanced.ipynb)
 - **Documentation Repository**: [github.com/himalayas-base/himalayas-docs](https://github.com/himalayas-base/himalayas-docs)
 
 ## Installation
