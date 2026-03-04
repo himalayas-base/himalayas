@@ -205,7 +205,6 @@ class Plotter:
         *,
         name: str,
         title: Optional[str] = None,
-        colors: Optional[Mapping[Any, Any]] = None,
         nrows: Optional[int] = None,
         ncols: Optional[int] = None,
         row_pad: Optional[float] = None,
@@ -219,8 +218,6 @@ class Plotter:
         Kwargs:
             name (str): Label-bar name to explain.
             title (Optional[str]): Legend title override. Defaults to None.
-            colors (Optional[Mapping[Any, Any]]): Optional category-to-color override.
-                If None, colors are inferred from the label bar. Defaults to None.
             nrows (Optional[int]): Grid rows for legend items. If None, infer from ncols.
                 Defaults to None.
             ncols (Optional[int]): Grid columns for legend items. If None, infer from nrows.
@@ -267,7 +264,6 @@ class Plotter:
             {
                 "name": name,
                 "title": title,
-                "colors": colors,
                 "nrows": nrows,
                 "ncols": ncols,
                 "row_pad": row_pad,
@@ -528,9 +524,7 @@ class Plotter:
                     f"label legend {name!r} must use plot_label_bar(..., mode='categorical')"
                 )
 
-            colors = spec.get("colors", None)
-            if colors is None:
-                colors = payload.get("colors", None)
+            colors = payload.get("colors", None)
             # Validation
             if not isinstance(colors, Mapping) or not colors:
                 raise ValueError(f"label legend {name!r} requires a non-empty `colors` mapping")
