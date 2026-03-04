@@ -54,7 +54,7 @@ def test_results_subset_requires_matrix_and_clusters():
     Raises:
         ValueError: If subsetting is attempted without attachments.
     """
-    # Subsetting without attachments should fail
+    # Subsetting without attachments should fail.
     df = pd.DataFrame({"pval": [0.1]})
     res = Results(df)
     with pytest.raises(ValueError):

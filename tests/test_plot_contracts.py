@@ -85,6 +85,141 @@ def test_plotter_stacked_defaults_smoke(toy_results):
 
 
 @pytest.mark.api
+@pytest.mark.parametrize(
+    "stack",
+    [
+        # Keep this matrix to valid combinations only: legend requires row_bar,
+        # and cluster_bar requires cluster_labels.
+        {
+            "cluster_labels": False,
+            "cluster_bar": False,
+            "row_bar": False,
+            "legend": False,
+            "colorbar": False,
+        },
+        {
+            "cluster_labels": True,
+            "cluster_bar": False,
+            "row_bar": False,
+            "legend": False,
+            "colorbar": False,
+        },
+        {
+            "cluster_labels": True,
+            "cluster_bar": True,
+            "row_bar": False,
+            "legend": False,
+            "colorbar": False,
+        },
+        {
+            "cluster_labels": False,
+            "cluster_bar": False,
+            "row_bar": True,
+            "legend": False,
+            "colorbar": False,
+        },
+        {
+            "cluster_labels": False,
+            "cluster_bar": False,
+            "row_bar": True,
+            "legend": True,
+            "colorbar": False,
+        },
+        {
+            "cluster_labels": False,
+            "cluster_bar": False,
+            "row_bar": False,
+            "legend": False,
+            "colorbar": True,
+        },
+        {
+            "cluster_labels": False,
+            "cluster_bar": False,
+            "row_bar": True,
+            "legend": True,
+            "colorbar": True,
+        },
+        {
+            "cluster_labels": True,
+            "cluster_bar": True,
+            "row_bar": True,
+            "legend": True,
+            "colorbar": True,
+        },
+    ],
+    ids=[
+        "matrix_only",
+        "matrix_plus_cluster_labels",
+        "matrix_plus_cluster_labels_and_bar",
+        "matrix_plus_row_bar",
+        "matrix_plus_row_bar_and_legend",
+        "matrix_plus_colorbar",
+        "matrix_plus_row_bar_legend_and_colorbar",
+        "full_stack",
+    ],
+)
+def test_plotter_stack_combinations_smoke(toy_results, stack):
+    """
+    Ensures representative plot-layer stack combinations render without fatal interactions.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+        stack (dict): Boolean feature switches for enabled layers.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        plotter = Plotter(toy_results).plot_matrix()
+        # Each layer is tested in isolation in other tests, so we do not assert on the
+        # presence of rendered elements here. We just want to ensure no fatal errors occur
+        # when stacking layers in various combinations.
+        if stack["cluster_labels"]:
+            plotter = plotter.plot_cluster_labels(label_fields=("label",))
+        if stack["cluster_bar"]:
+            plotter = plotter.plot_cluster_bar(name="sig")
+        if stack["row_bar"]:
+            plotter = plotter.plot_label_bar(
+                values={"a": "1", "b": "2", "c": "1", "d": "2"},
+                name="orf_category",
+                mode="categorical",
+                colors={"1": "#1b9e77", "2": "#d95f02"},
+                title="ORF Category",
+            )
+        if stack["legend"]:
+            plotter = (
+                plotter
+                .add_label_legend(name="orf_category")
+                .plot_label_legends(height=0.07, gap=0.02, swatch_scale=0.9)
+            )
+        if stack["colorbar"]:
+            plotter = (
+                plotter
+                .add_colorbar(
+                    name="score",
+                    cmap="viridis",
+                    norm=Normalize(vmin=0.0, vmax=1.0),
+                    ticks=[0.0, 1.0],
+                    label="Score",
+                )
+                .plot_colorbars()
+            )
+
+        plotter.show()
+        assert plotter._fig is not None
+        if stack["legend"]:
+            assert plotter.label_legend_layout_ is not None
+        else:
+            assert plotter.label_legend_layout_ is None
+        if stack["colorbar"]:
+            assert plotter.colorbar_layout_ is not None
+        else:
+            assert plotter.colorbar_layout_ is None
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
 def test_plotter_requires_layers(toy_results):
     """
     Ensures Plotter refuses to render with no declared layers.
@@ -239,6 +374,7 @@ def test_plot_colorbars_tick_decimals_contract(toy_results):
     with pytest.raises(ValueError, match="label_pad"):
         Plotter(toy_results).plot_colorbars(label_pad=-0.1)
 
+    # Also test that valid arguments are accepted and reflected in the rendered colorbar.
     plt = use_agg_backend()
     plt_show = plt.show
     plt.show = lambda *args, **kwargs: None
