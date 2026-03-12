@@ -699,10 +699,13 @@ class Plotter:
 
         Kwargs:
             position (str): "left" or "right". Defaults to "right".
+            pad (float): Tick-label padding in points. Defaults to Matplotlib default.
 
         Returns:
             Plotter: Self for chaining.
         """
+        if "pad" in kwargs and kwargs["pad"] is not None:
+            kwargs["pad"] = float(kwargs["pad"])
         self._layers.append(("row_ticks", {"labels": labels, **kwargs}))
         return self
 
@@ -715,10 +718,13 @@ class Plotter:
 
         Kwargs:
             position (str): "top" or "bottom". Defaults to "top".
+            pad (float): Tick-label padding in points. Defaults to Matplotlib default.
 
         Returns:
             Plotter: Self for chaining.
         """
+        if "pad" in kwargs and kwargs["pad"] is not None:
+            kwargs["pad"] = float(kwargs["pad"])
         self._layers.append(("col_ticks", {"labels": labels, **kwargs}))
         return self
 

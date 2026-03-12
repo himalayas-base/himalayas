@@ -54,7 +54,8 @@ def test_plotter_smoke(toy_results):
 @pytest.mark.api
 def test_plotter_stacked_defaults_smoke(toy_results):
     """
-    Ensures a stacked default Plotter chain renders without explicit style kwargs.
+    Ensures a stacked default Plotter chain renders without explicit style kwargs
+    and forwards row/column tick padding.
 
     Args:
         toy_results (Results): Results fixture with clusters and layout.
@@ -63,7 +64,7 @@ def test_plotter_stacked_defaults_smoke(toy_results):
     plt_show = plt.show
     plt.show = lambda *args, **kwargs: None
     try:
-        (
+        plotter = (
             Plotter(toy_results)
             .set_label_panel(
                 axes=[0.70, 0.05, 0.29, 0.90],
@@ -74,12 +75,18 @@ def test_plotter_stacked_defaults_smoke(toy_results):
             .plot_dendrogram()
             .plot_matrix()
             .plot_matrix_axis_labels()
-            .plot_row_ticks()
-            .plot_col_ticks()
+            .plot_row_ticks(pad=7)
+            .plot_col_ticks(pad=11)
             .plot_cluster_labels()
             .plot_cluster_bar(name="sigbar")
-            .show()
         )
+        plotter.show()
+        row_tick_axes = [ax for ax in plotter._fig.axes if len(ax.get_yticklabels()) > 0]
+        col_tick_axes = [ax for ax in plotter._fig.axes if len(ax.get_xticklabels()) > 0]
+        assert row_tick_axes
+        assert col_tick_axes
+        assert row_tick_axes[0].yaxis.majorTicks[0].get_pad() == pytest.approx(7.0)
+        assert col_tick_axes[0].xaxis.majorTicks[0].get_pad() == pytest.approx(11.0)
     finally:
         plt.show = plt_show
 
