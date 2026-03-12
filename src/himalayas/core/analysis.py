@@ -104,7 +104,7 @@ class Analysis:
         Kwargs:
             min_overlap (int): Minimum overlap (k) to report. Defaults to 1.
             background (Optional[Matrix]): Background matrix defining enrichment universe.
-                Defaults to None.
+                Defaults to None, which uses the current matrix as the universe.
 
         Returns:
             Analysis: The Analysis instance (for method chaining).

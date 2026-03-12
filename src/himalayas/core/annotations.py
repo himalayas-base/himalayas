@@ -15,6 +15,7 @@ from ..util.warnings import warn
 class Annotations:
     """
     Class for storing term-to-labels annotations aligned to a matrix and filtering to labels present in the matrix.
+    Original term labels are retained internally for explicit universe resolution in enrichment.
     """
 
     def __init__(self, term_to_labels: Dict[str, Iterable[str]], matrix: Matrix) -> None:
@@ -27,6 +28,9 @@ class Annotations:
         """
         self.matrix_labels = set(matrix.labels)
         self.term_to_labels: Dict[str, Set[str]] = {}
+        # Preserve original term labels so subset rebinds can still resolve
+        # global-universe term sizes when enrichment uses a background matrix.
+        self._source_term_to_labels: Dict[str, Set[str]] = {}
         self._validate_and_filter(term_to_labels)
 
     def _validate_and_filter(self, term_to_labels: Dict[str, Iterable[str]]) -> None:
@@ -52,8 +56,10 @@ class Annotations:
                 )
             if not isinstance(labels, IterableABC):
                 raise TypeError(f"Labels for term {term!r} must be an iterable of labels")
+            labels = set(labels)
+            self._source_term_to_labels[term] = labels
             # Filter labels to those present in the matrix.
-            labels = set(labels) & self.matrix_labels
+            labels = labels & self.matrix_labels
             if len(labels) == 0:
                 dropped_terms.append(term)
                 continue
@@ -88,7 +94,8 @@ class Annotations:
         """
         Returns a new Annotations object filtered to labels present in `matrix`. This
         is intended for explicit zoom/subset workflows. The original Annotations object
-        is not mutated.
+        is not mutated. Source term labels are preserved across rebinds so enrichment
+        with a global `background` can still resolve global term sizes.
 
         Args:
             matrix (Matrix): The Matrix object to align annotations to.
@@ -96,4 +103,23 @@ class Annotations:
         Returns:
             Annotations: A new Annotations object aligned to `matrix`.
         """
+        # Rebind from currently visible terms to preserve explicit stepwise subsetting semantics.
         return Annotations(self.term_to_labels, matrix)
+
+    def labels_for_universe(self, universe_labels: Iterable[str]) -> Dict[str, Set[str]]:
+        """
+        Resolves term labels intersected with an explicit enrichment universe.
+
+        Args:
+            universe_labels (Iterable[str]): Labels defining the target universe.
+
+        Returns:
+            Dict[str, Set[str]]: Per-term labels intersected to the requested universe.
+        """
+        universe = set(universe_labels)
+        out: Dict[str, Set[str]] = {}
+        for term, labels in self._source_term_to_labels.items():
+            overlap = labels & universe
+            if overlap:
+                out[term] = overlap
+        return out
