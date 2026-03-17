@@ -54,6 +54,34 @@ def collect_label_stats(
     return has_label, stats
 
 
+def format_label_prefix(label_prefix: Optional[str], cluster_id: int) -> str:
+    """
+    Formats a cluster prefix token for display.
+
+    Args:
+        label_prefix (Optional[str]): Prefix mode.
+        cluster_id (int): Cluster id.
+
+    Returns:
+        str: Prefix token including trailing period (for example "3." or "C.").
+    """
+    if label_prefix == "cid":
+        return f"{cluster_id}."
+    if label_prefix != "alpha":
+        return ""
+
+    # Excel-style alpha indexing: 1 -> A, 26 -> Z, 27 -> AA.
+    n = int(cluster_id)
+    if n <= 0:
+        return f"{cluster_id}."
+
+    chars: List[str] = []
+    while n > 0:
+        n, rem = divmod(n - 1, 26)
+        chars.append(chr(ord("A") + rem))
+    return "".join(reversed(chars)) + "."
+
+
 def apply_label_text_policy(
     raw_label: str,
     *,

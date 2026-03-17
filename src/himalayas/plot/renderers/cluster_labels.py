@@ -22,7 +22,12 @@ import numpy as np
 import pandas as pd
 
 from ._cluster_label_types import ClusterLabelStats
-from ._label_format import apply_label_text_policy, collect_label_stats, compose_label_text
+from ._label_format import (
+    apply_label_text_policy,
+    collect_label_stats,
+    compose_label_text,
+    format_label_prefix,
+)
 
 if TYPE_CHECKING:
     from ..style import StyleConfig
@@ -145,8 +150,8 @@ def _resolve_labels_and_layout(
     allowed_fields = {"label", "n", "p", "q", "fe"}
     if label_fields is not None and any(f not in allowed_fields for f in label_fields):
         raise ValueError(f"label_fields may only contain {allowed_fields}")
-    if label_prefix not in {None, "cid"}:
-        raise ValueError("label_prefix must be one of {None, 'cid'}")
+    if label_prefix not in {None, "cid", "alpha"}:
+        raise ValueError("label_prefix must be one of {None, 'cid', 'alpha'}")
     resolved_label_fields = None if label_fields is None else tuple(label_fields)
 
     return (
@@ -316,12 +321,13 @@ def _render_cluster_text_and_separators(
         else:
             label, pval, qval, _score, fe = label_map[cid]
             is_override = cid in override_map
-            prefix_active = label_prefix == "cid" and not is_override
+            prefix_active = label_prefix in {"cid", "alpha"} and not is_override
             force_label = prefix_active or is_override
             if (label_fields is None or "label" not in label_fields) and not is_override:
                 label = ""
             if prefix_active:
-                label = f"{cid}. {label}" if label else f"{cid}."
+                prefix = format_label_prefix(label_prefix, cid)
+                label = f"{prefix} {label}" if label else prefix
             n_members = cluster_sizes.get(cid, None)
             text = _format_cluster_label(
                 label,

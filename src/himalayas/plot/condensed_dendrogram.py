@@ -31,6 +31,7 @@ from .renderers._label_format import (
     apply_label_text_policy,
     collect_label_stats,
     compose_label_text,
+    format_label_prefix,
 )
 from .renderers.cluster_labels import _parse_label_overrides
 
@@ -215,8 +216,8 @@ def _validate_condensed_inputs(
     allowed = {"label", "n", "p", "q", "fe"}
     if label_fields is not None and not set(label_fields).issubset(allowed):
         raise ValueError(f"label_fields must be a subset of {allowed}")
-    if label_prefix not in {None, "cid"}:
-        raise ValueError("label_prefix must be one of {None, 'cid'}")
+    if label_prefix not in {None, "cid", "alpha"}:
+        raise ValueError("label_prefix must be one of {None, 'cid', 'alpha'}")
     if not list(results.cluster_layout().cluster_spans):
         raise ValueError("No clusters found")
 
@@ -381,8 +382,9 @@ def _prepare_cluster_labels(
         lab = lab_info.label
         if (label_fields is None or "label" not in label_fields) and cid not in label_overrides:
             lab = ""
-        if label_prefix == "cid" and cid not in label_overrides:
-            lab = f"{cid}. {lab}" if lab else f"{cid}."
+        if label_prefix in {"cid", "alpha"} and cid not in label_overrides:
+            prefix = format_label_prefix(label_prefix, cid)
+            lab = f"{prefix} {lab}" if lab else prefix
         if cid in label_overrides:
             lab = label_overrides[cid]
         labels.append(
@@ -820,9 +822,9 @@ def _render_condensed(spec: CondensedDendrogramSpec) -> CondensedDendrogramPlot:
             )
         force_label = False
         if not is_placeholder:
-            force_label = (spec.label_prefix == "cid" and cid_int not in override_map) or (
-                cid_int in override_map
-            )
+            force_label = (
+                spec.label_prefix in {"cid", "alpha"} and cid_int not in override_map
+            ) or (cid_int in override_map)
             label_info = lab_map[cid_int]
             pval_value = label_info.pval if np.isfinite(label_info.pval) else None
             qval_value = label_info.qval if np.isfinite(label_info.qval) else None
@@ -940,7 +942,7 @@ def plot_dendrogram_condensed(
             If None, suppresses base label/stat text.
             Defaults to ("label", "n", "p").
         label_prefix (Optional[str]): Optional prefix mode for display labels.
-            Supported values are None and "cid". Defaults to None.
+            Supported values are None, "cid", and "alpha". Defaults to None.
         label_overrides (Optional[Dict[int, str]]): Mapping cluster_id -> custom label.
             Defaults to None.
         label_color (str): Color for cluster labels. Defaults to "black".

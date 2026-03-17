@@ -835,7 +835,7 @@ class Plotter:
                 If None, suppresses base label/stat text.
                 Defaults to ("label", "n", "p").
             label_prefix (Optional[str]): Optional prefix mode for display labels.
-                Supported values are None and "cid". Defaults to None.
+                Supported values are None, "cid", and "alpha". Defaults to None.
             **kwargs: Renderer keyword arguments. Defaults to {}.
 
         Returns:
