@@ -12,6 +12,7 @@ from conftest import extract_figure_text, use_agg_backend
 from himalayas import Results
 from himalayas.core.clustering import cluster
 from himalayas.plot import Plotter
+from himalayas.plot.renderers._label_format import format_label_prefix
 from himalayas.plot.renderers.cluster_labels import _build_label_map, _parse_label_overrides
 from himalayas.plot.track_layout import TrackLayoutManager
 
@@ -808,9 +809,17 @@ def test_plot_cluster_labels_none_label_fields_hides_text(toy_results):
 
 
 @pytest.mark.api
-def test_plot_cluster_labels_label_prefix_cid_supports_compressed_labels(toy_results):
+@pytest.mark.parametrize(
+    "label_prefix",
+    ["cid", "alpha"],
+    ids=["with_cid_prefix", "with_alpha_prefix"],
+)
+def test_plot_cluster_labels_label_prefix_supports_compressed_labels(
+    toy_results,
+    label_prefix,
+):
     """
-    Ensures label_prefix='cid' prefixes compressed display labels.
+    Ensures supported label_prefix modes prefix compressed display labels.
 
     Args:
         toy_results (Results): Results fixture with clusters and layout.
@@ -825,13 +834,17 @@ def test_plot_cluster_labels_label_prefix_cid_supports_compressed_labels(toy_res
             .plot_cluster_labels(
                 label_mode="compressed",
                 label_fields=("label", "fe"),
-                label_prefix="cid",
+                label_prefix=label_prefix,
                 wrap_text=False,
             )
         )
         plotter.show()
         texts = extract_figure_text(plotter._fig, strip=True, nonempty=True)
-        assert any(txt.split(". ", 1)[0].isdigit() for txt in texts if ". " in txt)
+        tokens = [txt.split(". ", 1)[0] for txt in texts if ". " in txt]
+        if label_prefix == "cid":
+            assert any(tok.isdigit() for tok in tokens)
+        else:
+            assert any(tok.isalpha() and tok.isupper() for tok in tokens)
         assert any("FE=" in txt for txt in texts)
     finally:
         plt.show = plt_show
@@ -844,15 +857,14 @@ def test_plot_cluster_labels_label_prefix_cid_supports_compressed_labels(toy_res
     ids=["with_label_fields", "np_only", "without_label_fields"],
 )
 @pytest.mark.parametrize(
-    "label_prefix, override_template",
-    [(None, "DNA replication & repair"), ("cid", "{cid}. DNA replication & repair")],
-    ids=["without_prefix", "with_cid_prefix"],
+    "label_prefix",
+    [None, "cid", "alpha"],
+    ids=["without_prefix", "with_cid_prefix", "with_alpha_prefix"],
 )
 def test_plot_cluster_labels_label_prefix_precedence_override_wins(
     toy_results,
     label_fields,
     label_prefix,
-    override_template,
 ):
     """
     Ensures explicit overrides win with and without cid prefix mode.
@@ -868,7 +880,12 @@ def test_plot_cluster_labels_label_prefix_precedence_override_wins(
         assert len(spans) >= 2
         override_cid = int(spans[0][0])
         regular_cid = int(spans[1][0])
-        override_label = override_template.format(cid=override_cid)
+        override_prefix = format_label_prefix(label_prefix, override_cid)
+        override_label = (
+            f"{override_prefix} DNA replication & repair"
+            if override_prefix
+            else "DNA replication & repair"
+        )
         plotter = (
             Plotter(toy_results)
             .plot_matrix()
@@ -885,12 +902,13 @@ def test_plot_cluster_labels_label_prefix_precedence_override_wins(
             assert override_label in texts
         else:
             assert any(txt.startswith(override_label) for txt in texts)
-        assert all(txt != f"{override_cid}. {override_label}" for txt in texts)
-        if label_prefix == "cid":
+        regular_prefix = format_label_prefix(label_prefix, regular_cid)
+        if regular_prefix:
+            assert all(txt != f"{regular_prefix} {override_label}" for txt in texts)
             if label_fields is None:
-                assert f"{regular_cid}." in texts
+                assert regular_prefix in texts
             else:
-                assert any(txt.startswith(f"{regular_cid}. ") for txt in texts)
+                assert any(txt.startswith(f"{regular_prefix} ") for txt in texts)
         else:
             assert all(not txt.startswith(f"{regular_cid}. ") for txt in texts)
     finally:

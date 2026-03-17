@@ -12,6 +12,7 @@ from himalayas import Analysis
 from himalayas.core.clustering import Clusters
 from himalayas.core.results import Results
 from himalayas.plot import CondensedDendrogramPlot, plot_dendrogram_condensed
+from himalayas.plot.renderers._label_format import format_label_prefix
 
 @pytest.mark.api
 def test_dendrogram_condensed_missing_term_column_raises(toy_results):
@@ -313,9 +314,17 @@ def test_dendrogram_condensed_none_label_fields_hides_text(toy_results):
 
 
 @pytest.mark.api
-def test_dendrogram_condensed_label_prefix_cid_supports_compressed_labels(toy_results):
+@pytest.mark.parametrize(
+    "label_prefix",
+    ["cid", "alpha"],
+    ids=["with_cid_prefix", "with_alpha_prefix"],
+)
+def test_dendrogram_condensed_label_prefix_supports_compressed_labels(
+    toy_results,
+    label_prefix,
+):
     """
-    Ensures label_prefix='cid' prefixes compressed condensed labels.
+    Ensures supported label_prefix modes prefix compressed condensed labels.
 
     Args:
         toy_results (Results): Results fixture with clusters and layout.
@@ -327,11 +336,15 @@ def test_dendrogram_condensed_label_prefix_cid_supports_compressed_labels(toy_re
             toy_results,
             label_mode="compressed",
             label_fields=("label", "fe"),
-            label_prefix="cid",
+            label_prefix=label_prefix,
             wrap_text=False,
         )
         texts = extract_figure_text(plot.fig, strip=True, nonempty=True)
-        assert any(txt.split(". ", 1)[0].isdigit() for txt in texts if ". " in txt)
+        tokens = [txt.split(". ", 1)[0] for txt in texts if ". " in txt]
+        if label_prefix == "cid":
+            assert any(tok.isdigit() for tok in tokens)
+        else:
+            assert any(tok.isalpha() and tok.isupper() for tok in tokens)
         assert any("FE=" in txt for txt in texts)
     finally:
         if plot is not None:
@@ -344,7 +357,16 @@ def test_dendrogram_condensed_label_prefix_cid_supports_compressed_labels(toy_re
     [("label",), ("n", "p"), None],
     ids=["with_label_fields", "np_only", "without_label_fields"],
 )
-def test_dendrogram_condensed_label_prefix_precedence_override_wins(toy_results, label_fields):
+@pytest.mark.parametrize(
+    "label_prefix",
+    ["cid", "alpha"],
+    ids=["with_cid_prefix", "with_alpha_prefix"],
+)
+def test_dendrogram_condensed_label_prefix_precedence_override_wins(
+    toy_results,
+    label_fields,
+    label_prefix,
+):
     """
     Ensures label_prefix is applied before overrides and explicit overrides win.
 
@@ -362,7 +384,7 @@ def test_dendrogram_condensed_label_prefix_precedence_override_wins(toy_results,
         plot = plot_dendrogram_condensed(
             toy_results,
             label_fields=label_fields,
-            label_prefix="cid",
+            label_prefix=label_prefix,
             label_overrides={override_cid: override_label},
             wrap_text=False,
         )
@@ -371,11 +393,13 @@ def test_dendrogram_condensed_label_prefix_precedence_override_wins(toy_results,
             assert override_label in texts
         else:
             assert any(txt.startswith(override_label) for txt in texts)
-        assert all(txt != f"{override_cid}. {override_label}" for txt in texts)
+        override_prefix = format_label_prefix(label_prefix, override_cid)
+        assert all(txt != f"{override_prefix} {override_label}" for txt in texts)
+        regular_prefix = format_label_prefix(label_prefix, regular_cid)
         if label_fields is None:
-            assert f"{regular_cid}." in texts
+            assert regular_prefix in texts
         else:
-            assert any(txt.startswith(f"{regular_cid}. ") for txt in texts)
+            assert any(txt.startswith(f"{regular_prefix} ") for txt in texts)
     finally:
         if plot is not None:
             plt.close(plot.fig)
