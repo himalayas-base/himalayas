@@ -297,6 +297,11 @@ def _render_cluster_text_and_separators(
         kwargs (Dict[str, Any]): Additional rendering options.
         style (StyleConfig): Style configuration.
     """
+    max_words = kwargs.get("max_words", None)
+    omit_words = kwargs.get("omit_words", style.get("label_omit_words", None))
+    wrap_text = kwargs.get("wrap_text", True)
+    wrap_width = kwargs.get("wrap_width", style.get("label_wrap_width", None))
+    overflow = kwargs.get("overflow", "wrap")
     for cid, s, e in spans:
         y_center = (s + e) / 2.0
         # Choose placeholder or formatted label text for the cluster.
@@ -337,8 +342,11 @@ def _render_cluster_text_and_separators(
                 n_members,
                 label_fields=label_fields,
                 force_label=force_label,
-                kwargs=kwargs,
-                style=style,
+                max_words=max_words,
+                omit_words=omit_words,
+                wrap_text=wrap_text,
+                wrap_width=wrap_width,
+                overflow=overflow,
             )
             text_kwargs = {
                 "font": font,
@@ -521,8 +529,11 @@ def _format_cluster_label(
     *,
     label_fields: Optional[Tuple[str, ...]],
     force_label: bool = False,
-    kwargs: Dict[str, Any],
-    style: StyleConfig,
+    max_words: Optional[int] = None,
+    omit_words: Optional[Sequence[str]] = None,
+    wrap_text: bool = True,
+    wrap_width: Optional[int] = None,
+    overflow: str = "wrap",
 ) -> str:
     """
     Formats the cluster label text for display.
@@ -538,8 +549,11 @@ def _format_cluster_label(
         label_fields (Optional[Tuple[str, ...]]): Fields to display.
         force_label (bool): Forces label text to render even when "label" is absent
             from label_fields. Defaults to False.
-        kwargs (Dict[str, Any]): Renderer keyword arguments.
-        style (StyleConfig): Style configuration.
+        max_words (Optional[int]): Maximum words to keep. Defaults to None.
+        omit_words (Optional[Sequence[str]]): Words to omit (case-insensitive). Defaults to None.
+        wrap_text (bool): Whether to wrap label text. Defaults to True.
+        wrap_width (Optional[int]): Characters per wrapped line. Defaults to None.
+        overflow (str): Truncation mode, one of {"wrap", "ellipsis"}. Defaults to "wrap".
 
     Returns:
         str: Final formatted label text.
@@ -558,11 +572,6 @@ def _format_cluster_label(
     )
 
     # Apply label-only text policy, then append stats in a stable format.
-    max_words = kwargs.get("max_words", None)
-    omit_words = kwargs.get("omit_words", style.get("label_omit_words", None))
-    wrap_text = kwargs.get("wrap_text", True)
-    wrap_width = kwargs.get("wrap_width", style.get("label_wrap_width", None))
-    overflow = kwargs.get("overflow", "wrap")
     label_text = apply_label_text_policy(
         label,
         omit_words=omit_words,
