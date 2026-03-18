@@ -19,8 +19,8 @@ def test_annotations_filtering_warns():
     """
     df = pd.DataFrame(np.eye(3), index=["a", "b", "c"], columns=["a", "b", "c"])
     matrix = Matrix(df)
-    term_to_labels = {"t1": ["a", "b"], "t2": ["x"]}
-    # Capture warnings while constructing annotations
+    # "t2" has K=1 (one valid matrix label) — dropped by default min_term_size=2.
+    term_to_labels = {"t1": ["a", "b"], "t2": ["a"]}
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
         annotations = Annotations(term_to_labels, matrix)
@@ -72,6 +72,24 @@ def test_annotations_rejects_non_iterable_labels(toy_matrix):
     """
     with pytest.raises(TypeError):
         Annotations({"t1": 123}, toy_matrix)
+
+
+@pytest.mark.api
+def test_annotations_term_size_bounds():
+    """
+    Ensures min_term_size and max_term_size filter on post-intersection K.
+    """
+    df = pd.DataFrame(np.eye(4), index=["a", "b", "c", "d"], columns=range(4))
+    matrix = Matrix(df)
+    with warnings.catch_warnings(record=True):
+        warnings.simplefilter("always")
+        annotations = Annotations(
+            {"small": ["a"], "mid": ["a", "b"], "large": ["a", "b", "c", "d"]},
+            matrix,
+            min_term_size=2,
+            max_term_size=3,
+        )
+    assert set(annotations.term_to_labels.keys()) == {"mid"}
 
 
 @pytest.mark.api

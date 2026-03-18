@@ -6,7 +6,7 @@ himalayas/core/annotations
 from __future__ import annotations
 
 from collections.abc import Iterable as IterableABC
-from typing import Dict, Iterable, Set
+from typing import Dict, Iterable, Mapping, Optional, Set
 
 from .matrix import Matrix
 from ..util.warnings import warn
@@ -18,22 +18,37 @@ class Annotations:
     Original term labels are retained internally for explicit universe resolution in enrichment.
     """
 
-    def __init__(self, term_to_labels: Dict[str, Iterable[str]], matrix: Matrix) -> None:
+    def __init__(
+        self,
+        term_to_labels: Mapping[str, Iterable[str]],
+        matrix: Matrix,
+        *,
+        min_term_size: int = 2,
+        max_term_size: Optional[int] = None,
+    ) -> None:
         """
         Initializes the Annotations instance.
 
         Args:
             term_to_labels (Dict[str, Iterable[str]]): Mapping of terms to label lists.
             matrix (Matrix): Matrix providing the label universe.
+
+        Kwargs:
+            min_term_size (int): Minimum number of matrix-overlapping labels a term must have
+                to be retained. Defaults to 2.
+            max_term_size (Optional[int]): Maximum number of matrix-overlapping labels a term
+                may have to be retained. None disables the upper bound. Defaults to None.
         """
         self.matrix_labels = set(matrix.labels)
         self.term_to_labels: Dict[str, Set[str]] = {}
+        self._min_term_size = min_term_size
+        self._max_term_size = max_term_size
         # Preserve original term labels so subset rebinds can still resolve
         # global-universe term sizes when enrichment uses a background matrix.
         self._source_term_to_labels: Dict[str, Set[str]] = {}
         self._validate_and_filter(term_to_labels)
 
-    def _validate_and_filter(self, term_to_labels: Dict[str, Iterable[str]]) -> None:
+    def _validate_and_filter(self, term_to_labels: Mapping[str, Iterable[str]]) -> None:
         """
         Validates and filters the input term-to-labels mapping to ensure that only labels
         present in the matrix are retained. Terms with no overlapping labels are dropped,
@@ -60,7 +75,11 @@ class Annotations:
             self._source_term_to_labels[term] = labels
             # Filter labels to those present in the matrix.
             labels = labels & self.matrix_labels
-            if len(labels) <= 1:
+            k = len(labels)
+            if k < self._min_term_size:
+                dropped_terms.append(term)
+                continue
+            if self._max_term_size is not None and k > self._max_term_size:
                 dropped_terms.append(term)
                 continue
             self.term_to_labels[term] = labels
@@ -76,7 +95,7 @@ class Annotations:
             dropped = len(dropped_terms)
             total = kept + dropped
             warn(
-                f"Dropped {dropped}/{total} annotations with no overlap to matrix labels",
+                f"Dropped {dropped}/{total} annotations after matrix filtering (size or overlap constraints)",
                 RuntimeWarning,
             )
 
@@ -104,7 +123,12 @@ class Annotations:
             Annotations: A new Annotations object aligned to `matrix`.
         """
         # Rebind from currently visible terms to preserve explicit stepwise subsetting semantics.
-        return Annotations(self.term_to_labels, matrix)
+        return Annotations(
+            self.term_to_labels,
+            matrix,
+            min_term_size=self._min_term_size,
+            max_term_size=self._max_term_size,
+        )
 
     def labels_for_universe(self, universe_labels: Iterable[str]) -> Dict[str, Set[str]]:
         """
