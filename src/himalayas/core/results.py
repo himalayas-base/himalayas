@@ -435,28 +435,52 @@ class Results:
             parent=self,
         )
 
-    def with_qvalues(self) -> Results:
+    def with_qvalues(self, *, method: str = "global") -> Results:
         """
         Returns a new Results with BH-FDR q-values added as "qval". Does not mutate
         the original Results.
+
+        Kwargs:
+            method (str): Correction scope — "global" applies BH across all cluster-term
+                pairs; "per_cluster" applies BH independently within each cluster.
+                Defaults to "global".
 
         Returns:
             Results: New Results object with q-values added.
 
         Raises:
             KeyError: If the "pval" column is missing.
+            ValueError: If method is not one of {"global", "per_cluster"}.
         """
         # Validation
+        if method not in {"global", "per_cluster"}:
+            raise ValueError("method must be one of {'global', 'per_cluster'}")
         if "pval" not in self.df.columns:
             raise KeyError("Missing column: 'pval'")
 
-        # Compute q-values while preserving row alignment.
-        df2 = self.df.copy()
-        pvals = df2["pval"].to_numpy(dtype=float)
         # Preserve row alignment: NaN p-values yield NaN q-values.
-        qvals = np.full_like(pvals, np.nan, dtype=float)
-        mask = np.isfinite(pvals)
-        qvals[mask] = self._bh_fdr(pvals[mask])
+        df2 = self.df.copy()
+        qvals = np.full(len(df2), np.nan, dtype=float)
+
+        if method == "global":
+            # Apply BH correction across all cluster-term pairs.
+            pvals = df2["pval"].to_numpy(dtype=float)
+            finite = np.isfinite(pvals)
+            if finite.any():
+                qvals[finite] = self._bh_fdr(pvals[finite])
+        else:
+            # Validation
+            if "cluster" not in df2.columns:
+                raise KeyError("Missing column: 'cluster' (required for method='per_cluster')")
+            # Apply BH correction independently within each cluster.
+            for _, group in df2.groupby("cluster", sort=False):
+                pvals_group = group["pval"].to_numpy(dtype=float)
+                qvals_group = np.full(len(pvals_group), np.nan, dtype=float)
+                finite = np.isfinite(pvals_group)
+                if finite.any():
+                    qvals_group[finite] = self._bh_fdr(pvals_group[finite])
+                qvals[group.index.to_numpy()] = qvals_group
+
         df2["qval"] = qvals
 
         return Results(

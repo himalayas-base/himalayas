@@ -336,6 +336,26 @@ def test_results_cluster_labels_top_term_requires_pval():
         res.cluster_labels(label_mode="top_term")
 
 
+@pytest.mark.api
+def test_results_with_qvalues_per_cluster_less_conservative_than_global():
+    """
+    Ensures per_cluster FDR yields q-values <= global FDR, and that the two methods
+    differ when correction pools differ across clusters.
+    """
+    df = pd.DataFrame(
+        {
+            "cluster": [1, 1, 1, 2, 2, 2],
+            "pval": [0.01, 0.02, 0.05, 0.03, 0.04, 0.06],
+        }
+    )
+    res = Results(df)
+    global_q = res.with_qvalues(method="global").df["qval"].to_numpy()
+    per_cluster_q = res.with_qvalues(method="per_cluster").df["qval"].to_numpy()
+
+    assert np.all(per_cluster_q <= global_q + 1e-12)
+    assert not np.allclose(per_cluster_q, global_q)
+
+
 @pytest.mark.unit
 def test_resolve_rank_spec_supports_rank_by_values():
     """

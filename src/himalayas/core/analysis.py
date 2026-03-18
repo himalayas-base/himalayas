@@ -128,6 +128,7 @@ class Analysis:
         self,
         *,
         col_cluster: bool = False,
+        fdr_method: str = "global",
     ) -> Analysis:
         """
         Finalizes the analysis by computing a layout, attaching context, and adding effect sizes
@@ -137,6 +138,8 @@ class Analysis:
 
         Kwargs:
             col_cluster (bool): Whether to compute column order by clustering. Defaults to False.
+            fdr_method (str): FDR correction scope passed to with_qvalues(). One of
+                {"global", "per_cluster"}. Defaults to "global".
 
         Returns:
             Analysis: The Analysis instance (for method chaining).
@@ -174,6 +177,6 @@ class Analysis:
             layout=self.layout,
             parent=self.results.parent,
         )
-        self.results = self.results.with_effect_sizes().with_qvalues()
+        self.results = self.results.with_effect_sizes().with_qvalues(method=fdr_method)
 
         return self
