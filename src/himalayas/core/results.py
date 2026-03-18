@@ -435,33 +435,29 @@ class Results:
             parent=self,
         )
 
-    def with_qvalues(self, pval_col: str = "pval", qval_col: str = "qval") -> Results:
+    def with_qvalues(self) -> Results:
         """
-        Returns a new Results with BH-FDR q-values added as `qval_col`. Does not mutate
+        Returns a new Results with BH-FDR q-values added as "qval". Does not mutate
         the original Results.
-
-        Args:
-            pval_col (str): Column name for p-values. Defaults to "pval".
-            qval_col (str): Column name for q-values. Defaults to "qval".
 
         Returns:
             Results: New Results object with q-values added.
 
         Raises:
-            KeyError: If the p-value column is missing.
+            KeyError: If the "pval" column is missing.
         """
         # Validation
-        if pval_col not in self.df.columns:
-            raise KeyError(f"Missing p-value column: {pval_col!r}")
+        if "pval" not in self.df.columns:
+            raise KeyError("Missing column: 'pval'")
 
         # Compute q-values while preserving row alignment.
         df2 = self.df.copy()
-        pvals = df2[pval_col].to_numpy(dtype=float)
+        pvals = df2["pval"].to_numpy(dtype=float)
         # Preserve row alignment: NaN p-values yield NaN q-values.
         qvals = np.full_like(pvals, np.nan, dtype=float)
         mask = np.isfinite(pvals)
         qvals[mask] = self._bh_fdr(pvals[mask])
-        df2[qval_col] = qvals
+        df2["qval"] = qvals
 
         return Results(
             df2,
