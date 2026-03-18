@@ -60,7 +60,7 @@ class Annotations:
             self._source_term_to_labels[term] = labels
             # Filter labels to those present in the matrix.
             labels = labels & self.matrix_labels
-            if len(labels) == 0:
+            if len(labels) <= 1:
                 dropped_terms.append(term)
                 continue
             self.term_to_labels[term] = labels
