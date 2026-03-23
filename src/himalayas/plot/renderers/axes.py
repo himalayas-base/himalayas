@@ -257,13 +257,16 @@ class AxesRenderer:
             ax (plt.Axes): Matplotlib Axes to render the title on.
             style (StyleConfig): Plot style configuration.
         """
-        ax.set_title(
-            self.kwargs["title"],
-            fontsize=self.kwargs.get("fontsize", style.get("title_fontsize", 14)),
+        title_kwargs = {
+            "fontsize": self.kwargs.get("fontsize", style.get("title_fontsize", 14)),
             # Title padding follows Matplotlib text units (points).
-            pad=self.kwargs.get("pad", style.get("title_pad", 15)),
-            color=self.kwargs.get("color", style.get("text_color", "black")),
-        )
+            "pad": self.kwargs.get("pad", style.get("title_pad", 15)),
+            "color": self.kwargs.get("color", style.get("text_color", "black")),
+        }
+        extra = {
+            k: v for k, v in self.kwargs.items() if k not in ("title", "fontsize", "pad", "color")
+        }
+        ax.set_title(self.kwargs["title"], **{**title_kwargs, **extra})
 
     @staticmethod
     def _apply_text_style(
