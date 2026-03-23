@@ -94,6 +94,26 @@ def test_cluster_layout_reuses_cached_object_for_same_inputs(toy_matrix):
 
 
 @pytest.mark.api
+def test_min_cluster_size_merges_singleton():
+    """
+    Ensures min_cluster_size=2 absorbs a singleton cluster into its parent,
+    leaving no cluster smaller than the requested minimum.
+    """
+    import pandas as pd
+    from himalayas import Matrix
+
+    df = pd.DataFrame(
+        [[0.0], [0.1], [5.0], [5.1], [10.0]],
+        index=["a", "b", "c", "d", "e"],
+        columns=["x"],
+    )
+    matrix = Matrix(df)
+    clusters = cluster(matrix, linkage_threshold=0.5, min_cluster_size=2)
+
+    assert all(sz >= 2 for sz in clusters.cluster_sizes.values())
+
+
+@pytest.mark.api
 def test_compute_and_cut_linkage_matches_cluster(toy_matrix):
     """
     Ensures compute_linkage()+cut_linkage() matches cluster() semantics.

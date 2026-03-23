@@ -104,7 +104,7 @@ class Analysis:
         Kwargs:
             min_overlap (int): Minimum overlap (k) to report. Defaults to 1.
             background (Optional[Matrix]): Background matrix defining enrichment universe.
-                Defaults to None.
+                Defaults to None, which uses the current matrix as the universe.
 
         Returns:
             Analysis: The Analysis instance (for method chaining).
@@ -128,6 +128,7 @@ class Analysis:
         self,
         *,
         col_cluster: bool = False,
+        fdr_scope: str = "global",
     ) -> Analysis:
         """
         Finalizes the analysis by computing a layout, attaching context, and adding effect sizes
@@ -137,6 +138,8 @@ class Analysis:
 
         Kwargs:
             col_cluster (bool): Whether to compute column order by clustering. Defaults to False.
+            fdr_scope (str): BH-FDR correction scope, one of {"global", "per_cluster"};
+                "per_cluster" does not control FDR across the full result set. Defaults to "global".
 
         Returns:
             Analysis: The Analysis instance (for method chaining).
@@ -174,6 +177,6 @@ class Analysis:
             layout=self.layout,
             parent=self.results.parent,
         )
-        self.results = self.results.with_effect_sizes().with_qvalues()
+        self.results = self.results.with_effect_sizes().with_qvalues(method=fdr_scope)
 
         return self

@@ -94,13 +94,14 @@ def _validate_background(matrix: Matrix, background: Optional[Matrix]) -> Tuple[
 
 
 def _encode_terms(
-    annotations: Annotations, label_to_idx: Dict[Any, int], *, min_overlap: int
+    term_to_labels: Dict[str, Any], label_to_idx: Dict[Any, int], *, min_overlap: int
 ) -> List[Tuple[str, np.ndarray, int]]:
     """
     Pre-encodes term label sets as sorted unique int arrays.
 
     Args:
-        annotations (Annotations): Annotations aligned to the matrix.
+        term_to_labels (Dict[str, Any]): Mapping of term IDs to label collections already
+            intersected to the target universe.
         label_to_idx (Dict[Any, int]): Mapping from label to integer index.
 
     Kwargs:
@@ -110,8 +111,8 @@ def _encode_terms(
         List[Tuple[str, np.ndarray, int]]: List of tuples (term, idx_array, K).
     """
     term_items: List[Tuple[str, np.ndarray, int]] = []  # (term, idx_array, K).
-    for term, term_labels in annotations.term_to_labels.items():
-        # term_labels already overlap matrix labels by construction.
+    for term, term_labels in term_to_labels.items():
+        # term_labels are intersected with the selected universe before encoding.
         idx = np.fromiter(
             (label_to_idx[label] for label in term_labels),
             dtype=np.int32,
@@ -204,7 +205,12 @@ def run_cluster_hypergeom(
     # Validate background and get universe labels and size.
     bg_labels, N = _validate_background(matrix, background)
     label_to_idx = _encode_label_indices(bg_labels)
-    term_items = _encode_terms(annotations, label_to_idx, min_overlap=min_overlap)
+    term_to_labels = (
+        annotations.term_to_labels
+        if background is None
+        else annotations.labels_for_universe(bg_labels.tolist())
+    )
+    term_items = _encode_terms(term_to_labels, label_to_idx, min_overlap=min_overlap)
     # Early exit if no terms pass filtering.
     if not term_items:
         return Results(

@@ -173,7 +173,8 @@ class AxesRenderer:
         ax_row.set_ylim(ax.get_ylim())
         ax_row.set_yticks(np.arange(n))
         ax_row.set_yticklabels(ordered_labels, fontsize=font_size)
-        ax_row.tick_params(
+        tick_pad = self.kwargs.get("pad", None)
+        row_tick_kwargs = dict(
             axis="y",
             which="both",
             left=False,
@@ -181,6 +182,9 @@ class AxesRenderer:
             labelleft=(position == "left"),
             labelright=(position == "right"),
         )
+        if tick_pad is not None:
+            row_tick_kwargs["pad"] = float(tick_pad)
+        ax_row.tick_params(**row_tick_kwargs)
         ax_row.set_xticks([])
         # Set visibility for each tick label.
         for tick, vis in zip(ax_row.get_yticklabels(), visible):
@@ -228,7 +232,8 @@ class AxesRenderer:
         ax_col.set_ylim(ax.get_ylim())
         ax_col.set_xticks(np.arange(n))
         ax_col.set_xticklabels(ordered_labels, fontsize=font_size, rotation=rotation)
-        ax_col.tick_params(
+        tick_pad = self.kwargs.get("pad", None)
+        col_tick_kwargs = dict(
             axis="x",
             which="both",
             top=False,
@@ -236,6 +241,9 @@ class AxesRenderer:
             labeltop=(position == "top"),
             labelbottom=(position == "bottom"),
         )
+        if tick_pad is not None:
+            col_tick_kwargs["pad"] = float(tick_pad)
+        ax_col.tick_params(**col_tick_kwargs)
         ax_col.set_yticks([])
         # Set visibility for each tick label.
         for tick, vis in zip(ax_col.get_xticklabels(), visible):
@@ -249,13 +257,16 @@ class AxesRenderer:
             ax (plt.Axes): Matplotlib Axes to render the title on.
             style (StyleConfig): Plot style configuration.
         """
-        ax.set_title(
-            self.kwargs["title"],
-            fontsize=self.kwargs.get("fontsize", style.get("title_fontsize", 14)),
+        title_kwargs = {
+            "fontsize": self.kwargs.get("fontsize", style.get("title_fontsize", 14)),
             # Title padding follows Matplotlib text units (points).
-            pad=self.kwargs.get("pad", style.get("title_pad", 15)),
-            color=self.kwargs.get("color", style.get("text_color", "black")),
-        )
+            "pad": self.kwargs.get("pad", style.get("title_pad", 15)),
+            "color": self.kwargs.get("color", style.get("text_color", "black")),
+        }
+        extra = {
+            k: v for k, v in self.kwargs.items() if k not in ("title", "fontsize", "pad", "color")
+        }
+        ax.set_title(self.kwargs["title"], **{**title_kwargs, **extra})
 
     @staticmethod
     def _apply_text_style(
