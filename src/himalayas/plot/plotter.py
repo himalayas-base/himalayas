@@ -664,33 +664,73 @@ class Plotter:
         self._layers.append(("matrix", kwargs))
         return self
 
-    def plot_matrix_axis_labels(self, **kwargs) -> Plotter:
+    def plot_matrix_axis_labels(
+        self,
+        *,
+        xlabel: str = "",
+        ylabel: str = "",
+        fontsize: Optional[float] = None,
+        fontweight: str = "normal",
+        font: Optional[str] = None,
+        color: Optional[str] = None,
+        alpha: float = 1.0,
+        xlabel_pad: Optional[float] = None,
+        ylabel_pad: Optional[float] = None,
+        **kwargs: Any,
+    ) -> Plotter:
         """
         Declares axis labels for the matrix.
 
         Kwargs:
             xlabel (str): X-axis label text. Defaults to "".
             ylabel (str): Y-axis label text. Defaults to "".
-            fontsize (float): Font size for both axis labels. Defaults to 12.
-            font (str): Font family to apply to both axis labels. Defaults to None.
-            color (str): Text color for both axis labels. Defaults to style text_color.
-            xlabel_pad (float): Padding between x-axis label and axis (points).
-                Defaults to renderer default.
-            ylabel_pad (float): Padding between matrix and external y-label axis
+            fontsize (Optional[float]): Font size for both axis labels (points). Defaults to 12.
+            fontweight (str): Font weight for both axis labels. Defaults to "normal".
+            font (Optional[str]): Font family to apply to both axis labels. Defaults to None.
+            color (Optional[str]): Text color for both axis labels. Defaults to style text_color.
+            alpha (float): Text opacity for both axis labels. Defaults to 1.0.
+            xlabel_pad (Optional[float]): Padding between x-axis label and axis (points).
+                Defaults to 8.
+            ylabel_pad (Optional[float]): Padding between matrix and external y-label axis
                 (figure fraction). Defaults to style ylabel_pad.
             **kwargs: Renderer keyword arguments. Defaults to {}.
 
         Returns:
             Plotter: Self for chaining.
         """
-        if "xlabel_pad" in kwargs and kwargs["xlabel_pad"] is not None:
-            kwargs["xlabel_pad"] = float(kwargs["xlabel_pad"])
-        if "ylabel_pad" in kwargs and kwargs["ylabel_pad"] is not None:
-            kwargs["ylabel_pad"] = float(kwargs["ylabel_pad"])
-        self._layers.append(("matrix_axis_labels", kwargs))
+        if xlabel_pad is not None:
+            xlabel_pad = float(xlabel_pad)
+        if ylabel_pad is not None:
+            ylabel_pad = float(ylabel_pad)
+        layer_kwargs: dict[str, Any] = {
+            "xlabel": xlabel,
+            "ylabel": ylabel,
+            "fontweight": fontweight,
+            "alpha": alpha,
+        }
+        if fontsize is not None:
+            layer_kwargs["fontsize"] = fontsize
+        if font is not None:
+            layer_kwargs["font"] = font
+        if color is not None:
+            layer_kwargs["color"] = color
+        if xlabel_pad is not None:
+            layer_kwargs["xlabel_pad"] = xlabel_pad
+        if ylabel_pad is not None:
+            layer_kwargs["ylabel_pad"] = ylabel_pad
+        self._layers.append(("matrix_axis_labels", {**layer_kwargs, **kwargs}))
         return self
 
-    def plot_row_ticks(self, labels: Optional[Sequence[str]] = None, **kwargs) -> Plotter:
+    def plot_row_ticks(
+        self,
+        labels: Optional[Sequence[str]] = None,
+        *,
+        fontsize: Optional[float] = None,
+        max_labels: Optional[int] = None,
+        position: str = "right",
+        pad: Optional[float] = None,
+        **kwargs: Any,
+    ) -> Plotter:
         """
         Declares row tick labels for the matrix.
 
@@ -698,18 +738,41 @@ class Plotter:
             labels (Optional[Sequence[str]]): Optional row labels. Defaults to None.
 
         Kwargs:
-            position (str): "left" or "right". Defaults to "right".
-            pad (float): Tick-label padding in points. Defaults to Matplotlib default.
+            fontsize (Optional[float]): Tick-label font size (points). Defaults to 9.
+            max_labels (Optional[int]): Maximum number of labels to display, evenly sampled.
+                If None, all labels are shown. Defaults to None.
+            position (str): Tick-label placement, one of {"left", "right"}. Defaults to "right".
+            pad (Optional[float]): Tick-label padding in points. Defaults to Matplotlib default.
+            **kwargs: Renderer keyword arguments. Defaults to {}.
 
         Returns:
             Plotter: Self for chaining.
         """
-        if "pad" in kwargs and kwargs["pad"] is not None:
-            kwargs["pad"] = float(kwargs["pad"])
-        self._layers.append(("row_ticks", {"labels": labels, **kwargs}))
+        if pad is not None:
+            pad = float(pad)
+        layer_kwargs: dict[str, Any] = {
+            "labels": labels,
+            "max_labels": max_labels,
+            "position": position,
+        }
+        if fontsize is not None:
+            layer_kwargs["fontsize"] = fontsize
+        if pad is not None:
+            layer_kwargs["pad"] = pad
+        self._layers.append(("row_ticks", {**layer_kwargs, **kwargs}))
         return self
 
-    def plot_col_ticks(self, labels: Optional[Sequence[str]] = None, **kwargs) -> Plotter:
+    def plot_col_ticks(
+        self,
+        labels: Optional[Sequence[str]] = None,
+        *,
+        fontsize: Optional[float] = None,
+        max_labels: Optional[int] = None,
+        position: str = "top",
+        rotation: float = 90,
+        pad: Optional[float] = None,
+        **kwargs: Any,
+    ) -> Plotter:
         """
         Declares column tick labels for the matrix.
 
@@ -717,32 +780,71 @@ class Plotter:
             labels (Optional[Sequence[str]]): Optional column labels. Defaults to None.
 
         Kwargs:
-            position (str): "top" or "bottom". Defaults to "top".
-            pad (float): Tick-label padding in points. Defaults to Matplotlib default.
-
-        Returns:
-            Plotter: Self for chaining.
-        """
-        if "pad" in kwargs and kwargs["pad"] is not None:
-            kwargs["pad"] = float(kwargs["pad"])
-        self._layers.append(("col_ticks", {"labels": labels, **kwargs}))
-        return self
-
-    def plot_bar_labels(self, **kwargs) -> Plotter:
-        """
-        Declares titles for bar tracks (shown below bars in label panel).
-
-        Kwargs:
-            pad (float): Vertical offset from track to title text (points).
-                Defaults to renderer default.
+            fontsize (Optional[float]): Tick-label font size (points). Defaults to 9.
+            max_labels (Optional[int]): Maximum number of labels to display, evenly sampled.
+                If None, all labels are shown. Defaults to None.
+            position (str): Tick-label placement, one of {"top", "bottom"}. Defaults to "top".
+            rotation (float): Tick-label rotation in degrees. Defaults to 90.
+            pad (Optional[float]): Tick-label padding in points. Defaults to Matplotlib default.
             **kwargs: Renderer keyword arguments. Defaults to {}.
 
         Returns:
             Plotter: Self for chaining.
         """
-        if "pad" in kwargs and kwargs["pad"] is not None:
-            kwargs["pad"] = float(kwargs["pad"])
-        self._layers.append(("bar_labels", kwargs))
+        if pad is not None:
+            pad = float(pad)
+        layer_kwargs: dict[str, Any] = {
+            "labels": labels,
+            "max_labels": max_labels,
+            "position": position,
+            "rotation": rotation,
+        }
+        if fontsize is not None:
+            layer_kwargs["fontsize"] = fontsize
+        if pad is not None:
+            layer_kwargs["pad"] = pad
+        self._layers.append(("col_ticks", {**layer_kwargs, **kwargs}))
+        return self
+
+    def plot_bar_labels(
+        self,
+        *,
+        fontsize: Optional[float] = None,
+        font: Optional[str] = None,
+        color: Optional[str] = None,
+        alpha: float = 1.0,
+        pad: Optional[float] = None,
+        rotation: float = 0,
+        **kwargs: Any,
+    ) -> Plotter:
+        """
+        Declares titles for bar tracks (shown below bars in label panel).
+
+        Kwargs:
+            fontsize (Optional[float]): Title font size (points). Defaults to 10.
+            font (Optional[str]): Font family for title text. Defaults to "Helvetica".
+            color (Optional[str]): Title text color. Defaults to style text_color.
+            alpha (float): Title text opacity. Defaults to 1.0.
+            pad (Optional[float]): Vertical offset from track to title text (points).
+                Defaults to 2.
+            rotation (float): Title text rotation in degrees. Defaults to 0.
+            **kwargs: Renderer keyword arguments. Defaults to {}.
+
+        Returns:
+            Plotter: Self for chaining.
+        """
+        if pad is not None:
+            pad = float(pad)
+        layer_kwargs: dict[str, Any] = {"alpha": alpha, "rotation": rotation}
+        if fontsize is not None:
+            layer_kwargs["fontsize"] = fontsize
+        if font is not None:
+            layer_kwargs["font"] = font
+        if color is not None:
+            layer_kwargs["color"] = color
+        if pad is not None:
+            layer_kwargs["pad"] = pad
+        self._layers.append(("bar_labels", {**layer_kwargs, **kwargs}))
         return self
 
     def plot_dendrogram(self, **kwargs) -> Plotter:
@@ -903,7 +1005,15 @@ class Plotter:
         )
         return self
 
-    def plot_title(self, title: str, **kwargs) -> Plotter:
+    def plot_title(
+        self,
+        title: str,
+        *,
+        fontsize: Optional[float] = None,
+        pad: Optional[float] = None,
+        color: Optional[str] = None,
+        **kwargs: Any,
+    ) -> Plotter:
         """
         Declares a plot title.
 
@@ -911,16 +1021,25 @@ class Plotter:
             title (str): Title text.
 
         Kwargs:
-            pad (float): Padding between title text and matrix axis (points).
+            fontsize (Optional[float]): Title font size (points). Defaults to style title_fontsize.
+            pad (Optional[float]): Padding between title text and matrix axis (points).
                 Defaults to style title_pad.
+            color (Optional[str]): Title text color. Defaults to style text_color.
             **kwargs: Renderer keyword arguments. Defaults to {}.
 
         Returns:
             Plotter: Self for chaining.
         """
-        if "pad" in kwargs and kwargs["pad"] is not None:
-            kwargs["pad"] = float(kwargs["pad"])
-        self._layers.append(("title", {"title": title, **kwargs}))
+        if pad is not None:
+            pad = float(pad)
+        layer_kwargs: dict[str, Any] = {"title": title}
+        if fontsize is not None:
+            layer_kwargs["fontsize"] = fontsize
+        if pad is not None:
+            layer_kwargs["pad"] = pad
+        if color is not None:
+            layer_kwargs["color"] = color
+        self._layers.append(("title", {**layer_kwargs, **kwargs}))
         return self
 
     def _render(self) -> None:

@@ -257,16 +257,21 @@ class AxesRenderer:
             ax (plt.Axes): Matplotlib Axes to render the title on.
             style (StyleConfig): Plot style configuration.
         """
-        title_kwargs = {
-            "fontsize": self.kwargs.get("fontsize", style.get("title_fontsize", 14)),
-            # Title padding follows Matplotlib text units (points).
-            "pad": self.kwargs.get("pad", style.get("title_pad", 15)),
-            "color": self.kwargs.get("color", style.get("text_color", "black")),
-        }
+        fontsize = self.kwargs.get("fontsize", style.get("title_fontsize", 14))
+        color = self.kwargs.get("color", style.get("text_color", "black"))
         extra = {
             k: v for k, v in self.kwargs.items() if k not in ("title", "fontsize", "pad", "color")
         }
-        ax.set_title(self.kwargs["title"], **{**title_kwargs, **extra})
+        # Title padding follows Matplotlib text units (points).
+        txt_title = ax.set_title(
+            self.kwargs["title"],
+            pad=self.kwargs.get("pad", style.get("title_pad", 15)),
+            **extra,
+        )
+        # Apply font properties directly on the Text object; this is more reliably
+        # dispatched across backends (including inline Jupyter renderers) than passing
+        # text kwargs through set_title().
+        self._apply_text_style(txt_title, fontsize=fontsize, color=color)
 
     @staticmethod
     def _apply_text_style(
