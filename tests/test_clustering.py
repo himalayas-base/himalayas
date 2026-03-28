@@ -165,9 +165,7 @@ def test_compute_linkage_prefers_fastcluster_when_available(monkeypatch, toy_mat
 
 
 @pytest.mark.api
-def test_compute_linkage_falls_back_to_scipy_when_fastcluster_unavailable(
-    monkeypatch, toy_matrix
-):
+def test_compute_linkage_falls_back_to_scipy_when_fastcluster_unavailable(monkeypatch, toy_matrix):
     """
     Ensures compute_linkage() falls back to SciPy when fastcluster is unavailable.
 

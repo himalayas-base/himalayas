@@ -195,23 +195,17 @@ def test_plotter_stack_combinations_smoke(toy_results, stack):
                 title="ORF Category",
             )
         if stack["legend"]:
-            plotter = (
-                plotter
-                .add_label_legend(name="orf_category")
-                .plot_label_legends(height=0.07, gap=0.02, swatch_scale=0.9)
+            plotter = plotter.add_label_legend(name="orf_category").plot_label_legends(
+                height=0.07, gap=0.02, swatch_scale=0.9
             )
         if stack["colorbar"]:
-            plotter = (
-                plotter
-                .add_colorbar(
-                    name="score",
-                    cmap="viridis",
-                    norm=Normalize(vmin=0.0, vmax=1.0),
-                    ticks=[0.0, 1.0],
-                    label="Score",
-                )
-                .plot_colorbars()
-            )
+            plotter = plotter.add_colorbar(
+                name="score",
+                cmap="viridis",
+                norm=Normalize(vmin=0.0, vmax=1.0),
+                ticks=[0.0, 1.0],
+                label="Score",
+            ).plot_colorbars()
 
         plotter.show()
         assert plotter._fig is not None
@@ -353,7 +347,11 @@ def test_plotter_plot_handle_rebuilds_closed_figure(toy_results, tmp_path):
         assert plotter._fig.number in plt.get_fignums()
     finally:
         plt.show = plt_show
-        if plotter is not None and plotter._fig is not None and plotter._fig.number in plt.get_fignums():
+        if (
+            plotter is not None
+            and plotter._fig is not None
+            and plotter._fig.number in plt.get_fignums()
+        ):
             plt.close(plotter._fig)
 
 
