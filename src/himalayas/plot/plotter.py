@@ -1015,6 +1015,10 @@ class Plotter:
         self,
         *,
         overrides: Optional[Dict[int, str]] = None,
+        fontsize: Optional[float] = None,
+        color: Optional[str] = None,
+        font: Optional[str] = None,
+        alpha: Optional[float] = None,
         **kwargs,
     ) -> Plotter:
         """
@@ -1024,6 +1028,10 @@ class Plotter:
         Kwargs:
             overrides (Dict[int, str]): Per-cluster label overrides keyed by cluster id.
                 Override labels do not change bar values.
+            fontsize (Optional[float]): Label font size (points). Defaults to None.
+            color (Optional[str]): Label text color. Defaults to None.
+            font (Optional[str]): Font family for label text. Defaults to None.
+            alpha (Optional[float]): Label text opacity. Defaults to None.
             rank_by (str): Ranking statistic for representative terms, one of {"p", "q"}.
                 Defaults to "p".
             label_mode (str): Label mode, one of {"top_term", "compressed"}.
@@ -1049,10 +1057,6 @@ class Plotter:
             "max_words",
         }
         renderer_option_keys = {
-            "font",
-            "fontsize",
-            "color",
-            "alpha",
             "skip_unlabeled",
             "label_fields",
             "label_prefix",
@@ -1090,16 +1094,16 @@ class Plotter:
                 if key != "max_words":
                     kwargs.pop(key)
 
-        self._layers.append(
-            (
-                "cluster_labels",
-                {
-                    "_label_options": label_options,
-                    "overrides": overrides,
-                    **kwargs,
-                },
-            )
-        )
+        layer_kwargs: dict[str, Any] = {"_label_options": label_options, "overrides": overrides}
+        if fontsize is not None:
+            layer_kwargs["fontsize"] = fontsize
+        if color is not None:
+            layer_kwargs["color"] = color
+        if font is not None:
+            layer_kwargs["font"] = font
+        if alpha is not None:
+            layer_kwargs["alpha"] = alpha
+        self._layers.append(("cluster_labels", {**layer_kwargs, **kwargs}))
         return self
 
     def plot_title(
@@ -1109,6 +1113,8 @@ class Plotter:
         fontsize: Optional[float] = None,
         pad: Optional[float] = None,
         color: Optional[str] = None,
+        font: Optional[str] = None,
+        alpha: Optional[float] = None,
         **kwargs: Any,
     ) -> Plotter:
         """
@@ -1122,6 +1128,8 @@ class Plotter:
             pad (Optional[float]): Padding between title text and matrix axis (points).
                 Defaults to style title_pad.
             color (Optional[str]): Title text color. Defaults to style text_color.
+            font (Optional[str]): Font family for title text. Defaults to None.
+            alpha (Optional[float]): Title text opacity. Defaults to None.
             **kwargs: Renderer keyword arguments. Defaults to {}.
 
         Returns:
@@ -1136,6 +1144,10 @@ class Plotter:
             layer_kwargs["pad"] = pad
         if color is not None:
             layer_kwargs["color"] = color
+        if font is not None:
+            layer_kwargs["font"] = font
+        if alpha is not None:
+            layer_kwargs["alpha"] = alpha
         self._layers.append(("title", {**layer_kwargs, **kwargs}))
         return self
 
