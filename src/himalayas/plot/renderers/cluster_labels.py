@@ -28,6 +28,7 @@ from ._label_format import (
     compose_label_text,
     format_label_prefix,
 )
+from ._text_style import apply_text_style
 
 if TYPE_CHECKING:
     from ..style import StyleConfig
@@ -234,16 +235,7 @@ def _render_tracks(
         if not title:
             continue
         x_center = (track.get("x0", 0.0) + track.get("x1", 0.0)) / 2.0
-        text_kwargs = {
-            "font": bar_labels_kwargs.get("font", "Helvetica"),
-            "fontsize": bar_labels_kwargs.get("fontsize", 10),
-            "color": bar_labels_kwargs.get(
-                "color",
-                style.get("text_color", "black"),
-            ),
-            "alpha": bar_labels_kwargs.get("alpha", 1.0),
-        }
-        ax_lab.annotate(
+        txt = ax_lab.annotate(
             title,
             xy=(x_center, 0.0),
             xycoords=ax_lab.transAxes,
@@ -251,9 +243,15 @@ def _render_tracks(
             textcoords="offset points",
             ha="center",
             va="top",
-            **text_kwargs,
             rotation=bar_rotation,
             clip_on=False,
+        )
+        apply_text_style(
+            txt,
+            font=bar_labels_kwargs.get("font", "Helvetica"),
+            fontsize=bar_labels_kwargs.get("fontsize", 10),
+            color=bar_labels_kwargs.get("color", style.get("text_color", "black")),
+            alpha=bar_labels_kwargs.get("alpha", 1.0),
         )
 
 
@@ -311,18 +309,12 @@ def _render_cluster_text_and_separators(
             if label_fields is None and label_prefix is None:
                 continue
             text = kwargs.get("placeholder_text", style["placeholder_text"])
-            text_kwargs = {
-                "font": font,
-                "fontsize": fontsize,
-                "color": kwargs.get(
-                    "placeholder_color",
-                    kwargs.get("color", style["placeholder_color"]),
-                ),
-                "alpha": kwargs.get(
-                    "placeholder_alpha",
-                    kwargs.get("alpha", style["placeholder_alpha"]),
-                ),
-            }
+            text_color = kwargs.get(
+                "placeholder_color", kwargs.get("color", style["placeholder_color"])
+            )
+            text_alpha = kwargs.get(
+                "placeholder_alpha", kwargs.get("alpha", style["placeholder_alpha"])
+            )
         else:
             label, pval, qval, _score, fe = label_map[cid]
             is_override = cid in override_map
@@ -348,23 +340,19 @@ def _render_cluster_text_and_separators(
                 wrap_width=wrap_width,
                 overflow=overflow,
             )
-            text_kwargs = {
-                "font": font,
-                "fontsize": fontsize,
-                "color": kwargs.get("color", style.get("text_color", "black")),
-                "alpha": kwargs.get("alpha", 0.9),
-            }
+            text_color = kwargs.get("color", style.get("text_color", "black"))
+            text_alpha = kwargs.get("alpha", 0.9)
         # Draw label text and optional separator line.
-        ax_lab.text(
+        txt = ax_lab.text(
             label_text_x,
             y_center,
             text,
             va="center",
             ha="left",
-            **text_kwargs,
             fontweight="normal",
             clip_on=False,
         )
+        apply_text_style(txt, font=font, fontsize=fontsize, color=text_color, alpha=text_alpha)
         if s > 0:
             sep_color = kwargs.get("label_sep_color", style["label_sep_color"])
             sep_lw = kwargs.get("label_sep_lw", style["label_sep_lw"])

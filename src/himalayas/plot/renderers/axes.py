@@ -5,10 +5,12 @@ himalayas/plot/renderers/axes
 
 from __future__ import annotations
 
-from typing import Any, Optional, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 
 import matplotlib.pyplot as plt
 import numpy as np
+
+from ._text_style import apply_text_style
 
 if TYPE_CHECKING:
     from ..style import StyleConfig
@@ -94,7 +96,7 @@ class AxesRenderer:
             fontweight=fontweight,
             labelpad=xlabel_pad_pts,
         )
-        self._apply_text_style(
+        apply_text_style(
             txt_xlabel,
             font=font,
             fontsize=fontsize,
@@ -271,43 +273,4 @@ class AxesRenderer:
         # Apply font properties directly on the Text object; this is more reliably
         # dispatched across backends (including inline Jupyter renderers) than passing
         # text kwargs through set_title().
-        self._apply_text_style(txt_title, fontsize=fontsize, color=color)
-
-    @staticmethod
-    def _apply_text_style(
-        text_obj: plt.Text,
-        *,
-        font: Optional[str] = None,
-        fontsize: Optional[float] = None,
-        color: Optional[str] = None,
-        alpha: Optional[float] = None,
-        fontweight: Optional[str] = None,
-    ) -> None:
-        """
-        Applies text styling to a Matplotlib text object.
-
-        Args:
-            text_obj (plt.Text): Matplotlib Text object to style.
-
-        Kwargs:
-            font (Optional[str]): Font family or name. Defaults to None.
-            fontsize (Optional[float]): Font size. Defaults to None.
-            color (Optional[str]): Text color. Defaults to None.
-            alpha (Optional[float]): Text transparency. Defaults to None.
-            fontweight (Optional[str]): Font weight. Defaults to None.
-        """
-        if text_obj is None:
-            return
-        if font is not None:
-            if hasattr(text_obj, "set_fontfamily"):
-                text_obj.set_fontfamily(font)
-            elif hasattr(text_obj, "set_fontname"):
-                text_obj.set_fontname(font)
-        if fontsize is not None:
-            text_obj.set_fontsize(fontsize)
-        if color is not None:
-            text_obj.set_color(color)
-        if alpha is not None:
-            text_obj.set_alpha(alpha)
-        if fontweight is not None:
-            text_obj.set_fontweight(fontweight)
+        apply_text_style(txt_title, fontsize=fontsize, color=color)

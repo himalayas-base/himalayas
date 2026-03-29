@@ -8,6 +8,8 @@ from __future__ import annotations
 from math import ceil
 from typing import TYPE_CHECKING, Any, Dict, Iterable, Optional, Sequence, TypedDict
 
+from ._text_style import apply_text_style
+
 import matplotlib.pyplot as plt
 from matplotlib.backend_bases import RendererBase
 
@@ -370,17 +372,15 @@ def _render_justified_row(
                 zorder=2,
             )
         )
-        ax_block.text(
+        txt = ax_block.text(
             x_cursor + swatch_w + text_gap,
             row_mid_y,
             label,
             ha="left",
             va="center",
-            fontsize=fontsize,
-            color=text_color,
-            fontname=font if font is not None else None,
             clip_on=False,
         )
+        apply_text_style(txt, font=font, fontsize=fontsize, color=text_color)
         x_cursor += item_w + gap
 
 
@@ -432,11 +432,9 @@ def _render_block(
             title,
             ha="left",
             va="top",
-            fontsize=fontsize,
-            color=text_color,
-            fontname=font if font is not None else None,
             clip_on=False,
         )
+        apply_text_style(title_artist, font=font, fontsize=fontsize, color=text_color)
 
     title_text_frac = 0.0
     if title_artist is not None:
