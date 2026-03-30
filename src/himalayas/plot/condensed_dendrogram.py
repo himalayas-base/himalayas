@@ -197,7 +197,7 @@ class CondensedDendrogramPlot:
             RuntimeError: If the figure has been closed and cannot be rebuilt.
         """
         self._ensure_open()
-        savefig_kwargs: dict[str, Any] = {}
+        savefig_kwargs: Dict[str, Any] = {}
         if dpi is not None:
             savefig_kwargs["dpi"] = dpi
         if format is not None:

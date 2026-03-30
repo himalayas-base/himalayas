@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Hashable, Mapping
 from os import PathLike
-from typing import Any, Optional, Sequence, Union, cast
+from typing import Any, Dict, Optional, Sequence, Union, cast
 
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -669,7 +669,7 @@ class Plotter:
         outer_color: str = "black",
         gutter_color: Optional[str] = None,
         figsize: Optional[tuple[float, float]] = None,
-        subplots_adjust: Optional[dict[str, float]] = None,
+        subplots_adjust: Optional[Dict[str, float]] = None,
     ) -> Plotter:
         """
         Declares the main matrix heatmap layer.
@@ -688,13 +688,13 @@ class Plotter:
             gutter_color (Optional[str]): Background gutter color behind the matrix. Defaults to None.
             figsize (Optional[tuple[float, float]]): Figure size override in inches (width, height).
                 Defaults to None.
-            subplots_adjust (Optional[dict[str, float]]): Override for figure subplot spacing.
+            subplots_adjust (Optional[Dict[str, float]]): Override for figure subplot spacing.
                 Defaults to None.
 
         Returns:
             Plotter: Self for chaining.
         """
-        layer_kwargs: dict[str, Any] = {
+        layer_kwargs: Dict[str, Any] = {
             "cmap": cmap,
             "show_minor_rows": show_minor_rows,
             "minor_row_step": minor_row_step,
@@ -754,7 +754,7 @@ class Plotter:
             xlabel_pad = float(xlabel_pad)
         if ylabel_pad is not None:
             ylabel_pad = float(ylabel_pad)
-        layer_kwargs: dict[str, Any] = {
+        layer_kwargs: Dict[str, Any] = {
             "xlabel": xlabel,
             "ylabel": ylabel,
             "fontweight": fontweight,
@@ -800,7 +800,7 @@ class Plotter:
         """
         if pad is not None:
             pad = float(pad)
-        layer_kwargs: dict[str, Any] = {
+        layer_kwargs: Dict[str, Any] = {
             "labels": labels,
             "max_labels": max_labels,
             "position": position,
@@ -841,7 +841,7 @@ class Plotter:
         """
         if pad is not None:
             pad = float(pad)
-        layer_kwargs: dict[str, Any] = {
+        layer_kwargs: Dict[str, Any] = {
             "labels": labels,
             "max_labels": max_labels,
             "position": position,
@@ -881,7 +881,7 @@ class Plotter:
         """
         if pad is not None:
             pad = float(pad)
-        layer_kwargs: dict[str, Any] = {"alpha": alpha, "rotation": rotation}
+        layer_kwargs: Dict[str, Any] = {"alpha": alpha, "rotation": rotation}
         if fontsize is not None:
             layer_kwargs["fontsize"] = fontsize
         if font is not None:
@@ -915,7 +915,7 @@ class Plotter:
         Returns:
             Plotter: Self for chaining.
         """
-        layer_kwargs: dict[str, Any] = {"data_pad": data_pad}
+        layer_kwargs: Dict[str, Any] = {"data_pad": data_pad}
         if axes is not None:
             layer_kwargs["axes"] = axes
         if color is not None:
@@ -931,7 +931,7 @@ class Plotter:
         *,
         name: str = "label_bar",
         mode: str = "categorical",
-        colors: Optional[dict] = None,
+        colors: Optional[Dict] = None,
         cmap: str = "viridis",
         vmin: Optional[float] = None,
         vmax: Optional[float] = None,
@@ -955,7 +955,7 @@ class Plotter:
             name (str): Track name. Defaults to "label_bar".
             mode ({"categorical", "continuous"}): Rendering mode; drives color mapping.
                 Defaults to "categorical".
-            colors (Optional[dict]): Category -> color mapping (categorical mode, required).
+            colors (Optional[Dict]): Category -> color mapping (categorical mode, required).
                 Defaults to None.
             cmap (str): Matplotlib colormap name (continuous mode). Defaults to "viridis".
             vmin (Optional[float]): Color scale minimum (continuous mode). Defaults to None.
@@ -1006,7 +1006,7 @@ class Plotter:
     def plot_cluster_labels(
         self,
         *,
-        overrides: Optional[dict[int, str]] = None,
+        overrides: Optional[Dict[int, str]] = None,
         fontsize: Optional[float] = None,
         color: Optional[str] = None,
         font: Optional[str] = None,
@@ -1016,7 +1016,7 @@ class Plotter:
         label_mode: str = "top_term",
         max_words: Optional[int] = None,
         # Label content
-        label_fields: Optional[Sequence[str]] = None,
+        label_fields: Optional[Sequence[str]] = ...,  # type: ignore[assignment]
         label_prefix: Optional[str] = None,
         # Unlabeled clusters
         skip_unlabeled: bool = False,
@@ -1047,7 +1047,7 @@ class Plotter:
         Labels are generated from attached Results by default.
 
         Kwargs:
-            overrides (Optional[dict[int, str]]): Per-cluster label overrides keyed by cluster id.
+            overrides (Optional[Dict[int, str]]): Per-cluster label overrides keyed by cluster id.
                 Override labels do not change bar values. Defaults to None.
             fontsize (Optional[float]): Label font size (points). Defaults to None.
             color (Optional[str]): Label text color. Defaults to None.
@@ -1064,8 +1064,8 @@ class Plotter:
 
             Label content:
             label_fields (Optional[Sequence[str]]): Fields to include in each label: one or
-                more of "label", "n", "p", "q", "fe". If None, suppresses base label/stat
-                text. Defaults to ("label", "n", "p").
+                more of "label", "n", "p", "q", "fe". Pass None explicitly to suppress all
+                label and stat text. Defaults to style label_fields ("label", "n", "p").
             label_prefix (Optional[str]): Prefix prepended to each label, one of
                 {None, "cid", "alpha"}. Defaults to None.
 
@@ -1119,11 +1119,11 @@ class Plotter:
             Plotter: Self for chaining.
         """
         # Build label-generation options forwarded to Results.cluster_labels().
-        label_options: dict[str, Any] = {"rank_by": rank_by, "label_mode": label_mode}
+        label_options: Dict[str, Any] = {"rank_by": rank_by, "label_mode": label_mode}
         if max_words is not None:
             label_options["max_words"] = max_words
 
-        layer_kwargs: dict[str, Any] = {"_label_options": label_options, "overrides": overrides}
+        layer_kwargs: Dict[str, Any] = {"_label_options": label_options, "overrides": overrides}
         # Text appearance
         if fontsize is not None:
             layer_kwargs["fontsize"] = fontsize
@@ -1133,8 +1133,9 @@ class Plotter:
             layer_kwargs["font"] = font
         if alpha is not None:
             layer_kwargs["alpha"] = alpha
-        # Label content
-        if label_fields is not None:
+        # Label content — None is a valid user value (suppresses label text), so use
+        # ... to distinguish "not supplied" from an explicit None.
+        if label_fields is not ...:
             layer_kwargs["label_fields"] = label_fields
         if label_prefix is not None:
             layer_kwargs["label_prefix"] = label_prefix
@@ -1213,7 +1214,7 @@ class Plotter:
         """
         if pad is not None:
             pad = float(pad)
-        layer_kwargs: dict[str, Any] = {"title": title}
+        layer_kwargs: Dict[str, Any] = {"title": title}
         if fontsize is not None:
             layer_kwargs["fontsize"] = fontsize
         if pad is not None:
@@ -1437,7 +1438,7 @@ class Plotter:
         """
         if self._fig is None or not self._figure_is_open():
             self._render()
-        savefig_kwargs: dict[str, Any] = {}
+        savefig_kwargs: Dict[str, Any] = {}
         if dpi is not None:
             savefig_kwargs["dpi"] = dpi
         if format is not None:
