@@ -886,7 +886,7 @@ def _render_condensed(spec: CondensedDendrogramSpec) -> CondensedDendrogramPlot:
             txt,
             va="center",
             ha="left",
-            font=spec.font,
+            fontname=spec.font,
             fontsize=spec.fontsize,
             color=text_color,
             alpha=text_alpha,

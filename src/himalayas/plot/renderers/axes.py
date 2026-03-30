@@ -119,14 +119,7 @@ class AxesRenderer:
             ax_ylabel.set_yticks([])
             for spine in ax_ylabel.spines.values():
                 spine.set_visible(False)
-            text_kwargs = {
-                "fontname": font if font is not None else "Helvetica",
-                "fontsize": fontsize,
-                "color": color,
-                "alpha": alpha,
-                "fontweight": fontweight,
-            }
-            ax_ylabel.text(
+            txt_ylabel = ax_ylabel.text(
                 0.5,
                 0.5,
                 ylabel,
@@ -134,8 +127,12 @@ class AxesRenderer:
                 rotation=90,
                 va="center",
                 ha="center",
-                **text_kwargs,
+                fontsize=fontsize,
+                color=color,
+                alpha=alpha,
+                fontweight=fontweight,
             )
+            apply_text_style(txt_ylabel, font=font)
 
     def _render_row_ticks(
         self,
@@ -261,9 +258,13 @@ class AxesRenderer:
         """
         fontsize = self.kwargs.get("fontsize", style.get("title_fontsize", 14))
         color = self.kwargs.get("color", style.get("text_color", "black"))
-        extra = {
-            k: v for k, v in self.kwargs.items() if k not in ("title", "fontsize", "pad", "color")
-        }
+        font = self.kwargs.get("font", None)
+        alpha = self.kwargs.get("alpha", None)
+        # Exclude all keys handled via apply_text_style; passing font/alpha through
+        # set_title() is unreliable across backends and font= expects a FontProperties
+        # object rather than a plain family name string.
+        _styled = {"title", "fontsize", "pad", "color", "font", "alpha"}
+        extra = {k: v for k, v in self.kwargs.items() if k not in _styled}
         # Title padding follows Matplotlib text units (points).
         txt_title = ax.set_title(
             self.kwargs["title"],
@@ -273,4 +274,4 @@ class AxesRenderer:
         # Apply font properties directly on the Text object; this is more reliably
         # dispatched across backends (including inline Jupyter renderers) than passing
         # text kwargs through set_title().
-        apply_text_style(txt_title, fontsize=fontsize, color=color)
+        apply_text_style(txt_title, fontsize=fontsize, color=color, font=font, alpha=alpha)
