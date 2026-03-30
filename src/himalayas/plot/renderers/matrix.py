@@ -172,7 +172,7 @@ class MatrixRenderer:
         outer_lw: float = 1.2,
         outer_color: str = "black",
         gutter_color: Optional[str] = None,
-        figsize: Optional[tuple[float, float]] = None,
+        figsize: Optional[Tuple[float, float]] = None,
         subplots_adjust: Optional[Dict[str, float]] = None,
     ) -> None:
         """

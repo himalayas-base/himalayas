@@ -117,9 +117,7 @@ def test_recluster_invalidates_downstream_state(toy_matrix, toy_annotations):
 
 
 @pytest.mark.api
-def test_finalize_col_cluster_uses_cluster_linkage_kwargs(
-    monkeypatch, toy_matrix, toy_annotations
-):
+def test_finalize_col_cluster_uses_cluster_linkage_kwargs(monkeypatch, toy_matrix, toy_annotations):
     """
     Ensures finalize(col_cluster=True) uses linkage settings from cluster().
 

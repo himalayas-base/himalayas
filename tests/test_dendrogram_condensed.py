@@ -14,6 +14,7 @@ from himalayas.core.results import Results
 from himalayas.plot import CondensedDendrogramPlot, plot_dendrogram_condensed
 from himalayas.plot.renderers._label_format import format_label_prefix
 
+
 @pytest.mark.api
 def test_dendrogram_condensed_missing_term_column_raises(toy_results):
     """
@@ -89,9 +90,7 @@ def test_dendrogram_condensed_rejects_unknown_kwargs(toy_results):
 
 
 @pytest.mark.api
-def test_dendrogram_condensed_bad_label_overrides_type_raises(
-    toy_results
-):
+def test_dendrogram_condensed_bad_label_overrides_type_raises(toy_results):
     """
     Ensures label_overrides must be a dict when provided.
 
@@ -416,6 +415,7 @@ def test_dendrogram_condensed_missing_linkage_raises(toy_results):
     Raises:
         AttributeError: If master linkage is missing from results.clusters.
     """
+
     class _DummyClusters:
         linkage_matrix = None
         threshold = 0.0
@@ -442,6 +442,7 @@ def test_dendrogram_condensed_no_clusters_raises(toy_results):
     Raises:
         ValueError: If no clusters are present in the layout.
     """
+
     class _EmptyLayout:
         cluster_spans = []
 

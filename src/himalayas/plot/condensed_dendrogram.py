@@ -12,9 +12,11 @@ from typing import (
     Any,
     Collection,
     Dict,
+    List,
     NamedTuple,
     Optional,
     Sequence,
+    Set,
     Tuple,
     TYPE_CHECKING,
     TypedDict,
@@ -163,7 +165,17 @@ class CondensedDendrogramPlot:
         except (AttributeError, RuntimeError, ValueError):
             return False
 
-    def save(self, path: Union[str, PathLike[str]], **kwargs: Any) -> None:
+    def save(
+        self,
+        path: Union[str, PathLike[str]],
+        *,
+        dpi: Optional[float] = None,
+        format: Optional[str] = None,
+        bbox_inches: Optional[str] = None,
+        pad_inches: Optional[float] = None,
+        transparent: Optional[bool] = None,
+        **kwargs: Any,
+    ) -> None:
         """
         Saves the rendered condensed dendrogram figure.
 
@@ -171,15 +183,37 @@ class CondensedDendrogramPlot:
             path (Union[str, PathLike[str]]): Output path for the figure.
 
         Kwargs:
-            **kwargs: Additional matplotlib savefig options. Defaults to {}.
+            dpi (Optional[float]): Resolution in dots per inch. Defaults to the figure dpi.
+            format (Optional[str]): Output format, e.g. "png", "pdf", "svg".
+                Inferred from the path extension when None. Defaults to None.
+            bbox_inches (Optional[str]): Bounding box adjustment. Pass "tight" to crop
+                whitespace. Also accepts a matplotlib.transforms.Bbox instance.
+                Defaults to None.
+            pad_inches (Optional[float]): Padding around the figure when
+                bbox_inches="tight" (inches). Defaults to 0.1.
+            transparent (Optional[bool]): If True, axes and figure backgrounds are
+                rendered transparent. Defaults to None.
+            **kwargs: Additional matplotlib savefig options.
 
         Raises:
             RuntimeError: If the figure has been closed and cannot be rebuilt.
         """
         self._ensure_open()
+        savefig_kwargs: Dict[str, Any] = {}
+        if dpi is not None:
+            savefig_kwargs["dpi"] = dpi
+        if format is not None:
+            savefig_kwargs["format"] = format
+        if bbox_inches is not None:
+            savefig_kwargs["bbox_inches"] = bbox_inches
+        if pad_inches is not None:
+            savefig_kwargs["pad_inches"] = pad_inches
+        if transparent is not None:
+            savefig_kwargs["transparent"] = transparent
         self.fig.savefig(
             path,
             facecolor=self.fig.get_facecolor(),
+            **savefig_kwargs,
             **kwargs,
         )
 
@@ -248,7 +282,7 @@ def _resolve_cluster_order(
     Z_master: np.ndarray,
     results: Results,
     clusters: Clusters,
-) -> Tuple[list[int], Dict[Hashable, int]]:
+) -> Tuple[List[int], Dict[Hashable, int]]:
     """
     Resolves cluster order from master dendrogram leaf order.
 
@@ -268,8 +302,8 @@ def _resolve_cluster_order(
     row_labels = results.matrix.labels
     cluster_to_rows = clusters.cluster_to_labels
     row_to_cluster = {row_id: int(cid) for cid, rows in cluster_to_rows.items() for row_id in rows}
-    ordered_cluster_ids: list[int] = []
-    seen: set[int] = set()
+    ordered_cluster_ids: List[int] = []
+    seen: Set[int] = set()
     # Scan master leaf order and collect cluster ids.
     for i in leaves_list(Z_master):
         cid = row_to_cluster.get(row_labels[int(i)], None)
@@ -366,8 +400,8 @@ def _prepare_cluster_labels(
     cluster_sizes = dict(cluster_sizes) if cluster_sizes is not None else None
 
     # Prepare labels and ranking scores in order.
-    labels: list[str] = []
-    scores: list[float] = []
+    labels: List[str] = []
+    scores: List[float] = []
     for cid in cluster_ids:
         if cid not in lab_map:
             if label_fields is None and label_prefix is None:
@@ -598,7 +632,7 @@ def _condense_linkage_to_clusters(
     cluster_index = {cid: i for i, cid in enumerate(cluster_ids)}
     # Build leaf group mapping.
     n_master = Z_master.shape[0] + 1
-    leaf_groups: list[Optional[int]] = []
+    leaf_groups: List[Optional[int]] = []
     for i in range(n_master):
         cid = row_index_to_cluster.get(i, None)
         if cid is None or cid not in cluster_index:
@@ -611,7 +645,7 @@ def _condense_linkage_to_clusters(
     for i, grp in enumerate(leaf_groups):
         node_groups[i] = set() if grp is None else {int(grp)}
     # Build condensed linkage rows by scanning master merges.
-    Zc_rows: list[list[float]] = []
+    Zc_rows: List[List[float]] = []
     rep_to_id = {frozenset({i}): i for i in range(len(cluster_ids))}
     next_id = len(cluster_ids)
     for t in range(Z_master.shape[0]):
@@ -854,7 +888,7 @@ def _render_condensed(spec: CondensedDendrogramSpec) -> CondensedDendrogramPlot:
             txt,
             va="center",
             ha="left",
-            font=spec.font,
+            fontname=spec.font,
             fontsize=spec.fontsize,
             color=text_color,
             alpha=text_alpha,

@@ -7,6 +7,8 @@ from __future__ import annotations
 
 from typing import Iterable, Optional, Dict, Sequence, TypedDict, TYPE_CHECKING, Union
 
+from ._text_style import apply_text_style
+
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.colorbar import ColorbarBase
@@ -229,21 +231,10 @@ def _render_colorbar_cell(
         # Matplotlib label spacing APIs interpret padding in points.
         label_pad_pts = layout["label_pad"]
         if layout["label_position"] == "below":
-            ax_cb.set_xlabel(
-                label,
-                fontsize=layout["fontsize"],
-                color=text_color,
-                labelpad=label_pad_pts,
-                fontname=font if font is not None else None,
-            )
+            txt_label = ax_cb.set_xlabel(label, labelpad=label_pad_pts)
         else:
-            ax_cb.set_title(
-                label,
-                fontsize=layout["fontsize"],
-                color=text_color,
-                pad=label_pad_pts,
-                fontname=font if font is not None else None,
-            )
+            txt_label = ax_cb.set_title(label, pad=label_pad_pts)
+        apply_text_style(txt_label, font=font, fontsize=layout["fontsize"], color=text_color)
 
 
 class ColorbarRenderer:

@@ -99,7 +99,9 @@ def test_compute_col_order_uses_scipy_when_optimal_ordering_enabled(monkeypatch)
     monkeypatch.setattr(layout_module, "_resolve_fastcluster_linkage", _unexpected_fastcluster)
     monkeypatch.setattr(layout_module, "linkage", _capture_scipy)
 
-    compute_col_order(matrix, linkage_method="average", linkage_metric="cosine", optimal_ordering=True)
+    compute_col_order(
+        matrix, linkage_method="average", linkage_metric="cosine", optimal_ordering=True
+    )
 
     assert seen["kwargs"] is not None
     assert seen["kwargs"]["method"] == "average"

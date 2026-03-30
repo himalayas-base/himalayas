@@ -6,7 +6,9 @@ himalayas/plot/renderers/label_legend
 from __future__ import annotations
 
 from math import ceil
-from typing import TYPE_CHECKING, Any, Dict, Iterable, Optional, Sequence, TypedDict
+from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Sequence, Tuple, TypedDict
+
+from ._text_style import apply_text_style
 
 import matplotlib.pyplot as plt
 from matplotlib.backend_bases import RendererBase
@@ -92,7 +94,7 @@ def _resolve_grid(
     n_items: int,
     nrows: Optional[int],
     ncols: Optional[int],
-) -> tuple[int, int]:
+) -> Tuple[int, int]:
     """
     Resolves legend grid shape from item count and optional row/column hints.
 
@@ -102,7 +104,7 @@ def _resolve_grid(
         ncols (Optional[int]): Requested number of columns.
 
     Returns:
-        tuple[int, int]: Resolved (nrows, ncols).
+        Tuple[int, int]: Resolved (nrows, ncols).
 
     Raises:
         ValueError: If `nrows * ncols` cannot fit all items.
@@ -370,17 +372,15 @@ def _render_justified_row(
                 zorder=2,
             )
         )
-        ax_block.text(
+        txt = ax_block.text(
             x_cursor + swatch_w + text_gap,
             row_mid_y,
             label,
             ha="left",
             va="center",
-            fontsize=fontsize,
-            color=text_color,
-            fontname=font if font is not None else None,
             clip_on=False,
         )
+        apply_text_style(txt, font=font, fontsize=fontsize, color=text_color)
         x_cursor += item_w + gap
 
 
@@ -432,11 +432,9 @@ def _render_block(
             title,
             ha="left",
             va="top",
-            fontsize=fontsize,
-            color=text_color,
-            fontname=font if font is not None else None,
             clip_on=False,
         )
+        apply_text_style(title_artist, font=font, fontsize=fontsize, color=text_color)
 
     title_text_frac = 0.0
     if title_artist is not None:
@@ -464,7 +462,7 @@ def _render_block(
     )
 
     # Group items by requested row-major grid rows.
-    rows: list[list[LabelLegendItem]] = [[] for _ in range(nrows)]
+    rows: List[List[LabelLegendItem]] = [[] for _ in range(nrows)]
     for idx, item in enumerate(block["items"]):
         r = idx // ncols
         if r >= nrows:
@@ -544,7 +542,7 @@ class LabelLegendRenderer:
             return layout
 
         # Normalize specs into renderable blocks and drop legends with no items.
-        blocks: list[Dict[str, Any]] = []
+        blocks: List[Dict[str, Any]] = []
         for spec in self.specs:
             items = list(spec.get("items", ()))
             if not items:

@@ -5,10 +5,12 @@ himalayas/plot/renderers/axes
 
 from __future__ import annotations
 
-from typing import Any, Optional, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 
 import matplotlib.pyplot as plt
 import numpy as np
+
+from ._text_style import apply_text_style
 
 if TYPE_CHECKING:
     from ..style import StyleConfig
@@ -94,7 +96,7 @@ class AxesRenderer:
             fontweight=fontweight,
             labelpad=xlabel_pad_pts,
         )
-        self._apply_text_style(
+        apply_text_style(
             txt_xlabel,
             font=font,
             fontsize=fontsize,
@@ -117,14 +119,7 @@ class AxesRenderer:
             ax_ylabel.set_yticks([])
             for spine in ax_ylabel.spines.values():
                 spine.set_visible(False)
-            text_kwargs = {
-                "fontname": font if font is not None else "Helvetica",
-                "fontsize": fontsize,
-                "color": color,
-                "alpha": alpha,
-                "fontweight": fontweight,
-            }
-            ax_ylabel.text(
+            txt_ylabel = ax_ylabel.text(
                 0.5,
                 0.5,
                 ylabel,
@@ -132,8 +127,12 @@ class AxesRenderer:
                 rotation=90,
                 va="center",
                 ha="center",
-                **text_kwargs,
+                fontsize=fontsize,
+                color=color,
+                alpha=alpha,
+                fontweight=fontweight,
             )
+            apply_text_style(txt_ylabel, font=font)
 
     def _render_row_ticks(
         self,
@@ -257,52 +256,22 @@ class AxesRenderer:
             ax (plt.Axes): Matplotlib Axes to render the title on.
             style (StyleConfig): Plot style configuration.
         """
-        title_kwargs = {
-            "fontsize": self.kwargs.get("fontsize", style.get("title_fontsize", 14)),
-            # Title padding follows Matplotlib text units (points).
-            "pad": self.kwargs.get("pad", style.get("title_pad", 15)),
-            "color": self.kwargs.get("color", style.get("text_color", "black")),
-        }
-        extra = {
-            k: v for k, v in self.kwargs.items() if k not in ("title", "fontsize", "pad", "color")
-        }
-        ax.set_title(self.kwargs["title"], **{**title_kwargs, **extra})
-
-    @staticmethod
-    def _apply_text_style(
-        text_obj: plt.Text,
-        *,
-        font: Optional[str] = None,
-        fontsize: Optional[float] = None,
-        color: Optional[str] = None,
-        alpha: Optional[float] = None,
-        fontweight: Optional[str] = None,
-    ) -> None:
-        """
-        Applies text styling to a Matplotlib text object.
-
-        Args:
-            text_obj (plt.Text): Matplotlib Text object to style.
-
-        Kwargs:
-            font (Optional[str]): Font family or name. Defaults to None.
-            fontsize (Optional[float]): Font size. Defaults to None.
-            color (Optional[str]): Text color. Defaults to None.
-            alpha (Optional[float]): Text transparency. Defaults to None.
-            fontweight (Optional[str]): Font weight. Defaults to None.
-        """
-        if text_obj is None:
-            return
-        if font is not None:
-            if hasattr(text_obj, "set_fontfamily"):
-                text_obj.set_fontfamily(font)
-            elif hasattr(text_obj, "set_fontname"):
-                text_obj.set_fontname(font)
-        if fontsize is not None:
-            text_obj.set_fontsize(fontsize)
-        if color is not None:
-            text_obj.set_color(color)
-        if alpha is not None:
-            text_obj.set_alpha(alpha)
-        if fontweight is not None:
-            text_obj.set_fontweight(fontweight)
+        fontsize = self.kwargs.get("fontsize", style.get("title_fontsize", 14))
+        color = self.kwargs.get("color", style.get("text_color", "black"))
+        font = self.kwargs.get("font", None)
+        alpha = self.kwargs.get("alpha", None)
+        # Exclude all keys handled via apply_text_style; passing font/alpha through
+        # set_title() is unreliable across backends and font= expects a FontProperties
+        # object rather than a plain family name string.
+        _styled = {"title", "fontsize", "pad", "color", "font", "alpha"}
+        extra = {k: v for k, v in self.kwargs.items() if k not in _styled}
+        # Title padding follows Matplotlib text units (points).
+        txt_title = ax.set_title(
+            self.kwargs["title"],
+            pad=self.kwargs.get("pad", style.get("title_pad", 15)),
+            **extra,
+        )
+        # Apply font properties directly on the Text object; this is more reliably
+        # dispatched across backends (including inline Jupyter renderers) than passing
+        # text kwargs through set_title().
+        apply_text_style(txt_title, fontsize=fontsize, color=color, font=font, alpha=alpha)

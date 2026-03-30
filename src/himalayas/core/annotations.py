@@ -6,7 +6,7 @@ himalayas/core/annotations
 from __future__ import annotations
 
 from collections.abc import Iterable as IterableABC
-from typing import Dict, Iterable, Mapping, Optional, Set
+from typing import Dict, Iterable, List, Mapping, Optional, Set
 
 from .matrix import Matrix
 from ..util.warnings import warn
@@ -100,7 +100,7 @@ class Annotations:
             )
 
     @property
-    def terms(self) -> list[str]:
+    def terms(self) -> List[str]:
         """
         Returns annotation terms.
 
