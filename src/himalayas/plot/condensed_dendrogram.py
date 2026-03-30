@@ -163,7 +163,17 @@ class CondensedDendrogramPlot:
         except (AttributeError, RuntimeError, ValueError):
             return False
 
-    def save(self, path: Union[str, PathLike[str]], **kwargs: Any) -> None:
+    def save(
+        self,
+        path: Union[str, PathLike[str]],
+        *,
+        dpi: Optional[float] = None,
+        format: Optional[str] = None,
+        bbox_inches: Optional[str] = None,
+        pad_inches: Optional[float] = None,
+        transparent: Optional[bool] = None,
+        **kwargs: Any,
+    ) -> None:
         """
         Saves the rendered condensed dendrogram figure.
 
@@ -171,15 +181,37 @@ class CondensedDendrogramPlot:
             path (Union[str, PathLike[str]]): Output path for the figure.
 
         Kwargs:
-            **kwargs: Additional matplotlib savefig options. Defaults to {}.
+            dpi (Optional[float]): Resolution in dots per inch. Defaults to the figure dpi.
+            format (Optional[str]): Output format, e.g. "png", "pdf", "svg".
+                Inferred from the path extension when None. Defaults to None.
+            bbox_inches (Optional[str]): Bounding box adjustment. Pass "tight" to crop
+                whitespace. Also accepts a matplotlib.transforms.Bbox instance.
+                Defaults to None.
+            pad_inches (Optional[float]): Padding around the figure when
+                bbox_inches="tight" (inches). Defaults to 0.1.
+            transparent (Optional[bool]): If True, axes and figure backgrounds are
+                rendered transparent. Defaults to None.
+            **kwargs: Additional matplotlib savefig options.
 
         Raises:
             RuntimeError: If the figure has been closed and cannot be rebuilt.
         """
         self._ensure_open()
+        savefig_kwargs: dict[str, Any] = {}
+        if dpi is not None:
+            savefig_kwargs["dpi"] = dpi
+        if format is not None:
+            savefig_kwargs["format"] = format
+        if bbox_inches is not None:
+            savefig_kwargs["bbox_inches"] = bbox_inches
+        if pad_inches is not None:
+            savefig_kwargs["pad_inches"] = pad_inches
+        if transparent is not None:
+            savefig_kwargs["transparent"] = transparent
         self.fig.savefig(
             path,
             facecolor=self.fig.get_facecolor(),
+            **savefig_kwargs,
             **kwargs,
         )
 

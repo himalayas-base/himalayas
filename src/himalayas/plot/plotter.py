@@ -1014,87 +1014,125 @@ class Plotter:
     def plot_cluster_labels(
         self,
         *,
-        overrides: Optional[Dict[int, str]] = None,
+        overrides: Optional[dict[int, str]] = None,
         fontsize: Optional[float] = None,
         color: Optional[str] = None,
         font: Optional[str] = None,
         alpha: Optional[float] = None,
-        **kwargs,
+        # Label generation
+        rank_by: str = "p",
+        label_mode: str = "top_term",
+        max_words: Optional[int] = None,
+        # Label content
+        label_fields: Optional[Sequence[str]] = None,
+        label_prefix: Optional[str] = None,
+        # Unlabeled clusters
+        skip_unlabeled: bool = False,
+        placeholder_text: Optional[str] = None,
+        placeholder_color: Optional[str] = None,
+        placeholder_alpha: Optional[float] = None,
+        # Separator lines
+        label_sep_xmin: Optional[float] = None,
+        label_sep_xmax: Optional[float] = None,
+        label_sep_color: Optional[str] = None,
+        label_sep_lw: Optional[float] = None,
+        label_sep_alpha: Optional[float] = None,
+        # Cluster boundaries
+        boundary_color: Optional[str] = None,
+        boundary_lw: Optional[float] = None,
+        boundary_alpha: Optional[float] = None,
+        dendro_boundary_color: Optional[str] = None,
+        dendro_boundary_lw: Optional[float] = None,
+        dendro_boundary_alpha: Optional[float] = None,
+        # Text formatting
+        omit_words: Optional[Sequence[str]] = None,
+        wrap_text: bool = True,
+        wrap_width: Optional[int] = None,
+        overflow: str = "wrap",
     ) -> Plotter:
         """
         Declares cluster-level labels shown in the right panel.
         Labels are generated from attached Results by default.
 
         Kwargs:
-            overrides (Dict[int, str]): Per-cluster label overrides keyed by cluster id.
-                Override labels do not change bar values.
+            overrides (Optional[dict[int, str]]): Per-cluster label overrides keyed by cluster id.
+                Override labels do not change bar values. Defaults to None.
             fontsize (Optional[float]): Label font size (points). Defaults to None.
             color (Optional[str]): Label text color. Defaults to None.
             font (Optional[str]): Font family for label text. Defaults to None.
             alpha (Optional[float]): Label text opacity. Defaults to None.
+
+            Label generation:
             rank_by (str): Ranking statistic for representative terms, one of {"p", "q"}.
                 Defaults to "p".
-            label_mode (str): Label mode, one of {"top_term", "compressed"}.
+            label_mode (str): Label composition mode, one of {"top_term", "compressed"}.
                 Defaults to "top_term".
-            max_words (Optional[int]): Maximum words in rendered display labels.
-                Defaults to None.
-            label_fields (Optional[tuple[str]]): Fields to include: "label", "n", "p", "q", "fe".
-                If None, suppresses base label/stat text.
-                Defaults to ("label", "n", "p").
-            label_prefix (Optional[str]): Optional prefix mode for display labels.
-                Supported values are None, "cid", and "alpha". Defaults to None.
-            **kwargs: Renderer keyword arguments. Defaults to {}.
+            max_words (Optional[int]): Maximum words in rendered display labels. Applies to
+                both compressed label generation and final display truncation. Defaults to None.
+
+            Label content:
+            label_fields (Optional[Sequence[str]]): Fields to include in each label: one or
+                more of "label", "n", "p", "q", "fe". If None, suppresses base label/stat
+                text. Defaults to ("label", "n", "p").
+            label_prefix (Optional[str]): Prefix prepended to each label, one of
+                {None, "cid", "alpha"}. Defaults to None.
+
+            Unlabeled clusters:
+            skip_unlabeled (bool): If True, clusters without a label are omitted entirely.
+                Defaults to False.
+            placeholder_text (Optional[str]): Text shown for unlabeled clusters when
+                skip_unlabeled is False. Defaults to style placeholder_text.
+            placeholder_color (Optional[str]): Text color for placeholder labels.
+                Defaults to style placeholder_color.
+            placeholder_alpha (Optional[float]): Opacity for placeholder labels.
+                Defaults to style placeholder_alpha.
+
+            Separator lines:
+            label_sep_xmin (Optional[float]): Left extent of inter-cluster separator lines
+                (0–1, figure fraction). Defaults to the label text x-position.
+            label_sep_xmax (Optional[float]): Right extent of inter-cluster separator lines
+                (0–1, figure fraction). Defaults to 1.0.
+            label_sep_color (Optional[str]): Separator line color.
+                Defaults to style label_sep_color.
+            label_sep_lw (Optional[float]): Separator line width (points).
+                Defaults to style label_sep_lw.
+            label_sep_alpha (Optional[float]): Separator line opacity.
+                Defaults to style label_sep_alpha.
+
+            Cluster boundaries:
+            boundary_color (Optional[str]): Matrix cluster boundary line color.
+                Defaults to style boundary_color.
+            boundary_lw (Optional[float]): Matrix cluster boundary line width (points).
+                Defaults to style boundary_lw.
+            boundary_alpha (Optional[float]): Matrix cluster boundary line opacity.
+                Defaults to style boundary_alpha.
+            dendro_boundary_color (Optional[str]): Dendrogram boundary line color.
+                Defaults to style dendro_boundary_color.
+            dendro_boundary_lw (Optional[float]): Dendrogram boundary line width (points).
+                Defaults to style dendro_boundary_lw.
+            dendro_boundary_alpha (Optional[float]): Dendrogram boundary line opacity.
+                Defaults to style dendro_boundary_alpha.
+
+            Text formatting:
+            omit_words (Optional[Sequence[str]]): Words to strip from labels
+                (case-insensitive). Defaults to style label_omit_words.
+            wrap_text (bool): Whether to wrap long label text onto multiple lines.
+                Defaults to True.
+            wrap_width (Optional[int]): Characters per wrapped line.
+                Defaults to style label_wrap_width.
+            overflow (str): Handling mode for text exceeding wrap_width, one of
+                {"wrap", "ellipsis"}. Defaults to "wrap".
 
         Returns:
             Plotter: Self for chaining.
-
-        Raises:
-            TypeError: If unknown keyword arguments are provided.
         """
-        label_option_keys = {
-            "rank_by",
-            "label_mode",
-            "max_words",
-        }
-        renderer_option_keys = {
-            "skip_unlabeled",
-            "label_fields",
-            "label_prefix",
-            "placeholder_text",
-            "placeholder_color",
-            "placeholder_alpha",
-            "label_sep_xmin",
-            "label_sep_xmax",
-            "label_sep_color",
-            "label_sep_lw",
-            "label_sep_alpha",
-            "boundary_color",
-            "boundary_lw",
-            "boundary_alpha",
-            "dendro_boundary_color",
-            "dendro_boundary_lw",
-            "dendro_boundary_alpha",
-            "omit_words",
-            "wrap_text",
-            "wrap_width",
-            "overflow",
-        }
-        allowed_keys = label_option_keys | renderer_option_keys
-        unknown_keys = sorted(set(kwargs) - allowed_keys)
-        if unknown_keys:
-            unknown_str = ", ".join(repr(k) for k in unknown_keys)
-            raise TypeError(
-                f"plot_cluster_labels() got unexpected keyword argument(s): {unknown_str}"
-            )
-
-        label_options = {}
-        for key in tuple(kwargs):
-            if key in label_option_keys:
-                label_options[key] = kwargs[key]
-                if key != "max_words":
-                    kwargs.pop(key)
+        # Build label-generation options forwarded to Results.cluster_labels().
+        label_options: dict[str, Any] = {"rank_by": rank_by, "label_mode": label_mode}
+        if max_words is not None:
+            label_options["max_words"] = max_words
 
         layer_kwargs: dict[str, Any] = {"_label_options": label_options, "overrides": overrides}
+        # Text appearance
         if fontsize is not None:
             layer_kwargs["fontsize"] = fontsize
         if color is not None:
@@ -1103,7 +1141,53 @@ class Plotter:
             layer_kwargs["font"] = font
         if alpha is not None:
             layer_kwargs["alpha"] = alpha
-        self._layers.append(("cluster_labels", {**layer_kwargs, **kwargs}))
+        # Label content
+        if label_fields is not None:
+            layer_kwargs["label_fields"] = label_fields
+        if label_prefix is not None:
+            layer_kwargs["label_prefix"] = label_prefix
+        # Unlabeled clusters
+        layer_kwargs["skip_unlabeled"] = skip_unlabeled
+        if placeholder_text is not None:
+            layer_kwargs["placeholder_text"] = placeholder_text
+        if placeholder_color is not None:
+            layer_kwargs["placeholder_color"] = placeholder_color
+        if placeholder_alpha is not None:
+            layer_kwargs["placeholder_alpha"] = placeholder_alpha
+        # Separator lines
+        if label_sep_xmin is not None:
+            layer_kwargs["label_sep_xmin"] = label_sep_xmin
+        if label_sep_xmax is not None:
+            layer_kwargs["label_sep_xmax"] = label_sep_xmax
+        if label_sep_color is not None:
+            layer_kwargs["label_sep_color"] = label_sep_color
+        if label_sep_lw is not None:
+            layer_kwargs["label_sep_lw"] = label_sep_lw
+        if label_sep_alpha is not None:
+            layer_kwargs["label_sep_alpha"] = label_sep_alpha
+        # Cluster boundaries
+        if boundary_color is not None:
+            layer_kwargs["boundary_color"] = boundary_color
+        if boundary_lw is not None:
+            layer_kwargs["boundary_lw"] = boundary_lw
+        if boundary_alpha is not None:
+            layer_kwargs["boundary_alpha"] = boundary_alpha
+        if dendro_boundary_color is not None:
+            layer_kwargs["dendro_boundary_color"] = dendro_boundary_color
+        if dendro_boundary_lw is not None:
+            layer_kwargs["dendro_boundary_lw"] = dendro_boundary_lw
+        if dendro_boundary_alpha is not None:
+            layer_kwargs["dendro_boundary_alpha"] = dendro_boundary_alpha
+        # Text formatting — max_words is also read by the renderer, not only label generation.
+        if max_words is not None:
+            layer_kwargs["max_words"] = max_words
+        if omit_words is not None:
+            layer_kwargs["omit_words"] = omit_words
+        layer_kwargs["wrap_text"] = wrap_text
+        if wrap_width is not None:
+            layer_kwargs["wrap_width"] = wrap_width
+        layer_kwargs["overflow"] = overflow
+        self._layers.append(("cluster_labels", layer_kwargs))
         return self
 
     def plot_title(
@@ -1329,7 +1413,17 @@ class Plotter:
         except (AttributeError, RuntimeError, ValueError):
             return False
 
-    def save(self, path: Union[str, PathLike[str]], **kwargs: Any) -> None:
+    def save(
+        self,
+        path: Union[str, PathLike[str]],
+        *,
+        dpi: Optional[float] = None,
+        format: Optional[str] = None,
+        bbox_inches: Optional[str] = None,
+        pad_inches: Optional[float] = None,
+        transparent: Optional[bool] = None,
+        **kwargs: Any,
+    ) -> None:
         """
         Saves the last rendered figure with correct background handling.
 
@@ -1337,13 +1431,35 @@ class Plotter:
             path (Union[str, PathLike[str]]): Output path for the figure.
 
         Kwargs:
-            **kwargs: Additional matplotlib savefig options. Defaults to {}.
+            dpi (Optional[float]): Resolution in dots per inch. Defaults to the figure dpi.
+            format (Optional[str]): Output format, e.g. "png", "pdf", "svg".
+                Inferred from the path extension when None. Defaults to None.
+            bbox_inches (Optional[str]): Bounding box adjustment. Pass "tight" to crop
+                whitespace. Also accepts a matplotlib.transforms.Bbox instance.
+                Defaults to None.
+            pad_inches (Optional[float]): Padding around the figure when
+                bbox_inches="tight" (inches). Defaults to 0.1.
+            transparent (Optional[bool]): If True, axes and figure backgrounds are
+                rendered transparent. Defaults to None.
+            **kwargs: Additional matplotlib savefig options.
         """
         if self._fig is None or not self._figure_is_open():
             self._render()
+        savefig_kwargs: dict[str, Any] = {}
+        if dpi is not None:
+            savefig_kwargs["dpi"] = dpi
+        if format is not None:
+            savefig_kwargs["format"] = format
+        if bbox_inches is not None:
+            savefig_kwargs["bbox_inches"] = bbox_inches
+        if pad_inches is not None:
+            savefig_kwargs["pad_inches"] = pad_inches
+        if transparent is not None:
+            savefig_kwargs["transparent"] = transparent
         self._fig.savefig(
             path,
             facecolor=self._fig.get_facecolor(),
+            **savefig_kwargs,
             **kwargs,
         )
 
