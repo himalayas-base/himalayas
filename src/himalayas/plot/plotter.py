@@ -730,7 +730,6 @@ class Plotter:
         alpha: float = 1.0,
         xlabel_pad: Optional[float] = None,
         ylabel_pad: Optional[float] = None,
-        **kwargs: Any,
     ) -> Plotter:
         """
         Declares axis labels for the matrix.
@@ -747,7 +746,6 @@ class Plotter:
                 Defaults to 8.
             ylabel_pad (Optional[float]): Padding between matrix and external y-label axis
                 (figure fraction). Defaults to style ylabel_pad.
-            **kwargs: Renderer keyword arguments. Defaults to {}.
 
         Returns:
             Plotter: Self for chaining.
@@ -772,7 +770,7 @@ class Plotter:
             layer_kwargs["xlabel_pad"] = xlabel_pad
         if ylabel_pad is not None:
             layer_kwargs["ylabel_pad"] = ylabel_pad
-        self._layers.append(("matrix_axis_labels", {**layer_kwargs, **kwargs}))
+        self._layers.append(("matrix_axis_labels", layer_kwargs))
         return self
 
     def plot_row_ticks(
@@ -783,7 +781,6 @@ class Plotter:
         max_labels: Optional[int] = None,
         position: str = "right",
         pad: Optional[float] = None,
-        **kwargs: Any,
     ) -> Plotter:
         """
         Declares row tick labels for the matrix.
@@ -797,7 +794,6 @@ class Plotter:
                 If None, all labels are shown. Defaults to None.
             position (str): Tick-label placement, one of {"left", "right"}. Defaults to "right".
             pad (Optional[float]): Tick-label padding in points. Defaults to Matplotlib default.
-            **kwargs: Renderer keyword arguments. Defaults to {}.
 
         Returns:
             Plotter: Self for chaining.
@@ -813,7 +809,7 @@ class Plotter:
             layer_kwargs["fontsize"] = fontsize
         if pad is not None:
             layer_kwargs["pad"] = pad
-        self._layers.append(("row_ticks", {**layer_kwargs, **kwargs}))
+        self._layers.append(("row_ticks", layer_kwargs))
         return self
 
     def plot_col_ticks(
@@ -825,7 +821,6 @@ class Plotter:
         position: str = "top",
         rotation: float = 90,
         pad: Optional[float] = None,
-        **kwargs: Any,
     ) -> Plotter:
         """
         Declares column tick labels for the matrix.
@@ -840,7 +835,6 @@ class Plotter:
             position (str): Tick-label placement, one of {"top", "bottom"}. Defaults to "top".
             rotation (float): Tick-label rotation in degrees. Defaults to 90.
             pad (Optional[float]): Tick-label padding in points. Defaults to Matplotlib default.
-            **kwargs: Renderer keyword arguments. Defaults to {}.
 
         Returns:
             Plotter: Self for chaining.
@@ -857,7 +851,7 @@ class Plotter:
             layer_kwargs["fontsize"] = fontsize
         if pad is not None:
             layer_kwargs["pad"] = pad
-        self._layers.append(("col_ticks", {**layer_kwargs, **kwargs}))
+        self._layers.append(("col_ticks", layer_kwargs))
         return self
 
     def plot_bar_labels(
@@ -869,7 +863,6 @@ class Plotter:
         alpha: float = 1.0,
         pad: Optional[float] = None,
         rotation: float = 0,
-        **kwargs: Any,
     ) -> Plotter:
         """
         Declares titles for bar tracks (shown below bars in label panel).
@@ -882,7 +875,6 @@ class Plotter:
             pad (Optional[float]): Vertical offset from track to title text (points).
                 Defaults to 2.
             rotation (float): Title text rotation in degrees. Defaults to 0.
-            **kwargs: Renderer keyword arguments. Defaults to {}.
 
         Returns:
             Plotter: Self for chaining.
@@ -898,7 +890,7 @@ class Plotter:
             layer_kwargs["color"] = color
         if pad is not None:
             layer_kwargs["pad"] = pad
-        self._layers.append(("bar_labels", {**layer_kwargs, **kwargs}))
+        self._layers.append(("bar_labels", layer_kwargs))
         return self
 
     def plot_dendrogram(
