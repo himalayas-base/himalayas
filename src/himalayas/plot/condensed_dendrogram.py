@@ -12,9 +12,11 @@ from typing import (
     Any,
     Collection,
     Dict,
+    List,
     NamedTuple,
     Optional,
     Sequence,
+    Set,
     Tuple,
     TYPE_CHECKING,
     TypedDict,
@@ -280,7 +282,7 @@ def _resolve_cluster_order(
     Z_master: np.ndarray,
     results: Results,
     clusters: Clusters,
-) -> Tuple[list[int], Dict[Hashable, int]]:
+) -> Tuple[List[int], Dict[Hashable, int]]:
     """
     Resolves cluster order from master dendrogram leaf order.
 
@@ -300,8 +302,8 @@ def _resolve_cluster_order(
     row_labels = results.matrix.labels
     cluster_to_rows = clusters.cluster_to_labels
     row_to_cluster = {row_id: int(cid) for cid, rows in cluster_to_rows.items() for row_id in rows}
-    ordered_cluster_ids: list[int] = []
-    seen: set[int] = set()
+    ordered_cluster_ids: List[int] = []
+    seen: Set[int] = set()
     # Scan master leaf order and collect cluster ids.
     for i in leaves_list(Z_master):
         cid = row_to_cluster.get(row_labels[int(i)], None)
@@ -398,8 +400,8 @@ def _prepare_cluster_labels(
     cluster_sizes = dict(cluster_sizes) if cluster_sizes is not None else None
 
     # Prepare labels and ranking scores in order.
-    labels: list[str] = []
-    scores: list[float] = []
+    labels: List[str] = []
+    scores: List[float] = []
     for cid in cluster_ids:
         if cid not in lab_map:
             if label_fields is None and label_prefix is None:
@@ -630,7 +632,7 @@ def _condense_linkage_to_clusters(
     cluster_index = {cid: i for i, cid in enumerate(cluster_ids)}
     # Build leaf group mapping.
     n_master = Z_master.shape[0] + 1
-    leaf_groups: list[Optional[int]] = []
+    leaf_groups: List[Optional[int]] = []
     for i in range(n_master):
         cid = row_index_to_cluster.get(i, None)
         if cid is None or cid not in cluster_index:
@@ -643,7 +645,7 @@ def _condense_linkage_to_clusters(
     for i, grp in enumerate(leaf_groups):
         node_groups[i] = set() if grp is None else {int(grp)}
     # Build condensed linkage rows by scanning master merges.
-    Zc_rows: list[list[float]] = []
+    Zc_rows: List[List[float]] = []
     rep_to_id = {frozenset({i}): i for i in range(len(cluster_ids))}
     next_id = len(cluster_ids)
     for t in range(Z_master.shape[0]):

@@ -5,7 +5,7 @@ himalayas/plot/style
 
 from __future__ import annotations
 
-from typing import Dict, Mapping, Optional, Sequence, TypedDict, Union
+from typing import Dict, Mapping, Optional, Sequence, Tuple, TypedDict, Union
 
 try:
     from typing import TypeAlias
@@ -33,7 +33,7 @@ class StyleDefaults(TypedDict):
     Typed dictionary for plot style defaults.
     """
 
-    figsize: tuple[float, float]
+    figsize: Tuple[float, float]
     subplots_adjust: Dict[str, float]
     dendro_axes: Sequence[float]
     dendro_color: str
@@ -69,7 +69,7 @@ class StyleDefaults(TypedDict):
     label_sep_xmin: Optional[float]
     label_sep_xmax: Optional[float]
     label_omit_words: Optional[Sequence[str]]
-    label_fields: tuple[str, ...]
+    label_fields: Tuple[str, ...]
     label_wrap_width: Optional[int]
 
 

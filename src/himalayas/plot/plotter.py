@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Hashable, Mapping
 from os import PathLike
-from typing import Any, Dict, Optional, Sequence, Union, cast
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union, cast
 
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -465,7 +465,7 @@ class Plotter:
 
     def _collect_layer_kwargs(
         self,
-    ) -> tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
+    ) -> Tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
         """
         Collects frequently used layer kwargs, using last-one-wins semantics.
 
@@ -485,7 +485,7 @@ class Plotter:
                 bar_label_kwargs = kwargs
         return matrix_kwargs, cluster_label_kwargs, bar_label_kwargs
 
-    def _resolve_label_legend_specs(self) -> list[Dict[str, Any]]:
+    def _resolve_label_legend_specs(self) -> List[Dict[str, Any]]:
         """
         Resolves categorical label-legend specs against declared row-level label tracks.
 
@@ -668,7 +668,7 @@ class Plotter:
         outer_lw: float = 1.2,
         outer_color: str = "black",
         gutter_color: Optional[str] = None,
-        figsize: Optional[tuple[float, float]] = None,
+        figsize: Optional[Tuple[float, float]] = None,
         subplots_adjust: Optional[Dict[str, float]] = None,
     ) -> Plotter:
         """
