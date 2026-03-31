@@ -17,7 +17,7 @@ Horecka, I., and Röst, H. (2026)
 <br>
 _HiMaLAYAS: enrichment-based annotation of hierarchically clustered matrices_
 <br>
-_bioRxiv_. https://doi.org/10.64898/2026.02.11.705303
+_bioRxiv_. [https://www.biorxiv.org/content/10.64898/2026.02.11.705303v2](https://www.biorxiv.org/content/10.64898/2026.02.11.705303v2)
 <br>
 Submitted to _Bioinformatics Advances_.
 
@@ -80,7 +80,7 @@ Horecka, I., and Röst, H. (2026)
 <br>
 _HiMaLAYAS: enrichment-based annotation of hierarchically clustered matrices_
 <br>
-_bioRxiv_. https://doi.org/10.64898/2026.02.11.705303
+_bioRxiv_. [https://www.biorxiv.org/content/10.64898/2026.02.11.705303v2](https://www.biorxiv.org/content/10.64898/2026.02.11.705303v2)
 <br>
 Submitted to _Bioinformatics Advances_.
 
@@ -88,7 +88,7 @@ Submitted to _Bioinformatics Advances_.
 
 HiMaLAYAS software for the _bioRxiv_ preprint.
 <br>
-Zenodo. https://doi.org/10.5281/zenodo.18627073
+Zenodo. [https://doi.org/10.5281/zenodo.19338505](https://doi.org/10.5281/zenodo.19338505)
 
 ## Contributing
 
