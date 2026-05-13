@@ -676,6 +676,29 @@ def compute_linkage(
     Returns:
         np.ndarray: Linkage matrix.
     """
+
+    def _raise_if_degenerate(mask: np.ndarray, message: str) -> None:
+        if np.any(mask):
+            bad = np.asarray(matrix.labels)[mask]
+            preview = bad[:10].tolist()
+            n_bad = int(bad.shape[0])
+            label_str = str(preview) if n_bad <= 10 else f"{preview} ... ({n_bad} total)"
+            raise ValueError(f"{message} Offending rows: {label_str}")
+
+    if linkage_metric == "correlation":
+        _raise_if_degenerate(
+            np.isclose(np.std(matrix.values, axis=1), 0),
+            "linkage_metric='correlation' requires all rows to have non-zero variance. "
+            "Correlation distance is undefined for constant rows. "
+            "Explicitly remove or preprocess these rows before clustering.",
+        )
+    elif linkage_metric == "cosine":
+        _raise_if_degenerate(
+            np.isclose(np.linalg.norm(matrix.values, axis=1), 0),
+            "linkage_metric='cosine' requires all rows to have non-zero L2 norm. "
+            "Cosine distance is undefined for zero vectors. "
+            "Explicitly remove or preprocess these rows before clustering.",
+        )
     if not bool(optimal_ordering):
         fastcluster_linkage = _resolve_fastcluster_linkage()
         if fastcluster_linkage is not None:
