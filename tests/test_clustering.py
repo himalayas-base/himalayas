@@ -233,3 +233,47 @@ def test_compute_linkage_uses_scipy_when_optimal_ordering_enabled(monkeypatch, t
 
     assert seen["kwargs"] is not None
     assert seen["kwargs"]["optimal_ordering"] is True
+
+
+@pytest.mark.api
+def test_compute_linkage_correlation_raises_early_on_zero_variance_row():
+    """
+    Regression: sparse binary matrix with an all-zero row must raise a HiMaLAYAS-owned
+    ValueError before scipy/fastcluster is invoked, not the opaque downstream error
+    "The condensed distance matrix must contain only finite values."
+    """
+    import pandas as pd
+    from himalayas import Matrix
+
+    df = pd.DataFrame(
+        [[1.0, 0.0, 1.0], [0.0, 0.0, 0.0], [0.0, 1.0, 1.0]],
+        index=["row_a", "row_b", "row_c"],
+        columns=["c1", "c2", "c3"],
+    )
+    matrix = Matrix(df)
+    with pytest.raises(ValueError, match="Correlation distance is undefined for constant rows") as excinfo:
+        compute_linkage(matrix, linkage_method="average", linkage_metric="correlation")
+
+    assert "row_b" in str(excinfo.value)
+
+
+@pytest.mark.api
+def test_compute_linkage_cosine_raises_early_on_zero_norm_row():
+    """
+    Regression: matrix with an all-zero row must raise a HiMaLAYAS-owned ValueError for
+    linkage_metric='cosine' before scipy/fastcluster is invoked, not the opaque downstream
+    error "The condensed distance matrix must contain only finite values."
+    """
+    import pandas as pd
+    from himalayas import Matrix
+
+    df = pd.DataFrame(
+        [[1.0, 0.0, 1.0], [0.0, 0.0, 0.0], [0.0, 1.0, 1.0]],
+        index=["row_a", "row_b", "row_c"],
+        columns=["c1", "c2", "c3"],
+    )
+    matrix = Matrix(df)
+    with pytest.raises(ValueError, match="Cosine distance is undefined for zero vectors") as excinfo:
+        compute_linkage(matrix, linkage_method="average", linkage_metric="cosine")
+
+    assert "row_b" in str(excinfo.value)
