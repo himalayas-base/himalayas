@@ -483,11 +483,11 @@ def test_cluster_auto_threshold_matches_independent_silhouette_diversity_argmax(
 
 
 @pytest.mark.api
-def test_cluster_auto_threshold_independent_of_merge_small_clusters():
+def test_cluster_auto_threshold_independent_of_merge_small_clusters_when_already_reportable():
     """
-    Ensures the resolved "auto" threshold is identical regardless of merge_small_clusters,
-    proving min_cluster_size/merge_small_clusters (post-cut cleanup) cannot influence
-    auto-threshold selection. Final cluster assignments may differ; the threshold must not.
+    Ensures the resolved "auto" threshold is identical regardless of merge_small_clusters when
+    the committed silhouette-diversity winner already has at least 2 raw clusters meeting
+    min_cluster_size: the reportability rescue must not perturb an already-reportable winner.
     """
     import pandas as pd
     from himalayas import Matrix
@@ -584,6 +584,104 @@ def test_resolve_auto_threshold_falls_back_to_raw_silhouette_when_non_positive(m
 
     candidates = sorted(np.unique(linkage_matrix[:, 2]).tolist())
     assert resolved == pytest.approx(candidates[1])
+
+
+@pytest.mark.api
+def test_cluster_auto_threshold_rescues_underreportable_committed_winner():
+    """
+    Ensures the reportability rescue selects the candidate maximizing coverage times
+    reportable Gini-Simpson diversity, not merely the first eligible candidate. The test
+    independently recomputes every eligible candidate's score from raw cluster sizes and
+    asserts "auto" resolves to the candidate with the greatest score, using a fixture with at
+    least 2 eligible candidates carrying distinct scores.
+    """
+    import pandas as pd
+    from scipy.cluster.hierarchy import fcluster as scipy_fcluster
+    from himalayas import Matrix
+
+    df = pd.DataFrame(
+        [[-31.5], [41.5], [-15.0], [8.5], [-29.5], [-30.5], [-28.5]],
+        index=["a", "b", "c", "d", "e", "f", "g"],
+        columns=["x"],
+    )
+    matrix = Matrix(df)
+    linkage_matrix = compute_linkage(matrix, linkage_method="ward", linkage_metric="euclidean")
+    n = matrix.values.shape[0]
+
+    committed = cluster(matrix, linkage_threshold="auto")
+    _, committed_counts = np.unique(committed.cluster_ids, return_counts=True)
+    assert int((committed_counts >= 2).sum()) < 2
+
+    expected_threshold, expected_score = None, -np.inf
+    eligible_scores = set()
+    for threshold in np.unique(linkage_matrix[:, 2]):
+        labels = scipy_fcluster(linkage_matrix, threshold, criterion="distance")
+        _, counts = np.unique(labels, return_counts=True)
+        reportable = counts[counts >= 2]
+        if reportable.shape[0] < 2:
+            continue
+        coverage = reportable.sum() / n
+        proportions = reportable / reportable.sum()
+        diversity = 1.0 - np.sum(proportions**2)
+        score = coverage * diversity
+        eligible_scores.add(score)
+        if score > expected_score:
+            expected_score = score
+            expected_threshold = float(threshold)
+
+    assert len(eligible_scores) >= 2
+
+    rescued = cluster(
+        matrix, linkage_threshold="auto", min_cluster_size=2, merge_small_clusters=False
+    )
+
+    assert rescued.threshold == pytest.approx(expected_threshold)
+    assert rescued.threshold != committed.threshold
+
+
+@pytest.mark.api
+def test_cluster_auto_threshold_merge_small_clusters_true_ignores_rescue():
+    """
+    Ensures merge_small_clusters=True retains the committed threshold exactly, even for a
+    fixture whose committed winner is under-reportable and would trigger the rescue under
+    merge_small_clusters=False. The rescue is scoped to preserved-small-cluster mode only.
+    """
+    import pandas as pd
+    from himalayas import Matrix
+
+    df = pd.DataFrame(
+        [[-8.5], [23.0], [21.0], [43.0], [-38.0], [23.0]],
+        index=["a", "b", "c", "d", "e", "f"],
+        columns=["x"],
+    )
+    matrix = Matrix(df)
+
+    committed = cluster(matrix, linkage_threshold="auto")
+    merged = cluster(
+        matrix, linkage_threshold="auto", min_cluster_size=2, merge_small_clusters=True
+    )
+
+    assert merged.threshold == committed.threshold
+
+
+@pytest.mark.api
+def test_cluster_auto_threshold_rescue_infeasible_raises():
+    """
+    Ensures a ValueError is raised when min_cluster_size > 1, merge_small_clusters=False, and
+    no candidate cut has at least 2 clusters meeting min_cluster_size.
+    """
+    import pandas as pd
+    from himalayas import Matrix
+
+    df = pd.DataFrame(
+        [[0.0], [0.1], [0.2], [20.0], [-20.0]],
+        index=["a", "b", "c", "d", "e"],
+        columns=["x"],
+    )
+    matrix = Matrix(df)
+
+    with pytest.raises(ValueError, match="min_cluster_size"):
+        cluster(matrix, linkage_threshold="auto", min_cluster_size=4, merge_small_clusters=False)
 
 
 @pytest.mark.api

@@ -524,6 +524,30 @@ def test_analysis_cluster_auto_threshold_uses_requested_method_and_metric(toy_ma
 
 
 @pytest.mark.api
+def test_analysis_cluster_auto_threshold_passes_min_cluster_size_to_rescue():
+    """
+    Ensures Analysis.cluster() forwards min_cluster_size and merge_small_clusters into auto
+    threshold resolution, engaging the reportability rescue when the committed winner is
+    under-reportable. The fixture's committed silhouette-diversity winner has only 1
+    reportable cluster under min_cluster_size=2.
+    """
+    df = pd.DataFrame(
+        [[-8.5], [23.0], [21.0], [43.0], [-38.0], [23.0]],
+        index=["a", "b", "c", "d", "e", "f"],
+        columns=["x"],
+    )
+    matrix = Matrix(df)
+    annotations = Annotations({"t1": ["a", "b"], "t2": ["c", "d"]}, matrix)
+
+    committed = Analysis(matrix, annotations).cluster(linkage_threshold="auto")
+    rescued = Analysis(matrix, annotations).cluster(
+        linkage_threshold="auto", min_cluster_size=2, merge_small_clusters=False
+    )
+
+    assert rescued.clusters.threshold != committed.clusters.threshold
+
+
+@pytest.mark.api
 @pytest.mark.parametrize("bad_threshold", ["bad", True, False])
 def test_analysis_cluster_invalid_threshold_raises(toy_matrix, toy_annotations, bad_threshold):
     """
