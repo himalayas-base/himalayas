@@ -25,6 +25,7 @@ dependencies = [
     "matplotlib",
     "numpy",
     "pandas",
+    "scikit-learn",
     "scipy",
     "typing_extensions; python_version < '3.10'",
 ]
