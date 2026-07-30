@@ -459,3 +459,80 @@ def test_analysis_cluster_propagates_merge_small_clusters():
 
     analysis = analysis.enrich()
     assert singleton_cid not in set(analysis.results.df["cluster"].tolist())
+
+
+@pytest.mark.api
+def test_analysis_cluster_auto_threshold_is_finite_numeric(toy_matrix, toy_annotations):
+    """
+    Ensures Analysis.cluster(linkage_threshold="auto") resolves to a finite numeric
+    Clusters.threshold.
+
+    Args:
+        toy_matrix (Matrix): Toy matrix fixture.
+        toy_annotations (Annotations): Toy annotations fixture.
+    """
+    analysis = Analysis(toy_matrix, toy_annotations).cluster(linkage_threshold="auto")
+
+    assert isinstance(analysis.clusters.threshold, float)
+    assert np.isfinite(analysis.clusters.threshold)
+
+
+@pytest.mark.api
+def test_analysis_cluster_auto_threshold_uses_requested_method_and_metric(toy_matrix, toy_annotations):
+    """
+    Ensures linkage_threshold="auto" actually selects using the requested linkage method
+    and metric, not just stores them: the resolved threshold must match an independent
+    silhouette-times-diversity argmax computed over linkage built with those same settings.
+
+    Args:
+        toy_matrix (Matrix): Toy matrix fixture.
+        toy_annotations (Annotations): Toy annotations fixture.
+    """
+    from scipy.cluster.hierarchy import fcluster
+    from scipy.spatial.distance import pdist, squareform
+    from sklearn.metrics import silhouette_score
+
+    linkage_matrix = clustering_module.compute_linkage(
+        toy_matrix, linkage_method="average", linkage_metric="cityblock"
+    )
+    distance_matrix = squareform(pdist(toy_matrix.values, metric="cityblock"))
+    n = toy_matrix.values.shape[0]
+    expected_threshold, expected_score = None, -np.inf
+    for threshold in np.unique(linkage_matrix[:, 2]):
+        labels = fcluster(linkage_matrix, threshold, criterion="distance")
+        n_clusters = len(np.unique(labels))
+        if n_clusters < 2 or n_clusters >= n:
+            continue
+        silhouette = silhouette_score(distance_matrix, labels, metric="precomputed")
+        score = silhouette
+        if silhouette > 0:
+            _, counts = np.unique(labels, return_counts=True)
+            proportions = counts / counts.sum()
+            diversity = 1.0 - np.sum(proportions**2)
+            score *= diversity
+        if score > expected_score:
+            expected_score = score
+            expected_threshold = float(threshold)
+
+    analysis = Analysis(toy_matrix, toy_annotations).cluster(
+        linkage_method="average",
+        linkage_metric="cityblock",
+        linkage_threshold="auto",
+    )
+
+    assert analysis.clusters.threshold == pytest.approx(expected_threshold)
+
+
+@pytest.mark.api
+@pytest.mark.parametrize("bad_threshold", ["bad", True, False])
+def test_analysis_cluster_invalid_threshold_raises(toy_matrix, toy_annotations, bad_threshold):
+    """
+    Ensures Analysis.cluster() rejects invalid string and boolean linkage_threshold values.
+
+    Args:
+        toy_matrix (Matrix): Toy matrix fixture.
+        toy_annotations (Annotations): Toy annotations fixture.
+        bad_threshold: Invalid linkage_threshold value.
+    """
+    with pytest.raises(ValueError):
+        Analysis(toy_matrix, toy_annotations).cluster(linkage_threshold=bad_threshold)

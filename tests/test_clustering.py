@@ -408,3 +408,227 @@ def test_compute_linkage_cosine_raises_early_on_zero_norm_row():
         compute_linkage(matrix, linkage_method="average", linkage_metric="cosine")
 
     assert "row_b" in str(excinfo.value)
+
+
+@pytest.mark.api
+def test_cluster_auto_threshold_is_finite_numeric(toy_matrix):
+    """
+    Ensures linkage_threshold="auto" resolves to a finite numeric Clusters.threshold.
+
+    Args:
+        toy_matrix (Matrix): Toy matrix fixture.
+    """
+    clusters = cluster(toy_matrix, linkage_threshold="auto")
+
+    assert isinstance(clusters.threshold, float)
+    assert np.isfinite(clusters.threshold)
+
+
+@pytest.mark.api
+def test_cluster_auto_threshold_matches_independent_silhouette_diversity_argmax():
+    """
+    Critical correctness check: independently enumerates candidate thresholds from the
+    linkage matrix and computes silhouette-times-diversity scores by hand, then asserts
+    "auto" returns the threshold with the highest score. Uses a fixture with both negative
+    and positive matrix values whose highest raw silhouette belongs to a coarse 2-cluster
+    cut, while the finer, more balanced 3-cluster cut wins once weighted by diversity,
+    demonstrating the combined objective favors it over pure silhouette maximization.
+    """
+    import pandas as pd
+    from scipy.cluster.hierarchy import fcluster as scipy_fcluster
+    from scipy.spatial.distance import pdist, squareform
+    from sklearn.metrics import silhouette_score
+    from himalayas import Matrix
+
+    df = pd.DataFrame(
+        [
+            [-8.0, -8.0],
+            [-7.8, -8.0],
+            [-0.3, 0.0],
+            [-0.2, 0.9],
+            [-0.4, -0.1],
+            [2.5, 1.7],
+            [2.3, 1.2],
+            [2.9, 2.5],
+        ],
+        index=["a", "b", "c", "d", "e", "f", "g", "h"],
+        columns=["x", "y"],
+    )
+    matrix = Matrix(df)
+    linkage_matrix = compute_linkage(matrix, linkage_method="ward", linkage_metric="euclidean")
+
+    distance_matrix = squareform(pdist(matrix.values, metric="euclidean"))
+    n = matrix.values.shape[0]
+    expected_threshold = None
+    expected_score = -np.inf
+    for threshold in np.unique(linkage_matrix[:, 2]):
+        labels = scipy_fcluster(linkage_matrix, threshold, criterion="distance")
+        n_clusters = len(np.unique(labels))
+        if n_clusters < 2 or n_clusters >= n:
+            continue
+        silhouette = silhouette_score(distance_matrix, labels, metric="precomputed")
+        score = silhouette
+        if silhouette > 0:
+            _, counts = np.unique(labels, return_counts=True)
+            proportions = counts / counts.sum()
+            diversity = 1.0 - np.sum(proportions**2)
+            score *= diversity
+        if score > expected_score:
+            expected_score = score
+            expected_threshold = float(threshold)
+
+    clusters = cluster(matrix, linkage_threshold="auto", linkage_method="ward", linkage_metric="euclidean")
+
+    assert clusters.threshold == pytest.approx(expected_threshold)
+
+
+@pytest.mark.api
+def test_cluster_auto_threshold_independent_of_merge_small_clusters():
+    """
+    Ensures the resolved "auto" threshold is identical regardless of merge_small_clusters,
+    proving min_cluster_size/merge_small_clusters (post-cut cleanup) cannot influence
+    auto-threshold selection. Final cluster assignments may differ; the threshold must not.
+    """
+    import pandas as pd
+    from himalayas import Matrix
+
+    df = pd.DataFrame(
+        [[0.0], [0.2], [5.0], [5.2], [10.0], [10.2]],
+        index=["a", "b", "c", "d", "e", "f"],
+        columns=["x"],
+    )
+    matrix = Matrix(df)
+    result_merged = cluster(
+        matrix, linkage_threshold="auto", min_cluster_size=2, merge_small_clusters=True
+    )
+    result_raw = cluster(
+        matrix, linkage_threshold="auto", min_cluster_size=2, merge_small_clusters=False
+    )
+
+    assert result_merged.threshold == result_raw.threshold
+
+
+@pytest.mark.api
+def test_resolve_auto_threshold_breaks_ties_with_smallest_threshold(monkeypatch):
+    """
+    Ensures _resolve_auto_threshold breaks exact ties in the combined silhouette-times-
+    diversity objective by choosing the smallest candidate threshold (the finer partition),
+    as documented in its docstring. For the k=3 and k=2 candidates, silhouette_score is
+    monkeypatched to return 0.25 divided by that candidate's own Gini-Simpson diversity, so
+    the production multiplication (`silhouette * diversity`) reconstructs 0.25 for both,
+    producing a genuine floating-point tie rather than a near-tie. k=4 is given a clearly
+    lower objective so it cannot win outright.
+
+    Args:
+        monkeypatch (pytest.MonkeyPatch): Fixture for replacing module call targets.
+    """
+    import pandas as pd
+    from himalayas import Matrix
+
+    df = pd.DataFrame(
+        [[-10.0], [-9.9], [-0.1], [0.1], [9.9], [10.0]],
+        index=["a", "b", "c", "d", "e", "f"],
+        columns=["x"],
+    )
+    matrix = Matrix(df)
+    linkage_matrix = compute_linkage(matrix, linkage_method="ward", linkage_metric="euclidean")
+
+    def fake_silhouette(distance_matrix, labels, metric="precomputed"):
+        _, counts = np.unique(labels, return_counts=True)
+        n_clusters = int(counts.shape[0])
+        if n_clusters in {2, 3}:
+            proportions = counts / counts.sum()
+            diversity = 1.0 - np.sum(proportions**2)
+            return 0.25 / diversity
+        return 0.1
+
+    monkeypatch.setattr(clustering_module, "silhouette_score", fake_silhouette)
+
+    resolved = clustering_module._resolve_auto_threshold(linkage_matrix, matrix, "euclidean")
+
+    candidates = sorted(np.unique(linkage_matrix[:, 2]).tolist())
+    tied_candidates = candidates[1:3]  # the k=3 and k=2 thresholds, excluding k=4 and k=1
+    assert resolved == pytest.approx(min(tied_candidates))
+
+
+@pytest.mark.api
+def test_resolve_auto_threshold_falls_back_to_raw_silhouette_when_non_positive(monkeypatch):
+    """
+    Ensures that when every candidate's silhouette score is zero or negative, selection
+    falls back to the greatest raw silhouette rather than an ordering distorted by
+    multiplying with diversity. The k=3 candidate is given the greatest (least negative)
+    silhouette despite not having the highest diversity among the candidates (k=4 does),
+    proving diversity is not applied in the non-positive branch.
+
+    Args:
+        monkeypatch (pytest.MonkeyPatch): Fixture for replacing module call targets.
+    """
+    import pandas as pd
+    from himalayas import Matrix
+
+    df = pd.DataFrame(
+        [[-10.0], [-9.9], [-0.1], [0.1], [9.9], [10.0]],
+        index=["a", "b", "c", "d", "e", "f"],
+        columns=["x"],
+    )
+    matrix = Matrix(df)
+    linkage_matrix = compute_linkage(matrix, linkage_method="ward", linkage_metric="euclidean")
+
+    def fake_silhouette(distance_matrix, labels, metric="precomputed"):
+        n_clusters = len(np.unique(labels))
+        return {2: -0.5, 3: -0.1, 4: -0.3}.get(n_clusters, -1.0)
+
+    monkeypatch.setattr(clustering_module, "silhouette_score", fake_silhouette)
+
+    resolved = clustering_module._resolve_auto_threshold(linkage_matrix, matrix, "euclidean")
+
+    candidates = sorted(np.unique(linkage_matrix[:, 2]).tolist())
+    assert resolved == pytest.approx(candidates[1])
+
+
+@pytest.mark.api
+def test_cluster_auto_threshold_no_valid_candidate_raises():
+    """
+    Ensures linkage_threshold="auto" raises ValueError when no candidate threshold yields
+    a scoreable (2 to N-1 cluster) partition, rather than silently falling back to a default.
+    """
+    import pandas as pd
+    from himalayas import Matrix
+
+    df = pd.DataFrame(
+        [[0.0], [10.0]],
+        index=["a", "b"],
+        columns=["x"],
+    )
+    matrix = Matrix(df)
+    with pytest.raises(ValueError, match="auto"):
+        cluster(matrix, linkage_threshold="auto")
+
+
+@pytest.mark.api
+@pytest.mark.parametrize("bad_threshold", ["bad", "AUTO", ""])
+def test_cluster_invalid_threshold_string_raises(toy_matrix, bad_threshold):
+    """
+    Ensures a string linkage_threshold other than exactly "auto" raises ValueError.
+
+    Args:
+        toy_matrix (Matrix): Toy matrix fixture.
+        bad_threshold (str): Invalid string threshold value.
+    """
+    with pytest.raises(ValueError):
+        cluster(toy_matrix, linkage_threshold=bad_threshold)
+
+
+@pytest.mark.api
+@pytest.mark.parametrize("bad_threshold", [True, False])
+def test_cluster_boolean_threshold_raises(toy_matrix, bad_threshold):
+    """
+    Ensures a boolean linkage_threshold raises ValueError instead of being silently
+    coerced through bool's int subclassing.
+
+    Args:
+        toy_matrix (Matrix): Toy matrix fixture.
+        bad_threshold (bool): Invalid boolean threshold value.
+    """
+    with pytest.raises(ValueError):
+        cluster(toy_matrix, linkage_threshold=bad_threshold)
