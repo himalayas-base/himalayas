@@ -114,6 +114,114 @@ def test_min_cluster_size_merges_singleton():
 
 
 @pytest.mark.api
+def test_merge_small_clusters_defaults_to_true_and_matches_legacy_behavior():
+    """
+    Ensures merge_small_clusters defaults to True, so existing callers that omit it get
+    identical results to explicitly passing merge_small_clusters=True.
+    """
+    import pandas as pd
+    from himalayas import Matrix
+
+    df = pd.DataFrame(
+        [[0.0], [0.1], [5.0], [5.1], [10.0]],
+        index=["a", "b", "c", "d", "e"],
+        columns=["x"],
+    )
+    matrix = Matrix(df)
+    default_clusters = cluster(matrix, linkage_threshold=0.5, min_cluster_size=2)
+    explicit_clusters = cluster(
+        matrix, linkage_threshold=0.5, min_cluster_size=2, merge_small_clusters=True
+    )
+
+    assert default_clusters.merge_small_clusters is True
+    assert np.array_equal(default_clusters.cluster_ids, explicit_clusters.cluster_ids)
+    assert all(sz >= 2 for sz in default_clusters.cluster_sizes.values())
+
+
+@pytest.mark.api
+def test_merge_small_clusters_false_preserves_small_dendrogram_cut_clusters():
+    """
+    Ensures merge_small_clusters=False preserves a singleton dendrogram-cut cluster
+    structurally instead of merging it upward, even though it is smaller than
+    min_cluster_size.
+    """
+    import pandas as pd
+    from himalayas import Matrix
+
+    df = pd.DataFrame(
+        [[0.0], [0.1], [5.0], [5.1], [10.0]],
+        index=["a", "b", "c", "d", "e"],
+        columns=["x"],
+    )
+    matrix = Matrix(df)
+    clusters = cluster(
+        matrix,
+        linkage_threshold=0.5,
+        min_cluster_size=2,
+        merge_small_clusters=False,
+    )
+
+    assert clusters.min_cluster_size == 2
+    assert clusters.merge_small_clusters is False
+    # The singleton "e" cluster is preserved rather than merged upward.
+    assert any(sz < 2 for sz in clusters.cluster_sizes.values())
+    assert clusters.cluster_to_labels[clusters.label_to_cluster["e"]] == {"e"}
+
+    # Layout must still surface the small cluster as its own contiguous span.
+    layout = clusters.layout()
+    small_cid = clusters.label_to_cluster["e"]
+    assert any(cid == small_cid for cid, _, _ in layout.cluster_spans)
+    assert layout.cluster_sizes[small_cid] == 1
+
+
+@pytest.mark.api
+def test_merge_small_clusters_coerced_to_bool(toy_matrix):
+    """
+    Ensures merge_small_clusters is coerced to bool, consistent with how other boolean
+    kwargs (e.g. optimal_ordering) are handled in this module.
+
+    Args:
+        toy_matrix (Matrix): Toy matrix fixture.
+    """
+    clusters = cluster(
+        toy_matrix,
+        linkage_threshold=1.0,
+        min_cluster_size=1,
+        merge_small_clusters=0,
+    )
+    assert clusters.merge_small_clusters is False
+
+
+@pytest.mark.api
+def test_merge_small_clusters_truthy_int_behaves_like_true():
+    """
+    Ensures a truthy non-bool value (e.g. 1) for merge_small_clusters is stored as True
+    and actually triggers merge behavior, not just the stored attribute. Guards against
+    the merge condition checking argument identity (`merge_small_clusters is True`)
+    instead of the coerced `self.merge_small_clusters` attribute.
+    """
+    import pandas as pd
+    from himalayas import Matrix
+
+    df = pd.DataFrame(
+        [[0.0], [0.1], [5.0], [5.1], [10.0]],
+        index=["a", "b", "c", "d", "e"],
+        columns=["x"],
+    )
+    matrix = Matrix(df)
+    clusters = cluster(
+        matrix,
+        linkage_threshold=0.5,
+        min_cluster_size=2,
+        merge_small_clusters=1,
+    )
+
+    assert clusters.merge_small_clusters is True
+    # Behavior must match merge_small_clusters=True: no cluster smaller than min_cluster_size.
+    assert all(sz >= 2 for sz in clusters.cluster_sizes.values())
+
+
+@pytest.mark.api
 def test_compute_and_cut_linkage_matches_cluster(toy_matrix):
     """
     Ensures compute_linkage()+cut_linkage() matches cluster() semantics.
@@ -131,6 +239,29 @@ def test_compute_and_cut_linkage_matches_cluster(toy_matrix):
 
     assert np.array_equal(direct.cluster_ids, split.cluster_ids)
     assert np.array_equal(direct.leaf_order, split.leaf_order)
+
+
+@pytest.mark.api
+def test_cut_linkage_propagates_merge_small_clusters(toy_matrix):
+    """
+    Ensures cluster(), compute_linkage()+cut_linkage() agree on merge_small_clusters=False,
+    confirming the flag is propagated consistently across the low-level API.
+
+    Args:
+        toy_matrix (Matrix): Toy matrix fixture.
+    """
+    direct = cluster(toy_matrix, linkage_threshold=1.0, merge_small_clusters=False)
+    linkage_matrix = compute_linkage(toy_matrix)
+    split = cut_linkage(
+        linkage_matrix,
+        toy_matrix.labels,
+        linkage_threshold=1.0,
+        merge_small_clusters=False,
+    )
+
+    assert direct.merge_small_clusters is False
+    assert split.merge_small_clusters is False
+    assert np.array_equal(direct.cluster_ids, split.cluster_ids)
 
 
 @pytest.mark.api

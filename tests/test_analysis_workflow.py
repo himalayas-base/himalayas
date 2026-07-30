@@ -4,6 +4,7 @@ tests/test_analysis_workflow
 """
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from himalayas import Analysis, Annotations, Matrix
@@ -429,3 +430,32 @@ def test_end_to_end_smoke(toy_df):
     assert "fe" in results.df.columns
     assert "qval" in results.df.columns
     assert results.cluster_layout().cluster_spans
+
+
+@pytest.mark.api
+def test_analysis_cluster_propagates_merge_small_clusters():
+    """
+    Ensures Analysis.cluster() propagates merge_small_clusters to the underlying Clusters
+    object, preserving small dendrogram-cut clusters and excluding them from enrichment
+    when set to False.
+    """
+    df = pd.DataFrame(
+        [[0.0], [0.1], [5.0], [5.1], [10.0]],
+        index=["a", "b", "c", "d", "e"],
+        columns=["x"],
+    )
+    matrix = Matrix(df)
+    annotations = Annotations({"t1": ["a", "b"], "t2": ["c", "d"], "t3": ["e"]}, matrix)
+    analysis = Analysis(matrix, annotations).cluster(
+        linkage_threshold=0.5,
+        min_cluster_size=2,
+        merge_small_clusters=False,
+    )
+
+    assert analysis.clusters.merge_small_clusters is False
+    assert analysis.clusters.min_cluster_size == 2
+    singleton_cid = analysis.clusters.label_to_cluster["e"]
+    assert analysis.clusters.cluster_sizes[singleton_cid] == 1
+
+    analysis = analysis.enrich()
+    assert singleton_cid not in set(analysis.results.df["cluster"].tolist())

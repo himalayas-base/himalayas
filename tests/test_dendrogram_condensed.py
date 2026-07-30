@@ -4,6 +4,7 @@ tests/test_dendrogram_condensed
 """
 
 import matplotlib.pyplot as plt
+import pandas as pd
 import pytest
 from matplotlib.colors import to_rgba
 
@@ -163,6 +164,64 @@ def test_dendrogram_condensed_placeholder_controls_match_cluster_label_parity(to
             plt.close(plot.fig)
         if plot2 is not None:
             plt.close(plot2.fig)
+
+
+@pytest.mark.api
+def test_dendrogram_condensed_qval_filter_recipe_hides_nonsignificant_term(toy_results):
+    """
+    Ensures the documented `results.filter("qval <= threshold")` recipe (docs/6_results.md)
+    renders a cluster whose only rows fail the significance cutoff as an honest placeholder,
+    not with its non-significant term at full label weight, while a cluster that does clear
+    the cutoff still renders normally and both clusters remain present in the dendrogram.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    use_agg_backend()
+    cluster_ids = [int(c) for c in toy_results.clusters.unique_clusters]
+    sig_cluster, nonsig_cluster = cluster_ids[0], cluster_ids[1]
+
+    df = pd.DataFrame(
+        {
+            "cluster": [sig_cluster, nonsig_cluster],
+            "term": ["sig_term", "borderline_term"],
+            "pval": [1e-6, 0.02],
+            "qval": [1e-4, 0.098],
+            "n": [10, 10],
+            "fe": [3.0, 1.2],
+        }
+    )
+    results = Results(
+        df,
+        matrix=toy_results.matrix,
+        clusters=toy_results.clusters,
+        layout=toy_results.cluster_layout(),
+        parent=toy_results,
+    )
+
+    filtered = results.filter("qval <= 0.05")
+    # The non-significant cluster must have zero rows left, not a suppressed/renamed row.
+    assert nonsig_cluster not in set(filtered.df["cluster"])
+    assert sig_cluster in set(filtered.df["cluster"])
+
+    plot = None
+    try:
+        plot = plot_dendrogram_condensed(
+            filtered,
+            label_fields=("label", "q"),
+            placeholder_text="(no significant term)",
+        )
+        texts = extract_figure_text(plot.fig, strip=True, nonempty=True)
+        joined = " ".join(texts)
+        assert "sig_term" in joined
+        assert "borderline_term" not in joined
+        assert "(no significant term)" in joined
+        # Both clusters still occupy a row in the dendrogram; the non-significant one is
+        # relabeled honestly rather than removed from the figure.
+        assert len([t for t in texts if "(no significant term)" in t or "sig_term" in t]) == 2
+    finally:
+        if plot is not None:
+            plt.close(plot.fig)
 
 
 @pytest.mark.api
