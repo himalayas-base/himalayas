@@ -47,6 +47,7 @@ class Analysis:
         *,
         optimal_ordering: bool = False,
         min_cluster_size: int = 1,
+        merge_small_clusters: bool = True,
     ) -> Analysis:
         """
         Performs clustering on the analysis matrix.
@@ -59,8 +60,15 @@ class Analysis:
         Kwargs:
             optimal_ordering (bool): Whether to optimize leaf ordering in the linkage output.
                 Defaults to False.
-            min_cluster_size (int): Enforces a minimum cluster size by merging smaller clusters
-                upward along the dendrogram. Values <= 1 disable enforcement. Defaults to 1.
+            min_cluster_size (int): Minimum cluster size floor. By default, clusters below
+                this size are merged upward along the dendrogram. Values <= 1 disable the
+                floor. See `merge_small_clusters` to preserve small clusters structurally
+                while applying the floor at enrichment reporting. Defaults to 1.
+            merge_small_clusters (bool): If True (default), merges undersized clusters upward
+                along the dendrogram, preserving historical behavior. If False, preserves small
+                dendrogram-cut clusters structurally; `min_cluster_size` is still applied, but
+                by excluding clusters below it from enrichment reporting rather than merging
+                them away. Defaults to True.
 
         Returns:
             Analysis: The Analysis instance (for method chaining).
@@ -89,6 +97,7 @@ class Analysis:
             self.matrix.labels,
             linkage_threshold=linkage_threshold,
             min_cluster_size=min_cluster_size,
+            merge_small_clusters=merge_small_clusters,
         )
         return self
 

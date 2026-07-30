@@ -353,6 +353,7 @@ class Clusters:
         threshold: float,
         *,
         min_cluster_size: int = 1,
+        merge_small_clusters: bool = True,
     ):
         """
         Initializes the Clusters instance.
@@ -363,7 +364,15 @@ class Clusters:
             threshold (float): Distance threshold for cutting the dendrogram.
 
         Kwargs:
-            min_cluster_size (int): Minimum cluster size to enforce. Defaults to 1.
+            min_cluster_size (int): Minimum cluster size floor. By default, clusters below
+                this size are merged upward along the dendrogram. See `merge_small_clusters`
+                to preserve small clusters structurally while applying the floor at
+                enrichment reporting. Defaults to 1.
+            merge_small_clusters (bool): If True, clusters smaller than min_cluster_size are
+                merged upward along the dendrogram (historical behavior). If False, small
+                dendrogram-cut clusters are preserved structurally; `min_cluster_size` is
+                still applied, but by excluding clusters below it from enrichment reporting
+                rather than merging them away. Defaults to True.
 
         Raises:
             ValueError: If labels length does not match the number of leaves.
@@ -371,6 +380,8 @@ class Clusters:
         self.linkage_matrix = linkage_matrix
         self.labels = np.asarray(labels, dtype=object)
         self.threshold = float(threshold)
+        self.min_cluster_size = int(min_cluster_size)
+        self.merge_small_clusters = bool(merge_small_clusters)
         self.cluster_ids = fcluster(
             linkage_matrix,
             threshold,
@@ -382,7 +393,9 @@ class Clusters:
 
         # Optional post-process: enforce a minimum cluster size by merging upward.
         # Along the dendrogram (nearest neighbor defined by lowest merge height).
-        if min_cluster_size > 1:
+        # A small clade may be structurally real but underpowered for enrichment;
+        # merge_small_clusters=False preserves it instead of merging it away.
+        if self.min_cluster_size > 1 and self.merge_small_clusters:
             self.cluster_ids = _enforce_min_cluster_size(
                 self.linkage_matrix,
                 self.labels,
@@ -619,11 +632,16 @@ def cluster(
     *,
     optimal_ordering: bool = False,
     min_cluster_size: int = 1,
+    merge_small_clusters: bool = True,
 ) -> Clusters:
     """
     Performs hierarchical clustering and returns a `Clusters` object with cached metadata.
-    If `min_cluster_size` is set to a value greater than 1, clusters smaller than this value are merged
-    upward along the dendrogram until the size constraint is satisfied. Values <= 1 disable enforcement.
+    If `min_cluster_size` is set to a value greater than 1 and `merge_small_clusters` is True,
+    clusters smaller than this value are merged upward along the dendrogram until the size
+    constraint is satisfied. Values <= 1 disable enforcement. If `merge_small_clusters` is False,
+    small dendrogram-cut clusters are preserved structurally; `min_cluster_size` is still
+    applied, but by excluding clusters below it from enrichment reporting rather than merging
+    them away.
 
     Args:
         matrix (Matrix): Matrix to cluster.
@@ -634,8 +652,15 @@ def cluster(
     Kwargs:
         optimal_ordering (bool): Whether to optimize leaf ordering in the linkage output.
             Defaults to False.
-        min_cluster_size (int): Enforces a minimum cluster size by merging smaller clusters
-            upward along the dendrogram. Values <= 1 disable enforcement. Defaults to 1.
+        min_cluster_size (int): Minimum cluster size floor. By default, clusters below
+            this size are merged upward along the dendrogram. See `merge_small_clusters`
+            to preserve small clusters structurally while applying the floor at
+            enrichment reporting. Defaults to 1.
+        merge_small_clusters (bool): If True (default), merges undersized clusters upward
+            along the dendrogram, preserving historical behavior. If False, preserves small
+            dendrogram-cut clusters structurally; `min_cluster_size` is still applied, but
+            by excluding clusters below it from enrichment reporting rather than merging
+            them away. Defaults to True.
 
     Returns:
         Clusters: Clusters object containing dendrogram and cluster assignments.
@@ -651,6 +676,7 @@ def cluster(
         matrix.labels,
         linkage_threshold,
         min_cluster_size=min_cluster_size,
+        merge_small_clusters=merge_small_clusters,
     )
 
 
@@ -721,6 +747,7 @@ def cut_linkage(
     linkage_threshold: float,
     *,
     min_cluster_size: int = 1,
+    merge_small_clusters: bool = True,
 ) -> Clusters:
     """
     Cuts a precomputed linkage matrix into clusters.
@@ -731,8 +758,15 @@ def cut_linkage(
         linkage_threshold (float): Distance threshold for cutting the dendrogram.
 
     Kwargs:
-        min_cluster_size (int): Enforces a minimum cluster size by merging smaller clusters
-            upward along the dendrogram. Values <= 1 disable enforcement. Defaults to 1.
+        min_cluster_size (int): Minimum cluster size floor. By default, clusters below
+            this size are merged upward along the dendrogram. See `merge_small_clusters`
+            to preserve small clusters structurally while applying the floor at
+            enrichment reporting. Defaults to 1.
+        merge_small_clusters (bool): If True (default), merges undersized clusters upward
+            along the dendrogram, preserving historical behavior. If False, preserves small
+            dendrogram-cut clusters structurally; `min_cluster_size` is still applied, but
+            by excluding clusters below it from enrichment reporting rather than merging
+            them away. Defaults to True.
 
     Returns:
         Clusters: Clusters object containing dendrogram and cluster assignments.
@@ -742,4 +776,5 @@ def cut_linkage(
         labels,
         linkage_threshold,
         min_cluster_size=min_cluster_size,
+        merge_small_clusters=merge_small_clusters,
     )

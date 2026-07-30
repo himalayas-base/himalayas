@@ -132,7 +132,10 @@ def _encode_clusters(
     clusters: Clusters, label_to_idx: Dict[Any, int], *, min_overlap: int
 ) -> Dict[int, Tuple[np.ndarray, int]]:
     """
-    Pre-encodes clusters as sorted unique int arrays.
+    Pre-encodes clusters as sorted unique int arrays. When `clusters.merge_small_clusters` is
+    False, clusters smaller than `clusters.min_cluster_size` are treated as underpowered for
+    enrichment and skipped: they were preserved structurally rather than merged upward, so they
+    remain real dendrogram branches but are excluded from enrichment testing here.
 
     Args:
         clusters (Clusters): Clustering results aligned to the matrix.
@@ -149,12 +152,15 @@ def _encode_clusters(
     """
     cluster_dict: Dict[int, Tuple[np.ndarray, int]] = {}
     cluster_ids = clusters.unique_clusters
+    skip_underpowered = not clusters.merge_small_clusters
     # Encode each cluster as a sorted index array.
     for cid in cluster_ids:
         cid_int = int(cid)
         cluster_labels = clusters.cluster_to_labels[cid_int]
         n = int(clusters.cluster_sizes[cid_int])
         if n <= 0 or n < int(min_overlap):
+            continue
+        if skip_underpowered and n < int(clusters.min_cluster_size):
             continue
 
         # Build and de-duplicate cluster index list.
