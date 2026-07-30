@@ -58,7 +58,10 @@ class Analysis:
             linkage_threshold (Union[float, str]): Distance threshold for cutting the dendrogram,
                 or "auto" to automatically select a threshold over raw dendrogram cuts that
                 balances silhouette quality with cluster diversity (linkage method and metric
-                are not optimized). Defaults to 0.7.
+                are not optimized). If `min_cluster_size` > 1 and `merge_small_clusters` is
+                False and the selected cut would leave fewer than 2 reportable clusters, falls
+                back to the cut maximizing reportable coverage and diversity instead. Defaults
+                to 0.7.
 
         Kwargs:
             optimal_ordering (bool): Whether to optimize leaf ordering in the linkage output.
@@ -77,7 +80,10 @@ class Analysis:
             Analysis: The Analysis instance (for method chaining).
 
         Raises:
-            ValueError: If linkage_threshold is a bool, or a string other than "auto".
+            ValueError: If linkage_threshold is a bool, or a string other than "auto". If
+                linkage_threshold="auto", also raised when no candidate threshold yields a
+                scoreable partition, or when the reportability fallback applies but no
+                candidate has at least 2 reportable clusters.
         """
         if isinstance(linkage_threshold, bool) or (
             isinstance(linkage_threshold, str) and linkage_threshold != "auto"
@@ -107,7 +113,11 @@ class Analysis:
             self._row_linkage_cache[row_cache_key] = linkage_matrix
         if linkage_threshold == "auto":
             linkage_threshold = _resolve_auto_threshold(
-                linkage_matrix, self.matrix, self._cluster_linkage_metric
+                linkage_matrix,
+                self.matrix,
+                self._cluster_linkage_metric,
+                min_cluster_size=min_cluster_size,
+                merge_small_clusters=merge_small_clusters,
             )
         self.clusters = cut_linkage(
             linkage_matrix,

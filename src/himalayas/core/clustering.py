@@ -347,6 +347,9 @@ def _resolve_auto_threshold(
     linkage_matrix: np.ndarray,
     matrix: Matrix,
     linkage_metric: str,
+    *,
+    min_cluster_size: int = 1,
+    merge_small_clusters: bool = True,
 ) -> float:
     """
     Resolves `linkage_threshold="auto"` to a numeric distance threshold by maximizing an
@@ -358,24 +361,48 @@ def _resolve_auto_threshold(
     negative silhouette score, the objective is the silhouette score itself. Ties are broken
     by choosing the smallest threshold (the finer partition).
 
+    When `min_cluster_size` is greater than 1 and `merge_small_clusters` is False, small
+    clusters are preserved rather than merged away, so the winning cut above may leave fewer
+    than two clusters meeting `min_cluster_size` and report nothing. In that case, selection
+    instead falls back to the candidate maximizing `coverage * reportable_diversity`, where
+    `coverage` is the fraction of items in clusters meeting `min_cluster_size` and
+    `reportable_diversity` is the Gini–Simpson diversity over those clusters' sizes. Ties in
+    the fallback are broken by the greatest silhouette-diversity objective above, then by the
+    smallest threshold.
+
     Args:
         linkage_matrix (np.ndarray): Linkage matrix from hierarchical clustering.
         matrix (Matrix): Matrix supplying the original observation values.
         linkage_metric (str): Distance metric used to build `linkage_matrix`. Reused here
             so silhouette scoring reflects the same geometry as clustering.
 
+    Kwargs:
+        min_cluster_size (int): Minimum cluster size floor. Only engages the reportability
+            fallback when greater than 1. Defaults to 1.
+        merge_small_clusters (bool): Merge-up setting. The reportability fallback only
+            applies when this is False. Defaults to True.
+
     Returns:
         float: Distance threshold with the highest objective score.
 
     Raises:
-        ValueError: If no candidate threshold yields a scoreable partition.
+        ValueError: If no candidate threshold yields a scoreable partition, or if the
+            reportability fallback is needed but no candidate has at least two clusters
+            meeting `min_cluster_size`.
     """
+    min_cluster_size = int(min_cluster_size)
+    merge_small_clusters = bool(merge_small_clusters)
     n = int(matrix.values.shape[0])
     distance_matrix = squareform(pdist(matrix.values, metric=linkage_metric))
     candidates = np.unique(linkage_matrix[:, 2])
+    rescue_eligible = min_cluster_size > 1 and not merge_small_clusters
 
     best_threshold: Optional[float] = None
     best_score = -np.inf
+    best_n_reportable = 0
+    fallback_threshold: Optional[float] = None
+    fallback_score = -np.inf
+    fallback_existing_score = -np.inf
     for threshold in candidates.tolist():
         labels = fcluster(linkage_matrix, threshold, criterion="distance")
         _, counts = np.unique(labels, return_counts=True)
@@ -388,15 +415,44 @@ def _resolve_auto_threshold(
             proportions = counts / counts.sum()
             diversity = 1.0 - np.sum(proportions**2)
             score *= diversity
-        if best_threshold is None or score > best_score:
+        is_new_best = best_threshold is None or score > best_score
+        if is_new_best:
             best_score = score
             best_threshold = float(threshold)
+
+        if not rescue_eligible:
+            continue
+        reportable_sizes = counts[counts >= min_cluster_size]
+        if is_new_best:
+            best_n_reportable = int(reportable_sizes.shape[0])
+        if reportable_sizes.shape[0] < 2:
+            continue
+        coverage = reportable_sizes.sum() / n
+        proportions = reportable_sizes / reportable_sizes.sum()
+        reportable_diversity = 1.0 - np.sum(proportions**2)
+        reportability_score = coverage * reportable_diversity
+        if fallback_threshold is None or (
+            reportability_score,
+            score,
+        ) > (fallback_score, fallback_existing_score):
+            fallback_score = reportability_score
+            fallback_existing_score = score
+            fallback_threshold = float(threshold)
 
     if best_threshold is None:
         raise ValueError(
             "linkage_threshold='auto' found no candidate threshold with a valid "
             "silhouette partition (requires 2 to N-1 clusters)."
         )
+
+    if rescue_eligible and best_n_reportable < 2:
+        if fallback_threshold is None:
+            raise ValueError(
+                "linkage_threshold='auto' found no candidate threshold with at least 2 "
+                f"clusters meeting min_cluster_size={min_cluster_size} under "
+                "merge_small_clusters=False."
+            )
+        return fallback_threshold
 
     return best_threshold
 
@@ -710,7 +766,10 @@ def cluster(
         linkage_threshold (Union[float, str]): Distance threshold for cutting the dendrogram,
             or "auto" to automatically select a threshold over raw dendrogram cuts that
             balances silhouette quality with cluster diversity (linkage method and metric
-            are not optimized). Defaults to 0.7.
+            are not optimized). If `min_cluster_size` > 1 and `merge_small_clusters` is
+            False and the selected cut would leave fewer than 2 reportable clusters, falls
+            back to the cut maximizing reportable coverage and diversity instead. Defaults
+            to 0.7.
 
     Kwargs:
         optimal_ordering (bool): Whether to optimize leaf ordering in the linkage output.
@@ -729,7 +788,10 @@ def cluster(
         Clusters: Clusters object containing dendrogram and cluster assignments.
 
     Raises:
-        ValueError: If linkage_threshold is a bool, or a string other than "auto".
+        ValueError: If linkage_threshold is a bool, or a string other than "auto". If
+            linkage_threshold="auto", also raised when no candidate threshold yields a
+            scoreable partition, or when the reportability fallback applies but no candidate
+            has at least 2 reportable clusters.
     """
     if isinstance(linkage_threshold, bool) or (
         isinstance(linkage_threshold, str) and linkage_threshold != "auto"
@@ -745,7 +807,13 @@ def cluster(
         optimal_ordering=optimal_ordering,
     )
     if linkage_threshold == "auto":
-        linkage_threshold = _resolve_auto_threshold(linkage_matrix, matrix, linkage_metric)
+        linkage_threshold = _resolve_auto_threshold(
+            linkage_matrix,
+            matrix,
+            linkage_metric,
+            min_cluster_size=min_cluster_size,
+            merge_small_clusters=merge_small_clusters,
+        )
     return cut_linkage(
         linkage_matrix,
         matrix.labels,
