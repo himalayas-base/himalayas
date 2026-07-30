@@ -5,10 +5,10 @@ himalayas/core/analysis
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Optional, Union
 
 from .annotations import Annotations
-from .clustering import cut_linkage, compute_linkage
+from .clustering import cut_linkage, compute_linkage, _resolve_auto_threshold
 from .enrichment import run_cluster_hypergeom
 from .layout import compute_col_order
 from .matrix import Matrix
@@ -43,7 +43,7 @@ class Analysis:
         self,
         linkage_method: str = "ward",
         linkage_metric: str = "euclidean",
-        linkage_threshold: float = 0.7,
+        linkage_threshold: Union[float, str] = 0.7,
         *,
         optimal_ordering: bool = False,
         min_cluster_size: int = 1,
@@ -55,7 +55,10 @@ class Analysis:
         Args:
             linkage_method (str): Linkage method for hierarchical clustering. Defaults to "ward".
             linkage_metric (str): Distance metric for hierarchical clustering. Defaults to "euclidean".
-            linkage_threshold (float): Distance threshold for cutting the dendrogram. Defaults to 0.7.
+            linkage_threshold (Union[float, str]): Distance threshold for cutting the dendrogram,
+                or "auto" to automatically select a threshold over raw dendrogram cuts that
+                balances silhouette quality with cluster diversity (linkage method and metric
+                are not optimized). Defaults to 0.7.
 
         Kwargs:
             optimal_ordering (bool): Whether to optimize leaf ordering in the linkage output.
@@ -72,7 +75,17 @@ class Analysis:
 
         Returns:
             Analysis: The Analysis instance (for method chaining).
+
+        Raises:
+            ValueError: If linkage_threshold is a bool, or a string other than "auto".
         """
+        if isinstance(linkage_threshold, bool) or (
+            isinstance(linkage_threshold, str) and linkage_threshold != "auto"
+        ):
+            raise ValueError(
+                f"linkage_threshold must be a float or 'auto'. Received: {linkage_threshold!r}"
+            )
+
         self.results = None
         self.layout = None
         self._cluster_linkage_method = linkage_method
@@ -92,6 +105,10 @@ class Analysis:
                 optimal_ordering=self._cluster_optimal_ordering,
             )
             self._row_linkage_cache[row_cache_key] = linkage_matrix
+        if linkage_threshold == "auto":
+            linkage_threshold = _resolve_auto_threshold(
+                linkage_matrix, self.matrix, self._cluster_linkage_metric
+            )
         self.clusters = cut_linkage(
             linkage_matrix,
             self.matrix.labels,

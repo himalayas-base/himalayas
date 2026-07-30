@@ -5,10 +5,12 @@ himalayas/core/clustering
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Set, Tuple, Union
 
 import numpy as np
 from scipy.cluster.hierarchy import leaves_list, linkage, fcluster
+from scipy.spatial.distance import pdist, squareform
+from sklearn.metrics import silhouette_score
 
 from .layout import ClusterLayout
 from .matrix import Matrix
@@ -341,6 +343,64 @@ def _enforce_min_cluster_size(
     return _relabel_by_dendrogram_order(assigned, leaf_order)
 
 
+def _resolve_auto_threshold(
+    linkage_matrix: np.ndarray,
+    matrix: Matrix,
+    linkage_metric: str,
+) -> float:
+    """
+    Resolves `linkage_threshold="auto"` to a numeric distance threshold by maximizing an
+    objective over raw dendrogram cuts. Candidate thresholds are the distinct merge heights
+    in `linkage_matrix`; cuts with fewer than 2 clusters or with every item in its own
+    cluster are not scoreable and are skipped. For a candidate with a positive silhouette
+    score, the objective is silhouette multiplied by the Gini–Simpson diversity of the
+    cluster-size distribution (`1 - sum(p_cluster ** 2)`). For a candidate with a zero or
+    negative silhouette score, the objective is the silhouette score itself. Ties are broken
+    by choosing the smallest threshold (the finer partition).
+
+    Args:
+        linkage_matrix (np.ndarray): Linkage matrix from hierarchical clustering.
+        matrix (Matrix): Matrix supplying the original observation values.
+        linkage_metric (str): Distance metric used to build `linkage_matrix`. Reused here
+            so silhouette scoring reflects the same geometry as clustering.
+
+    Returns:
+        float: Distance threshold with the highest objective score.
+
+    Raises:
+        ValueError: If no candidate threshold yields a scoreable partition.
+    """
+    n = int(matrix.values.shape[0])
+    distance_matrix = squareform(pdist(matrix.values, metric=linkage_metric))
+    candidates = np.unique(linkage_matrix[:, 2])
+
+    best_threshold: Optional[float] = None
+    best_score = -np.inf
+    for threshold in candidates.tolist():
+        labels = fcluster(linkage_matrix, threshold, criterion="distance")
+        _, counts = np.unique(labels, return_counts=True)
+        n_clusters = int(counts.shape[0])
+        if n_clusters < 2 or n_clusters >= n:
+            continue
+        silhouette = silhouette_score(distance_matrix, labels, metric="precomputed")
+        score = silhouette
+        if silhouette > 0:
+            proportions = counts / counts.sum()
+            diversity = 1.0 - np.sum(proportions**2)
+            score *= diversity
+        if best_threshold is None or score > best_score:
+            best_score = score
+            best_threshold = float(threshold)
+
+    if best_threshold is None:
+        raise ValueError(
+            "linkage_threshold='auto' found no candidate threshold with a valid "
+            "silhouette partition (requires 2 to N-1 clusters)."
+        )
+
+    return best_threshold
+
+
 class Clusters:
     """
     Class for storing dendrogram structure and cluster assignments with cached layout metadata.
@@ -628,7 +688,7 @@ def cluster(
     matrix: Matrix,
     linkage_method: str = "ward",
     linkage_metric: str = "euclidean",
-    linkage_threshold: float = 0.7,
+    linkage_threshold: Union[float, str] = 0.7,
     *,
     optimal_ordering: bool = False,
     min_cluster_size: int = 1,
@@ -647,7 +707,10 @@ def cluster(
         matrix (Matrix): Matrix to cluster.
         linkage_method (str): Linkage method for hierarchical clustering. Defaults to "ward".
         linkage_metric (str): Distance metric for hierarchical clustering. Defaults to "euclidean".
-        linkage_threshold (float): Distance threshold for cutting the dendrogram. Defaults to 0.7.
+        linkage_threshold (Union[float, str]): Distance threshold for cutting the dendrogram,
+            or "auto" to automatically select a threshold over raw dendrogram cuts that
+            balances silhouette quality with cluster diversity (linkage method and metric
+            are not optimized). Defaults to 0.7.
 
     Kwargs:
         optimal_ordering (bool): Whether to optimize leaf ordering in the linkage output.
@@ -664,13 +727,25 @@ def cluster(
 
     Returns:
         Clusters: Clusters object containing dendrogram and cluster assignments.
+
+    Raises:
+        ValueError: If linkage_threshold is a bool, or a string other than "auto".
     """
+    if isinstance(linkage_threshold, bool) or (
+        isinstance(linkage_threshold, str) and linkage_threshold != "auto"
+    ):
+        raise ValueError(
+            f"linkage_threshold must be a float or 'auto'. Received: {linkage_threshold!r}"
+        )
+
     linkage_matrix = compute_linkage(
         matrix,
         linkage_method=linkage_method,
         linkage_metric=linkage_metric,
         optimal_ordering=optimal_ordering,
     )
+    if linkage_threshold == "auto":
+        linkage_threshold = _resolve_auto_threshold(linkage_matrix, matrix, linkage_metric)
     return cut_linkage(
         linkage_matrix,
         matrix.labels,
