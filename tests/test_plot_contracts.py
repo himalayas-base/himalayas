@@ -14,6 +14,7 @@ from himalayas.core.clustering import cluster
 from himalayas.plot import Plotter
 from himalayas.plot.renderers._label_format import format_label_prefix
 from himalayas.plot.renderers.cluster_labels import _build_label_map, _parse_label_overrides
+from himalayas.plot.style import DEFAULT_STYLE, StyleConfig
 from himalayas.plot.track_layout import TrackLayoutManager
 
 
@@ -48,6 +49,25 @@ def test_plotter_smoke(toy_results):
             .plot_cluster_labels()
             .show()
         )
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+def test_plotter_set_background_sets_figure_facecolor(toy_results):
+    """
+    Ensures set_background() applies the requested figure facecolor when rendered.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        plotter = Plotter(toy_results).plot_matrix().set_background("red")
+        plotter.show()
+        assert plotter._fig.patch.get_facecolor() == to_rgba("red")
     finally:
         plt.show = plt_show
 
@@ -1426,6 +1446,23 @@ def test_plot_cluster_labels_label_sep_xmin_xmax_swap_outside_unit_range(toy_res
             assert max(xdata) == pytest.approx(1.5)
     finally:
         plt.show = plt_show
+
+
+@pytest.mark.unit
+def test_style_config_as_dict_merges_defaults_and_overrides():
+    """
+    Ensures StyleConfig.as_dict() returns merged defaults and independent overrides.
+    """
+    style = StyleConfig()
+    style.set("boundary_color", "red")
+
+    values = style.as_dict()
+
+    assert values["boundary_color"] == "red"
+    assert values["boundary_lw"] == DEFAULT_STYLE["boundary_lw"]
+
+    values["boundary_color"] = "blue"
+    assert style["boundary_color"] == "red"
 
 
 @pytest.mark.unit
