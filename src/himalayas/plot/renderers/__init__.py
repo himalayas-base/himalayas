@@ -4,7 +4,7 @@ himalayas/plot/renderers
 """
 
 from .axes import AxesRenderer
-from .base import BoundaryRegistry, Renderer
+from .base import BoundaryRegistry
 from .cluster_bar import render_cluster_bar_track
 from .cluster_labels import ClusterLabelsRenderer
 from .colorbar import ColorbarRenderer
@@ -23,5 +23,4 @@ __all__ = [
     "DendrogramRenderer",
     "LabelLegendRenderer",
     "MatrixRenderer",
-    "Renderer",
 ]
