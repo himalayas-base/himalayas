@@ -17,10 +17,18 @@ from .renderers import (
     BoundaryRegistry,
     ClusterLabelsRenderer,
     ColorbarRenderer,
+    CompactLabelsRenderer,
     LabelLegendRenderer,
     DendrogramRenderer,
     MatrixRenderer,
     render_cluster_bar_track,
+)
+from .renderers._compact_label_types import (
+    CLUSTER_SPANS,
+    LINE_SHAPES,
+    LINE_STYLES,
+    SOURCE_ENDS,
+    TARGET_ENDS,
 )
 from .renderers.label_bar import render_label_bar_track
 from .style import StyleConfig
@@ -602,6 +610,27 @@ class Plotter:
             bar_labels_kwargs=bar_kwargs,
         )
 
+    def _render_compact_label_panel(
+        self,
+        fig,
+        layout,
+        layer_kwargs: Dict[str, Any],
+    ) -> None:
+        """
+        Renders the compact radiating-label panel: markers, leader lines, and the
+        equally-spaced label table.
+
+        Args:
+            fig: Matplotlib figure.
+            layout: Cluster layout object.
+            layer_kwargs (Dict[str, Any]): Declared plot_cluster_labels_compact() layer kwargs.
+        """
+        renderer_kwargs = dict(layer_kwargs)
+        label_options = renderer_kwargs.pop("_label_options", {})
+        df = self.results.cluster_labels(**label_options)
+        renderer = CompactLabelsRenderer(df, **renderer_kwargs)
+        renderer.render(fig, self.matrix, layout, self._style)
+
     def plot_cluster_bar(
         self,
         name: str,
@@ -1036,6 +1065,15 @@ class Plotter:
         dendro_boundary_color: Optional[str] = None,
         dendro_boundary_lw: Optional[float] = None,
         dendro_boundary_alpha: Optional[float] = None,
+        # Cluster-abreast span/bracket
+        cluster_span: Optional[str] = None,
+        cluster_span_color: Optional[str] = None,
+        cluster_span_lw: Optional[float] = None,
+        cluster_span_alpha: Optional[float] = None,
+        cluster_span_gap: Optional[float] = None,
+        cluster_span_cap_width: Optional[float] = None,
+        cluster_span_left_pad: Optional[float] = None,
+        cluster_span_right_pad: Optional[float] = None,
         # Text formatting
         omit_words: Optional[Sequence[str]] = None,
         wrap_text: bool = True,
@@ -1105,6 +1143,30 @@ class Plotter:
             dendro_boundary_alpha (Optional[float]): Dendrogram boundary line opacity.
                 Defaults to style dendro_boundary_alpha.
 
+            Cluster-abreast span/bracket:
+            cluster_span (Optional[str]): Vertical span drawn beside each cluster's row
+                extent, one of {None, "line", "bracket"}. None draws no span (default,
+                current behavior). "line" draws a bare gapped vertical line; "bracket"
+                adds horizontal end caps. Defaults to None.
+            cluster_span_color (Optional[str]): Span line color. Defaults to style
+                cluster_span_color, which falls back to style label_sep_color.
+            cluster_span_lw (Optional[float]): Span line width. Defaults to style
+                cluster_span_lw.
+            cluster_span_alpha (Optional[float]): Span line opacity. Defaults to style
+                cluster_span_alpha.
+            cluster_span_gap (Optional[float]): Row units trimmed from each end of the
+                span, clamped to at most half the cluster's row extent. Defaults to
+                style cluster_span_gap.
+            cluster_span_cap_width (Optional[float]): Bracket cap width (axes fraction)
+                when cluster_span="bracket". Defaults to style cluster_span_cap_width.
+            cluster_span_left_pad (Optional[float]): Horizontal space (axes fraction)
+                between the label-panel track/gutter region and the span/bracket
+                centerline, independent of label_bar_pad. Defaults to style
+                cluster_span_left_pad.
+            cluster_span_right_pad (Optional[float]): Horizontal space (axes fraction)
+                between the span/bracket centerline and the label text. Defaults to
+                style cluster_span_right_pad.
+
             Text formatting:
             omit_words (Optional[Sequence[str]]): Words to strip from labels
                 (case-insensitive). Defaults to style label_omit_words.
@@ -1117,7 +1179,23 @@ class Plotter:
 
         Returns:
             Plotter: Self for chaining.
+
+        Raises:
+            ValueError: If cluster_span is not one of {None, "line", "bracket"}, or
+                cluster_span_gap, cluster_span_cap_width, cluster_span_left_pad, or
+                cluster_span_right_pad is negative.
         """
+        if cluster_span is not None and cluster_span not in CLUSTER_SPANS:
+            raise ValueError(f"cluster_span must be one of {[None] + sorted(CLUSTER_SPANS)}")
+        if cluster_span_gap is not None and cluster_span_gap < 0:
+            raise ValueError("cluster_span_gap must be >= 0")
+        if cluster_span_cap_width is not None and cluster_span_cap_width < 0:
+            raise ValueError("cluster_span_cap_width must be >= 0")
+        if cluster_span_left_pad is not None and cluster_span_left_pad < 0:
+            raise ValueError("cluster_span_left_pad must be >= 0")
+        if cluster_span_right_pad is not None and cluster_span_right_pad < 0:
+            raise ValueError("cluster_span_right_pad must be >= 0")
+
         # Build label-generation options forwarded to Results.cluster_labels().
         label_options: Dict[str, Any] = {"rank_by": rank_by, "label_mode": label_mode}
         if max_words is not None:
@@ -1171,6 +1249,23 @@ class Plotter:
             layer_kwargs["dendro_boundary_lw"] = dendro_boundary_lw
         if dendro_boundary_alpha is not None:
             layer_kwargs["dendro_boundary_alpha"] = dendro_boundary_alpha
+        # Cluster-abreast span/bracket
+        if cluster_span is not None:
+            layer_kwargs["cluster_span"] = cluster_span
+        if cluster_span_color is not None:
+            layer_kwargs["cluster_span_color"] = cluster_span_color
+        if cluster_span_lw is not None:
+            layer_kwargs["cluster_span_lw"] = cluster_span_lw
+        if cluster_span_alpha is not None:
+            layer_kwargs["cluster_span_alpha"] = cluster_span_alpha
+        if cluster_span_gap is not None:
+            layer_kwargs["cluster_span_gap"] = cluster_span_gap
+        if cluster_span_cap_width is not None:
+            layer_kwargs["cluster_span_cap_width"] = cluster_span_cap_width
+        if cluster_span_left_pad is not None:
+            layer_kwargs["cluster_span_left_pad"] = cluster_span_left_pad
+        if cluster_span_right_pad is not None:
+            layer_kwargs["cluster_span_right_pad"] = cluster_span_right_pad
         # Text formatting — max_words is also read by the renderer, not only label generation.
         if max_words is not None:
             layer_kwargs["max_words"] = max_words
@@ -1181,6 +1276,171 @@ class Plotter:
             layer_kwargs["wrap_width"] = wrap_width
         layer_kwargs["overflow"] = overflow
         self._layers.append(("cluster_labels", layer_kwargs))
+        return self
+
+    def plot_cluster_labels_compact(
+        self,
+        *,
+        overrides: Optional[Dict[int, str]] = None,
+        marker_prefix: str = "alpha",
+        rank_by: str = "p",
+        label_mode: str = "top_term",
+        max_words: Optional[int] = None,
+        label_fields: Optional[Sequence[str]] = ...,  # type: ignore[assignment]
+        label_prefix: Optional[str] = None,
+        font: Optional[str] = None,
+        fontsize: Optional[float] = None,
+        color: Optional[str] = None,
+        alpha: Optional[float] = None,
+        skip_unlabeled: bool = False,
+        placeholder_text: Optional[str] = None,
+        placeholder_color: Optional[str] = None,
+        placeholder_alpha: Optional[float] = None,
+        omit_words: Optional[Sequence[str]] = None,
+        wrap_text: bool = True,
+        wrap_width: Optional[int] = None,
+        overflow: str = "wrap",
+        line_shape: Optional[str] = None,
+        line_style: Optional[str] = None,
+        source_end: Optional[str] = None,
+        target_end: Optional[str] = None,
+        source_gap: Optional[float] = None,
+        line_color: Optional[str] = None,
+        line_lw: Optional[float] = None,
+        line_alpha: Optional[float] = None,
+    ) -> Plotter:
+        """
+        Declares compact radiating cluster labels: a short marker at each cluster's true
+        vertical center, connected by a leader line to its full label in an equally-spaced
+        right-side table. An additive alternative to plot_cluster_labels() for figures with
+        many or highly size-skewed clusters; the two are mutually exclusive in one render.
+
+        Kwargs:
+            overrides (Optional[Dict[int, str]]): Per-cluster label overrides keyed by cluster id.
+                Defaults to None.
+            marker_prefix (str): Marker text mode, one of {"cid", "alpha"}. Defaults to "alpha".
+            rank_by (str): Ranking statistic for representative terms, one of {"p", "q"}.
+                Defaults to "p".
+            label_mode (str): Label mode, one of {"top_term", "compressed"}. Defaults to "top_term".
+            max_words (Optional[int]): Maximum words in rendered display labels. Defaults to None.
+            label_fields (Optional[Sequence[str]]): Fields to include in table labels: one or
+                more of "label", "n", "p", "q", "fe". If None, suppresses base label/stat text.
+                Defaults to style label_fields ("label", "n", "p").
+            label_prefix (Optional[str]): Prefix prepended to table label text, one of
+                {None, "cid", "alpha"}. Defaults to None.
+            font (Optional[str]): Font family for markers and table labels. Defaults to None.
+            fontsize (Optional[float]): Font size for table label text (points). The marker
+                glyph size defaults independently from style compact_marker_fontsize.
+                Defaults to None.
+            color (Optional[str]): Table label text color. Defaults to None.
+            alpha (Optional[float]): Table label text opacity. Defaults to None.
+            skip_unlabeled (bool): Whether to omit clusters without a label entirely.
+                Defaults to False.
+            placeholder_text (Optional[str]): Text for unlabeled clusters. Defaults to None.
+            placeholder_color (Optional[str]): Color override for placeholder labels.
+                Defaults to None.
+            placeholder_alpha (Optional[float]): Alpha override for placeholder labels.
+                Defaults to None.
+            omit_words (Optional[Sequence[str]]): Words to omit from labels. Defaults to None.
+            wrap_text (bool): Whether to wrap long label text. Defaults to True.
+            wrap_width (Optional[int]): Characters per wrapped line. Defaults to None.
+            overflow (str): Truncation mode, one of {"wrap", "ellipsis"}. Defaults to "wrap".
+            line_shape (Optional[str]): Leader-line shape, one of {"straight", "curved", "elbow"}.
+                Defaults to style compact_line_shape ("straight").
+            line_style (Optional[str]): Leader-line style, one of {"solid", "dashed", "dotted"}.
+                Defaults to style compact_line_style ("solid").
+            source_end (Optional[str]): Matrix-side endpoint decoration, one of
+                {"tick", "span", "round", "none"}. "span" draws a vertical bracket spanning
+                the cluster's height, trimmed by source_gap. Defaults to style
+                compact_source_end ("tick").
+            target_end (Optional[str]): Table-side endpoint decoration, one of
+                {"tick", "arrow", "round", "none"}. Defaults to style compact_target_end ("tick").
+            source_gap (Optional[float]): Row units trimmed from each end of a
+                source_end="span" bracket, clamped to at most half the cluster's span
+                height. Defaults to style compact_source_gap.
+            line_color (Optional[str]): Leader-line color. Defaults to style compact_line_color.
+            line_lw (Optional[float]): Leader-line width. Defaults to style compact_line_lw.
+            line_alpha (Optional[float]): Leader-line opacity. Defaults to style compact_line_alpha.
+
+        Returns:
+            Plotter: Self for chaining.
+
+        Raises:
+            ValueError: If marker_prefix, label_fields, label_prefix, line_shape, line_style,
+                source_end, target_end, or source_gap is unsupported.
+        """
+        if marker_prefix not in {"cid", "alpha"}:
+            raise ValueError("marker_prefix must be one of {'cid', 'alpha'}")
+        if label_fields is not ... and label_fields is not None:
+            allowed_fields = {"label", "n", "p", "q", "fe"}
+            if any(f not in allowed_fields for f in label_fields):
+                raise ValueError(f"label_fields may only contain {allowed_fields}")
+        if label_prefix not in {None, "cid", "alpha"}:
+            raise ValueError("label_prefix must be one of {None, 'cid', 'alpha'}")
+        if line_shape is not None and line_shape not in LINE_SHAPES:
+            raise ValueError(f"line_shape must be one of {sorted(LINE_SHAPES)}")
+        if line_style is not None and line_style not in LINE_STYLES:
+            raise ValueError(f"line_style must be one of {sorted(LINE_STYLES)}")
+        if source_end is not None and source_end not in SOURCE_ENDS:
+            raise ValueError(f"source_end must be one of {sorted(SOURCE_ENDS)}")
+        if target_end is not None and target_end not in TARGET_ENDS:
+            raise ValueError(f"target_end must be one of {sorted(TARGET_ENDS)}")
+        if source_gap is not None and source_gap < 0:
+            raise ValueError("source_gap must be >= 0")
+
+        label_options: Dict[str, Any] = {"rank_by": rank_by, "label_mode": label_mode}
+        if max_words is not None:
+            label_options["max_words"] = max_words
+
+        layer_kwargs: Dict[str, Any] = {
+            "_label_options": label_options,
+            "overrides": overrides,
+            "marker_prefix": marker_prefix,
+            "skip_unlabeled": skip_unlabeled,
+            "wrap_text": wrap_text,
+            "overflow": overflow,
+        }
+        if label_fields is not ...:
+            layer_kwargs["label_fields"] = label_fields
+        if label_prefix is not None:
+            layer_kwargs["label_prefix"] = label_prefix
+        if font is not None:
+            layer_kwargs["font"] = font
+        if fontsize is not None:
+            layer_kwargs["fontsize"] = fontsize
+        if color is not None:
+            layer_kwargs["color"] = color
+        if alpha is not None:
+            layer_kwargs["alpha"] = alpha
+        if placeholder_text is not None:
+            layer_kwargs["placeholder_text"] = placeholder_text
+        if placeholder_color is not None:
+            layer_kwargs["placeholder_color"] = placeholder_color
+        if placeholder_alpha is not None:
+            layer_kwargs["placeholder_alpha"] = placeholder_alpha
+        if omit_words is not None:
+            layer_kwargs["omit_words"] = omit_words
+        if wrap_width is not None:
+            layer_kwargs["wrap_width"] = wrap_width
+        if max_words is not None:
+            layer_kwargs["max_words"] = max_words
+        if line_shape is not None:
+            layer_kwargs["line_shape"] = line_shape
+        if line_style is not None:
+            layer_kwargs["line_style"] = line_style
+        if source_end is not None:
+            layer_kwargs["source_end"] = source_end
+        if target_end is not None:
+            layer_kwargs["target_end"] = target_end
+        if source_gap is not None:
+            layer_kwargs["source_gap"] = source_gap
+        if line_color is not None:
+            layer_kwargs["line_color"] = line_color
+        if line_lw is not None:
+            layer_kwargs["line_lw"] = line_lw
+        if line_alpha is not None:
+            layer_kwargs["line_alpha"] = line_alpha
+        self._layers.append(("compact_labels", layer_kwargs))
         return self
 
     def plot_title(
@@ -1242,11 +1502,17 @@ class Plotter:
         if not self._layers:
             raise RuntimeError("No plot layers declared.")
         has_cluster_label_layer = any(layer == "cluster_labels" for layer, _ in self._layers)
+        has_compact_label_layer = any(layer == "compact_labels" for layer, _ in self._layers)
         has_row_track = self._has_track_kind("row")
         has_cluster_track = self._has_track_kind("cluster")
         if has_cluster_track and not has_cluster_label_layer:
             raise ValueError(
                 "plot_cluster_bar() requires plot_cluster_labels() in the same plotting chain."
+            )
+        if has_cluster_label_layer and has_compact_label_layer:
+            raise ValueError(
+                "plot_cluster_labels() and plot_cluster_labels_compact() are mutually exclusive "
+                "in one render; they occupy the same label-panel region."
             )
         matrix_kwargs, cluster_boundary_kwargs, bar_kwargs = self._collect_layer_kwargs()
         # Consume authoritative geometry from Results.
@@ -1358,6 +1624,8 @@ class Plotter:
                 renderer.render(fig, ax, self.matrix, layout, self._style)
             elif layer == "cluster_labels":
                 self._render_label_panel(fig, layout, bar_kwargs=bar_kwargs, cluster_kwargs=kwargs)
+            elif layer == "compact_labels":
+                self._render_compact_label_panel(fig, layout, kwargs)
             elif layer == "bar_labels":
                 # Consumed inside the cluster label panel; no direct rendering.
                 continue

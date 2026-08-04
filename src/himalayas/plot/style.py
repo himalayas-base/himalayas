@@ -71,6 +71,27 @@ class StyleDefaults(TypedDict):
     label_omit_words: Optional[Sequence[str]]
     label_fields: Tuple[str, ...]
     label_wrap_width: Optional[int]
+    compact_axes: Sequence[float]
+    compact_marker_width: float
+    compact_bridge_width: float
+    compact_table_pad: float
+    compact_marker_fontsize: float
+    compact_line_color: str
+    compact_line_lw: float
+    compact_line_alpha: float
+    compact_line_shape: str
+    compact_line_style: str
+    compact_source_end: str
+    compact_target_end: str
+    compact_source_gap: float
+    compact_source_cap_width: float
+    cluster_span_color: Optional[str]
+    cluster_span_lw: float
+    cluster_span_alpha: float
+    cluster_span_gap: float
+    cluster_span_cap_width: float
+    cluster_span_left_pad: float
+    cluster_span_right_pad: float
 
 
 DEFAULT_STYLE: StyleDefaults = {
@@ -141,6 +162,40 @@ DEFAULT_STYLE: StyleDefaults = {
     "label_fields": ("label", "n", "p"),
     # Optional label wrapping (characters per line); None = disabled.
     "label_wrap_width": None,
+    # Compact radiating-label panel axis box [x0, y0, w, h].
+    "compact_axes": [0.70, 0.05, 0.29, 0.90],
+    # Marker column width (fraction of compact_axes width).
+    "compact_marker_width": 0.08,
+    # Leader-line bridge width (fraction of compact_axes width).
+    "compact_bridge_width": 0.45,
+    # Padding between the bridge and the label table (fraction of compact_axes width).
+    "compact_table_pad": 0.02,
+    "compact_marker_fontsize": 8,
+    "compact_line_color": "#c0562c",
+    "compact_line_lw": 0.9,
+    "compact_line_alpha": 0.65,
+    # One of {"straight", "curved", "elbow"}.
+    "compact_line_shape": "straight",
+    # One of {"solid", "dashed", "dotted"}.
+    "compact_line_style": "solid",
+    # One of {"tick", "span", "round", "none"}.
+    "compact_source_end": "tick",
+    # One of {"tick", "arrow", "round", "none"}.
+    "compact_target_end": "tick",
+    # Row units trimmed from each end of a source_end="span" bracket.
+    "compact_source_gap": 0.15,
+    # Bracket cap width (axes fraction) for source_end="span".
+    "compact_source_cap_width": 0.15,
+    # Cluster-abreast span/bracket in the standard label panel (opt-in via
+    # plot_cluster_labels(cluster_span=...)). None color inherits label_sep_color.
+    "cluster_span_color": None,
+    "cluster_span_lw": 1.0,
+    "cluster_span_alpha": 0.8,
+    "cluster_span_gap": 0.15,
+    "cluster_span_cap_width": 0.006,
+    # Horizontal padding around the span/bracket centerline, independent of label_bar_pad.
+    "cluster_span_left_pad": 0.0,
+    "cluster_span_right_pad": 0.01,
 }
 
 
