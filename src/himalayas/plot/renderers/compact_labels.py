@@ -13,7 +13,14 @@ import pandas as pd
 
 from ._cluster_label_data import _build_label_map, _parse_label_overrides
 from ._cluster_span import draw_cluster_span
-from ._compact_label_types import LINE_SHAPES, LINE_STYLES, SOURCE_ENDS, TARGET_ENDS
+from ._compact_label_types import (
+    CLUSTER_MARKERS,
+    CLUSTER_SPANS,
+    LINE_ENDS,
+    LINE_SHAPES,
+    LINE_STARTS,
+    LINE_STYLES,
+)
 from ._label_format import compute_equal_slots, format_label_prefix, resolve_cluster_label_content
 from ._text_style import apply_text_style
 
@@ -36,8 +43,8 @@ def _resolve_line_path(
     Resolves an (x, y) path from the marker column (x=0) to the table column (x=1).
 
     Args:
-        y0 (float): Source y-position (true cluster center, row-index space).
-        y1 (float): Target y-position (equal-pitch table slot).
+        y0 (float): Start y-position (true cluster center, row-index space).
+        y1 (float): End y-position (equal-pitch table slot).
 
     Kwargs:
         shape (str): One of {"straight", "curved", "elbow"}.
@@ -62,9 +69,8 @@ def _resolve_line_path(
     raise ValueError(f"line_shape must be one of {sorted(LINE_SHAPES)}, got {shape!r}")
 
 
-def _draw_source_end(
+def _draw_compact_cluster_span(
     ax: plt.Axes,
-    y_center: float,
     s: int,
     e: int,
     *,
@@ -76,22 +82,52 @@ def _draw_source_end(
     alpha: float,
 ) -> None:
     """
-    Draws the matrix-side (x=0) endpoint decoration for one cluster's leader line.
+    Draws the matrix-side (x=0) cluster-extent span/bracket for one cluster's leader
+    line, mirroring the standard-label cluster_span primitive.
 
     Args:
         ax (plt.Axes): Bridge axis spanning x in [0, 1].
-        y_center (float): True cluster center, (s + e) / 2.
         s (int): Cluster span start (row index).
         e (int): Cluster span end (row index).
 
     Kwargs:
-        kind (str): Source decoration, one of {"tick", "span", "round", "none"}. Callers
-            validate this against SOURCE_ENDS before rendering.
-        gap (float): Row units trimmed from each end of a "span" bracket. See
-            draw_cluster_span for clamping behavior.
-        cap_width (float): Bracket cap width (axes fraction) for kind="span".
-        color (str): Marker/line color.
+        kind (str): Span decoration, one of {"line", "bracket"}. Callers validate this
+            against CLUSTER_SPANS before rendering. "line" draws a bare vertical stroke
+            (cap_width forced to 0.0); "bracket" adds end caps.
+        gap (float): Row units trimmed from each end of the span. See draw_cluster_span
+            for clamping behavior.
+        cap_width (float): Bracket cap width (axes fraction), used only for kind="bracket".
+        color (str): Line color.
         lw (float): Line width.
+        alpha (float): Opacity.
+    """
+    resolved_cap_width = cap_width if kind == "bracket" else 0.0
+    draw_cluster_span(
+        ax, 0.0, s, e, gap=gap, cap_width=resolved_cap_width, color=color, lw=lw, alpha=alpha
+    )
+
+
+def _draw_line_start(
+    ax: plt.Axes,
+    y_center: float,
+    *,
+    kind: str,
+    color: str,
+    alpha: float,
+) -> None:
+    """
+    Draws the connector's matrix-side start-point decoration for one cluster's leader
+    line. Callers invoke this only when cluster_span is None, to mark the leader line's
+    origin in place of a cluster-extent span/bracket.
+
+    Args:
+        ax (plt.Axes): Bridge axis spanning x in [0, 1].
+        y_center (float): True cluster center, (s + e) / 2.
+
+    Kwargs:
+        kind (str): Connector-start decoration, one of {"tick", "round", "none"}.
+            Callers validate this against LINE_STARTS before rendering.
+        color (str): Marker color.
         alpha (float): Opacity.
     """
     if kind == "none":
@@ -99,10 +135,7 @@ def _draw_source_end(
     if kind == "tick":
         ax.plot([0.0], [y_center], marker="|", color=color, markersize=5, alpha=alpha)
         return
-    if kind == "round":
-        ax.plot([0.0], [y_center], marker="o", color=color, markersize=4, alpha=alpha)
-        return
-    draw_cluster_span(ax, 0.0, s, e, gap=gap, cap_width=cap_width, color=color, lw=lw, alpha=alpha)
+    ax.plot([0.0], [y_center], marker="o", color=color, markersize=4, alpha=alpha)
 
 
 def _draw_leader_line(
@@ -112,33 +145,33 @@ def _draw_leader_line(
     *,
     shape: str,
     linestyle: str,
-    target_end: str,
+    line_end: str,
     color: str,
     lw: float,
     alpha: float,
 ) -> None:
     """
     Draws one leader line from a marker's true center to its table slot, with an
-    optional decoration at the table-side (target) end.
+    optional decoration at the table-side end.
 
     Args:
         ax (plt.Axes): Bridge axis spanning x in [0, 1].
-        y0 (float): Source y-position (marker side).
-        y1 (float): Target y-position (table side).
+        y0 (float): Start y-position (marker side).
+        y1 (float): End y-position (table side).
 
     Kwargs:
         shape (str): Line shape, one of {"straight", "curved", "elbow"}.
         linestyle (str): Matplotlib linestyle, one of {"solid", "dashed", "dotted"}.
-        target_end (str): Target-end decoration, one of {"tick", "arrow", "round", "none"}.
-            Callers validate this against TARGET_ENDS before rendering.
+        line_end (str): Table-side endpoint decoration, one of {"tick", "arrow", "round", "none"}.
+            Callers validate this against LINE_ENDS before rendering.
         color (str): Line color.
         lw (float): Line width.
         alpha (float): Line opacity.
     """
     xs, ys = _resolve_line_path(y0, y1, shape=shape)
     mpl_linestyle = _MPL_LINESTYLES.get(linestyle, "-")
-    solid_capstyle = "round" if target_end == "round" else "butt"
-    if target_end == "arrow":
+    solid_capstyle = "round" if line_end == "round" else "butt"
+    if line_end == "arrow":
         ax.annotate(
             "",
             xy=(1.0, y1),
@@ -172,7 +205,7 @@ def _draw_leader_line(
             alpha=alpha,
             solid_capstyle=solid_capstyle,
         )
-        if target_end not in {"none", "round"}:
+        if line_end not in {"none", "round"}:
             ax.plot([1.0], [y1], marker="|", color=color, markersize=5, alpha=alpha)
 
 
@@ -225,9 +258,9 @@ class CompactLabelsRenderer:
         df: pd.DataFrame,
         *,
         overrides: Optional[Dict[int, str]] = None,
-        marker_prefix: str = "alpha",
+        cluster_marker: Optional[str] = None,
         label_fields: Optional[Sequence[str]] = ...,  # type: ignore[assignment]
-        label_prefix: Optional[str] = None,
+        label_prefix: Optional[str] = "alpha",
         font: Optional[str] = None,
         fontsize: Optional[float] = None,
         color: Optional[str] = None,
@@ -238,9 +271,14 @@ class CompactLabelsRenderer:
         placeholder_alpha: Optional[float] = None,
         line_shape: Optional[str] = None,
         line_style: Optional[str] = None,
-        source_end: Optional[str] = None,
-        target_end: Optional[str] = None,
-        source_gap: Optional[float] = None,
+        cluster_span: Optional[str] = None,
+        line_start: Optional[str] = None,
+        line_end: Optional[str] = None,
+        cluster_span_gap: Optional[float] = None,
+        cluster_span_color: Optional[str] = None,
+        cluster_span_lw: Optional[float] = None,
+        cluster_span_alpha: Optional[float] = None,
+        cluster_span_cap_width: Optional[float] = None,
         line_color: Optional[str] = None,
         line_lw: Optional[float] = None,
         line_alpha: Optional[float] = None,
@@ -260,12 +298,15 @@ class CompactLabelsRenderer:
         Kwargs:
             overrides (Optional[Dict[int, str]]): Per-cluster label overrides keyed by cluster id.
                 Defaults to None.
-            marker_prefix (str): Marker text mode, one of {"cid", "alpha"}. Defaults to "alpha".
+            cluster_marker (Optional[str]): Optional identity marker drawn at the source
+                (matrix-side) marker column, one of {None, "cid", "alpha"}. Off by default;
+                the cluster span/line alone is the pointer, and identity lives with the
+                floating label via label_prefix. Defaults to None.
             label_fields (Optional[Sequence[str]]): Fields to include in table labels: one or
                 more of "label", "n", "p", "q", "fe". If None, suppresses base label/stat text.
                 Defaults to ("label", "n", "p").
-            label_prefix (Optional[str]): Prefix prepended to table label text, one of
-                {None, "cid", "alpha"}. Defaults to None.
+            label_prefix (Optional[str]): Sole owner of the floating-label identity prefix,
+                one of {None, "cid", "alpha"}. Defaults to "alpha".
             font (Optional[str]): Font family for table label text. Defaults to None.
             fontsize (Optional[float]): Font size for table label text (points). Defaults to None.
             color (Optional[str]): Text color for markers and table labels. Defaults to None.
@@ -279,13 +320,24 @@ class CompactLabelsRenderer:
                 Defaults to None.
             line_style (Optional[str]): Leader-line style, one of {"solid", "dashed", "dotted"}.
                 Defaults to None.
-            source_end (Optional[str]): Matrix-side endpoint decoration, one of
-                {"tick", "span", "round", "none"}. Defaults to None.
-            target_end (Optional[str]): Table-side endpoint decoration, one of
+            cluster_span (Optional[str]): Matrix-side cluster-extent span/bracket, one of
+                {None, "line", "bracket"}, mirroring standard plot_cluster_labels(cluster_span=...).
+                Defaults to None.
+            line_start (Optional[str]): Connector-start point decoration, one of
+                {"tick", "round", "none"}, used only when cluster_span is None. Defaults to None.
+            line_end (Optional[str]): Table-side endpoint decoration, one of
                 {"tick", "arrow", "round", "none"}. Defaults to None.
-            source_gap (Optional[float]): Row units trimmed from each end of a
-                source_end="span" bracket, clamped to at most half the cluster's span
+            cluster_span_gap (Optional[float]): Row units trimmed from each end of a
+                cluster_span bracket/line, clamped to at most half the cluster's span
                 height. Defaults to None.
+            cluster_span_color (Optional[str]): Span/bracket color, independent of line_color.
+                Defaults to None.
+            cluster_span_lw (Optional[float]): Span/bracket line width, independent of line_lw.
+                Defaults to None.
+            cluster_span_alpha (Optional[float]): Span/bracket opacity, independent of line_alpha.
+                Defaults to None.
+            cluster_span_cap_width (Optional[float]): Bracket cap width (axes fraction) when
+                cluster_span="bracket". Defaults to None.
             line_color (Optional[str]): Leader-line color. Defaults to None.
             line_lw (Optional[float]): Leader-line width. Defaults to None.
             line_alpha (Optional[float]): Leader-line opacity. Defaults to None.
@@ -296,16 +348,16 @@ class CompactLabelsRenderer:
             overflow (str): Truncation mode, one of {"wrap", "ellipsis"}. Defaults to "wrap".
 
         Raises:
-            ValueError: If df is missing required columns, or marker_prefix, label_fields,
-                label_prefix, line_shape, line_style, source_end, target_end, or source_gap
-                is unsupported.
+            ValueError: If df is missing required columns, or cluster_marker, label_fields,
+                label_prefix, line_shape, line_style, cluster_span, line_start, line_end,
+                cluster_span_gap, or cluster_span_cap_width is unsupported.
         """
         if not isinstance(df, pd.DataFrame):
             raise TypeError("cluster_labels must be a pandas DataFrame.")
         if "cluster" not in df.columns or "label" not in df.columns:
             raise ValueError("cluster_labels DataFrame must contain columns: 'cluster', 'label'.")
-        if marker_prefix not in {"cid", "alpha"}:
-            raise ValueError("marker_prefix must be one of {'cid', 'alpha'}")
+        if cluster_marker is not None and cluster_marker not in CLUSTER_MARKERS:
+            raise ValueError(f"cluster_marker must be one of {[None] + sorted(CLUSTER_MARKERS)}")
         if label_fields is not ... and label_fields is not None:
             if not isinstance(label_fields, (list, tuple)):
                 raise TypeError("label_fields must be None or a list/tuple of strings")
@@ -318,16 +370,20 @@ class CompactLabelsRenderer:
             raise ValueError(f"line_shape must be one of {sorted(LINE_SHAPES)}")
         if line_style is not None and line_style not in LINE_STYLES:
             raise ValueError(f"line_style must be one of {sorted(LINE_STYLES)}")
-        if source_end is not None and source_end not in SOURCE_ENDS:
-            raise ValueError(f"source_end must be one of {sorted(SOURCE_ENDS)}")
-        if target_end is not None and target_end not in TARGET_ENDS:
-            raise ValueError(f"target_end must be one of {sorted(TARGET_ENDS)}")
-        if source_gap is not None and source_gap < 0:
-            raise ValueError("source_gap must be >= 0")
+        if cluster_span is not None and cluster_span not in CLUSTER_SPANS:
+            raise ValueError(f"cluster_span must be one of {[None] + sorted(CLUSTER_SPANS)}")
+        if line_start is not None and line_start not in LINE_STARTS:
+            raise ValueError(f"line_start must be one of {sorted(LINE_STARTS)}")
+        if line_end is not None and line_end not in LINE_ENDS:
+            raise ValueError(f"line_end must be one of {sorted(LINE_ENDS)}")
+        if cluster_span_gap is not None and cluster_span_gap < 0:
+            raise ValueError("cluster_span_gap must be >= 0")
+        if cluster_span_cap_width is not None and cluster_span_cap_width < 0:
+            raise ValueError("cluster_span_cap_width must be >= 0")
 
         self.df = df
         self.overrides = overrides
-        self.marker_prefix = marker_prefix
+        self.cluster_marker = cluster_marker
         self.label_fields = (
             label_fields
             if label_fields is ...
@@ -344,9 +400,14 @@ class CompactLabelsRenderer:
         self.placeholder_alpha = placeholder_alpha
         self.line_shape = line_shape
         self.line_style = line_style
-        self.source_end = source_end
-        self.target_end = target_end
-        self.source_gap = source_gap
+        self.cluster_span = cluster_span
+        self.line_start = line_start
+        self.line_end = line_end
+        self.cluster_span_gap = cluster_span_gap
+        self.cluster_span_color = cluster_span_color
+        self.cluster_span_lw = cluster_span_lw
+        self.cluster_span_alpha = cluster_span_alpha
+        self.cluster_span_cap_width = cluster_span_cap_width
         self.line_color = line_color
         self.line_lw = line_lw
         self.line_alpha = line_alpha
@@ -401,20 +462,42 @@ class CompactLabelsRenderer:
         )
         line_shape = self.line_shape or style.get("compact_line_shape", "straight")
         line_style = self.line_style or style.get("compact_line_style", "solid")
-        source_end = self.source_end or style.get("compact_source_end", "tick")
-        target_end = self.target_end or style.get("compact_target_end", "tick")
-        source_gap = (
-            self.source_gap
-            if self.source_gap is not None
-            else style.get("compact_source_gap", 0.15)
-        )
-        source_cap_width = style.get("compact_source_cap_width", 0.15)
+        cluster_span = self.cluster_span
+        line_start = self.line_start or style.get("compact_line_start", "tick")
+        line_end = self.line_end or style.get("compact_line_end", "tick")
         line_color = self.line_color or style.get("compact_line_color", "#c0562c")
         line_lw = self.line_lw if self.line_lw is not None else style.get("compact_line_lw", 0.9)
         line_alpha = (
             self.line_alpha
             if self.line_alpha is not None
             else style.get("compact_line_alpha", 0.65)
+        )
+        # Cluster-span/bracket styling is independent of connector line_* styling
+        # (mirrors the standard-label span, not the leader line it accompanies).
+        cluster_span_color = (
+            self.cluster_span_color
+            or style.get("cluster_span_color", None)
+            or style.get("label_sep_color", "gray")
+        )
+        cluster_span_lw = (
+            self.cluster_span_lw
+            if self.cluster_span_lw is not None
+            else style.get("cluster_span_lw", 1.0)
+        )
+        cluster_span_alpha = (
+            self.cluster_span_alpha
+            if self.cluster_span_alpha is not None
+            else style.get("cluster_span_alpha", 0.8)
+        )
+        cluster_span_gap = (
+            self.cluster_span_gap
+            if self.cluster_span_gap is not None
+            else style.get("cluster_span_gap", 0.15)
+        )
+        cluster_span_cap_width = (
+            self.cluster_span_cap_width
+            if self.cluster_span_cap_width is not None
+            else style.get("compact_cluster_span_cap_width", 0.15)
         )
 
         # Table slots follow dendrogram/top-to-bottom order (layout.cluster_spans order),
@@ -430,7 +513,6 @@ class CompactLabelsRenderer:
         for i, (cid, s, e) in enumerate(visible_spans):
             y_center = (s + e) / 2.0
             slot_y = table_slots[i]
-            marker_text = format_label_prefix(self.marker_prefix, cid).rstrip(".")
 
             resolved = resolve_cluster_label_content(
                 cid,
@@ -454,53 +536,66 @@ class CompactLabelsRenderer:
                 label_color = text_color
                 label_alpha = text_alpha
 
-            # Marker at the cluster's true vertical center, in row-index space.
-            mrk_txt = ax_mrk.text(
-                0.5,
-                y_center,
-                marker_text,
-                ha="center",
-                va="center",
-                fontweight="bold",
-                clip_on=False,
-            )
-            apply_text_style(
-                mrk_txt,
-                font=font,
-                fontsize=marker_fontsize,
-                color=line_color,
-                alpha=1.0,
-            )
+            # Optional identity marker at the cluster's true vertical center, in
+            # row-index space. Off by default: the cluster span/line is the pointer,
+            # and identity lives with the floating label via label_prefix.
+            if self.cluster_marker is not None:
+                marker_text = format_label_prefix(self.cluster_marker, cid).rstrip(".")
+                mrk_txt = ax_mrk.text(
+                    0.5,
+                    y_center,
+                    marker_text,
+                    ha="center",
+                    va="center",
+                    fontweight="bold",
+                    clip_on=False,
+                )
+                apply_text_style(
+                    mrk_txt,
+                    font=font,
+                    fontsize=marker_fontsize,
+                    color=line_color,
+                    alpha=1.0,
+                )
 
-            _draw_source_end(
-                ax_bridge,
-                y_center,
-                s,
-                e,
-                kind=source_end,
-                gap=source_gap,
-                cap_width=source_cap_width,
-                color=line_color,
-                lw=line_lw,
-                alpha=line_alpha,
-            )
+            if cluster_span is not None:
+                _draw_compact_cluster_span(
+                    ax_bridge,
+                    s,
+                    e,
+                    kind=cluster_span,
+                    gap=cluster_span_gap,
+                    cap_width=cluster_span_cap_width,
+                    color=cluster_span_color,
+                    lw=cluster_span_lw,
+                    alpha=cluster_span_alpha,
+                )
+            else:
+                _draw_line_start(
+                    ax_bridge,
+                    y_center,
+                    kind=line_start,
+                    color=line_color,
+                    alpha=line_alpha,
+                )
             _draw_leader_line(
                 ax_bridge,
                 y_center,
                 slot_y,
                 shape=line_shape,
                 linestyle=line_style,
-                target_end=target_end,
+                line_end=line_end,
                 color=line_color,
                 lw=line_lw,
                 alpha=line_alpha,
             )
 
-            # Full label at the equal-pitch table slot.
+            # Full label at the equal-pitch table slot. Identity comes solely from
+            # label_prefix, already folded into label_text above.
             tbl_txt = ax_tbl.text(
                 0.0,
                 slot_y,
-                f"{marker_text}.  {label_text}",
+                label_text,
                 ha="left",
                 va="center",
                 fontweight="normal",

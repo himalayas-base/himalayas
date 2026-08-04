@@ -11,11 +11,15 @@ LINE_SHAPES = {"straight", "curved", "elbow"}
 # Leader-line style, shared by Plotter.plot_cluster_labels_compact() and CompactLabelsRenderer.
 LINE_STYLES = {"solid", "dashed", "dotted"}
 
-# Matrix-side (source) endpoint decoration for a compact-label leader line.
-SOURCE_ENDS = {"tick", "span", "round", "none"}
+# Cluster-side identity marker text mode for a compact-label leader line.
+CLUSTER_MARKERS = {"alpha", "cid"}
 
-# Table-side (target) endpoint decoration for a compact-label leader line.
-TARGET_ENDS = {"tick", "arrow", "round", "none"}
+# Connector-start point decoration for a compact-label leader line, used when
+# cluster_span is None (i.e. there is no cluster-span/bracket to anchor to).
+LINE_STARTS = {"tick", "round", "none"}
+
+# Table-side (end) endpoint decoration for a compact-label leader line.
+LINE_ENDS = {"tick", "arrow", "round", "none"}
 
 # Cluster-abreast span/bracket kind, shared by Plotter.plot_cluster_labels() and
 # _render_cluster_text_and_separators().

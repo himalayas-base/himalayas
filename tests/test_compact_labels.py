@@ -5,6 +5,7 @@ tests/test_compact_labels
 
 import matplotlib.pyplot as plt
 import pytest
+from matplotlib.colors import to_rgba
 
 from conftest import extract_figure_text, use_agg_backend
 from himalayas.plot import Plotter
@@ -41,15 +42,50 @@ def test_plot_cluster_labels_compact_smoke(toy_results):
 
 
 @pytest.mark.api
+def test_plot_cluster_labels_compact_default_draws_no_cluster_marker(toy_results):
+    """
+    Ensures default compact labels draw no matrix-side marker text (identity lives
+    with the floating label only), while floating labels still carry exactly one
+    alpha prefix from the default label_prefix="alpha".
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        plotter = (
+            Plotter(toy_results)
+            .plot_matrix()
+            .plot_cluster_labels_compact(label_fields=("label",), wrap_text=False)
+        )
+        plotter.show()
+        marker_ax, _bridge_ax, table_ax = plotter._fig.axes[-3:]
+
+        marker_texts = [t.get_text().strip() for t in marker_ax.texts if t.get_text().strip()]
+        assert not marker_texts, "Expected no matrix-side marker text by default."
+
+        table_texts = [t.get_text().strip() for t in table_ax.texts if t.get_text().strip()]
+        assert table_texts, "Expected floating label text to be rendered."
+        for txt in table_texts:
+            prefix_token = txt.split(".", 1)[0]
+            assert prefix_token.isalpha() and prefix_token.isupper()
+            assert txt.count(".") == 1
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
 @pytest.mark.parametrize(
     "kwargs",
     [
-        {"line_shape": "curved", "source_end": "span", "target_end": "arrow"},
-        {"line_shape": "elbow", "source_end": "none", "target_end": "none"},
-        {"source_end": "round", "target_end": "round"},
-        {"marker_prefix": "cid", "font": "serif", "fontsize": 12},
+        {"line_shape": "curved", "cluster_span": "bracket", "line_end": "arrow"},
+        {"line_shape": "elbow", "line_start": "none", "line_end": "none"},
+        {"line_start": "round", "line_end": "round"},
+        {"cluster_marker": "cid", "font": "serif", "fontsize": 12},
     ],
-    ids=["curved_span_arrow", "elbow_none_none", "round_round", "cid_serif"],
+    ids=["curved_bracket_arrow", "elbow_none_none", "round_round", "cid_serif"],
 )
 def test_plot_cluster_labels_compact_style_variants_render(toy_results, kwargs):
     """
@@ -83,16 +119,18 @@ def test_plot_cluster_labels_compact_invalid_style_raises(toy_results):
     Raises:
         ValueError: If an unsupported style option is provided.
     """
-    with pytest.raises(ValueError, match="marker_prefix"):
-        Plotter(toy_results).plot_cluster_labels_compact(marker_prefix="bad")
+    with pytest.raises(ValueError, match="cluster_marker"):
+        Plotter(toy_results).plot_cluster_labels_compact(cluster_marker="bad")
     with pytest.raises(ValueError, match="line_shape"):
         Plotter(toy_results).plot_cluster_labels_compact(line_shape="zigzag")
     with pytest.raises(ValueError, match="line_style"):
         Plotter(toy_results).plot_cluster_labels_compact(line_style="bad")
-    with pytest.raises(ValueError, match="source_end"):
-        Plotter(toy_results).plot_cluster_labels_compact(source_end="bad")
-    with pytest.raises(ValueError, match="target_end"):
-        Plotter(toy_results).plot_cluster_labels_compact(target_end="bad")
+    with pytest.raises(ValueError, match="cluster_span"):
+        Plotter(toy_results).plot_cluster_labels_compact(cluster_span="bad")
+    with pytest.raises(ValueError, match="line_start"):
+        Plotter(toy_results).plot_cluster_labels_compact(line_start="bad")
+    with pytest.raises(ValueError, match="line_end"):
+        Plotter(toy_results).plot_cluster_labels_compact(line_end="bad")
 
 
 @pytest.mark.api
@@ -156,10 +194,12 @@ def test_plot_cluster_labels_compact_label_fields_respect_np_order(toy_results):
 
 
 @pytest.mark.api
-def test_plot_cluster_labels_compact_label_prefix_distinct_from_marker_prefix(toy_results):
+def test_plot_cluster_labels_compact_cluster_marker_and_label_prefix_independent(toy_results):
     """
-    Ensures label_prefix (table content) and marker_prefix (marker glyph) act
-    independently: markers can be alpha-prefixed while table text is cid-prefixed.
+    Ensures cluster_marker (matrix-side glyph) and label_prefix (floating-label identity)
+    are independently controllable with no cross-contamination: alpha markers appear only
+    in the marker column, and the cid prefix appears only in the floating label,
+    not concatenated together.
 
     Args:
         toy_results (Results): Results fixture with clusters and layout.
@@ -172,7 +212,7 @@ def test_plot_cluster_labels_compact_label_prefix_distinct_from_marker_prefix(to
             Plotter(toy_results)
             .plot_matrix()
             .plot_cluster_labels_compact(
-                marker_prefix="alpha",
+                cluster_marker="alpha",
                 label_prefix="cid",
                 label_fields=("label",),
                 wrap_text=False,
@@ -183,9 +223,13 @@ def test_plot_cluster_labels_compact_label_prefix_distinct_from_marker_prefix(to
         marker_texts = [t.get_text().strip() for t in marker_ax.texts if t.get_text().strip()]
         table_texts = [t.get_text().strip() for t in table_ax.texts if t.get_text().strip()]
         assert marker_texts and all(t.isalpha() and t.isupper() for t in marker_texts)
-        # Table rows read "<alpha marker>.  <cid prefix> <label>"; the cid token
-        # appears after the marker, distinct from the alpha marker itself.
-        assert any(txt.split(".  ", 1)[-1].split(" ", 1)[0].rstrip(".").isdigit() for txt in table_texts)
+        # No alpha marker text should have leaked into the table column, and every
+        # table row should lead with a numeric cid prefix, not an alpha token.
+        assert table_texts
+        for txt in table_texts:
+            first_token = txt.split(" ", 1)[0].rstrip(".")
+            assert first_token.isdigit()
+            assert not any(marker in txt.split(" ", 1)[0] for marker in marker_texts if marker.isalpha())
     finally:
         plt.show = plt_show
 
@@ -207,7 +251,7 @@ def test_plot_cluster_labels_compact_n_matches_layout_cluster_sizes(toy_results)
         plotter = (
             Plotter(toy_results)
             .plot_matrix()
-            .plot_cluster_labels_compact(label_fields=("label", "n"), marker_prefix="cid", wrap_text=False)
+            .plot_cluster_labels_compact(label_fields=("label", "n"), label_prefix="cid", wrap_text=False)
         )
         plotter.show()
         table_ax = plotter._fig.axes[-1]
@@ -238,10 +282,10 @@ def test_plot_cluster_labels_compact_table_order_follows_dendrogram_span_order(t
         spans = toy_results.cluster_layout().cluster_spans
         expected_order = [int(cid) for cid, _s, _e in spans]
 
-        plotter = Plotter(toy_results).plot_matrix().plot_cluster_labels_compact(marker_prefix="cid")
+        plotter = Plotter(toy_results).plot_matrix().plot_cluster_labels_compact(label_prefix="cid")
         plotter.show()
 
-        # Table-column texts render as "<marker>.  <label...>"; recover marker order by
+        # Table-column texts render as "<cid prefix>. <label...>"; recover cid order by
         # the vertical (y) position of each text artist in the table axis (last axis
         # created by the compact-label panel).
         table_ax = plotter._fig.axes[-1]
@@ -259,11 +303,11 @@ def test_plot_cluster_labels_compact_table_order_follows_dendrogram_span_order(t
 
 @pytest.mark.api
 @pytest.mark.parametrize("line_shape", ["straight", "curved", "elbow"])
-def test_plot_cluster_labels_compact_source_span_renders_with_every_line_shape(toy_results, line_shape):
+def test_plot_cluster_labels_compact_cluster_span_renders_with_every_line_shape(toy_results, line_shape):
     """
-    Ensures source_end="span" is compatible with every leader-line shape: the source
-    bracket sits at the matrix-side edge independent of how the leader line travels
-    to the table.
+    Ensures cluster_span="bracket" is compatible with every leader-line shape: the
+    cluster-side bracket sits at the matrix-side edge independent of how the leader
+    line travels to the table.
 
     Args:
         toy_results (Results): Results fixture with clusters and layout.
@@ -276,7 +320,9 @@ def test_plot_cluster_labels_compact_source_span_renders_with_every_line_shape(t
         plotter = (
             Plotter(toy_results)
             .plot_matrix()
-            .plot_cluster_labels_compact(source_end="span", line_shape=line_shape, source_gap=0.2)
+            .plot_cluster_labels_compact(
+                cluster_span="bracket", line_shape=line_shape, cluster_span_gap=0.2
+            )
         )
         plotter.show()
         assert plotter._fig is not None
@@ -344,10 +390,12 @@ def test_draw_cluster_span_clips_gap_and_draws_caps():
 
 
 @pytest.mark.api
-def test_plot_cluster_labels_compact_source_span_renders_capped_bracket(toy_results):
+def test_plot_cluster_labels_compact_cluster_span_bracket_has_no_cluster_marker(toy_results):
     """
-    Ensures compact source_end="span" renders visible end caps by default (a bracket,
-    not a subtle bare line), via the shared draw_cluster_span primitive.
+    Ensures compact cluster_span="bracket" renders visible end caps (a bracket, not a
+    subtle bare line) via the shared draw_cluster_span primitive, draws no matrix-side
+    marker text by default, and gives each table row exactly one identity prefix
+    (from label_prefix, not duplicated by a cluster marker).
 
     Args:
         toy_results (Results): Results fixture with clusters and layout.
@@ -356,13 +404,29 @@ def test_plot_cluster_labels_compact_source_span_renders_capped_bracket(toy_resu
     plt_show = plt.show
     plt.show = lambda *args, **kwargs: None
     try:
-        plotter = Plotter(toy_results).plot_matrix().plot_cluster_labels_compact(source_end="span")
+        plotter = (
+            Plotter(toy_results)
+            .plot_matrix()
+            .plot_cluster_labels_compact(
+                cluster_span="bracket", label_fields=("label",), wrap_text=False
+            )
+        )
         plotter.show()
-        bridge_ax = plotter._fig.axes[-2]
+        marker_ax, bridge_ax, table_ax = plotter._fig.axes[-3:]
         horizontal_lines = [
             ln for ln in bridge_ax.lines if len(ln.get_xdata()) == 2 and ln.get_xdata()[0] != ln.get_xdata()[1]
         ]
-        assert horizontal_lines, "Expected bracket end caps for source_end='span'."
+        assert horizontal_lines, "Expected bracket end caps for cluster_span='bracket'."
+
+        marker_texts = [t.get_text().strip() for t in marker_ax.texts if t.get_text().strip()]
+        assert not marker_texts, "Expected no matrix-side marker text by default."
+
+        table_texts = [t.get_text().strip() for t in table_ax.texts if t.get_text().strip()]
+        assert table_texts
+        for txt in table_texts:
+            prefix_token = txt.split(".", 1)[0]
+            assert prefix_token.isalpha() and prefix_token.isupper()
+            assert txt.count(".") == 1
     finally:
         plt.show = plt_show
 
@@ -566,6 +630,147 @@ def test_plot_cluster_labels_cluster_span_pad_defaults_match_explicit_values(toy
         assert default_span_x == pytest.approx(explicit_span_x)
         assert default_label_x and explicit_label_x
         assert default_label_x == pytest.approx(explicit_label_x)
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+def test_plot_cluster_labels_compact_boundary_kwargs_reach_matrix_boundaries(toy_results):
+    """
+    Ensures compact boundary_color/lw/alpha reach the same matrix boundary-line
+    rendering that plot_cluster_labels() already drives, closing the gap where
+    _collect_layer_kwargs() only recognized "cluster_labels" layers.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        plotter = (
+            Plotter(toy_results)
+            .plot_matrix()
+            .plot_cluster_labels_compact(
+                boundary_color="#e41a1c", boundary_lw=3.0, boundary_alpha=0.9
+            )
+        )
+        plotter.show()
+        matrix_ax = plotter._fig.axes[0]
+        collections = [c for c in matrix_ax.collections if hasattr(c, "get_linewidths")]
+        boundary_collections = [
+            c for c in collections if any(lw == pytest.approx(3.0) for lw in c.get_linewidths())
+        ]
+        assert boundary_collections, "Expected a boundary LineCollection with lw=3.0."
+        # The registry merges cluster boundaries with unrelated minor-row gridlines into
+        # one LineCollection; isolate the segment matching our distinctive lw=3.0.
+        expected_rgba = to_rgba("#e41a1c", 0.9)
+        cluster_boundary_rgba = [
+            rgba
+            for c in boundary_collections
+            for lw, rgba in zip(c.get_linewidths(), c.get_colors())
+            if lw == pytest.approx(3.0)
+        ]
+        assert cluster_boundary_rgba
+        assert all(tuple(rgba) == pytest.approx(expected_rgba) for rgba in cluster_boundary_rgba)
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+def test_plot_cluster_labels_compact_cluster_span_cap_width_uses_compact_scale(toy_results):
+    """
+    Ensures cluster_span_cap_width resolves against the compact-scoped style default
+    (compact_cluster_span_cap_width, 0.15) rather than the standard label panel's
+    much smaller cluster_span_cap_width default (0.006), since the compact bracket
+    is drawn on the narrower bridge axis.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        plotter = (
+            Plotter(toy_results).plot_matrix().plot_cluster_labels_compact(cluster_span="bracket")
+        )
+        plotter.show()
+        bridge_ax = plotter._fig.axes[-2]
+        # Bracket caps are horizontal, straddle the matrix-side x=0.0 centerline, and
+        # are distinct from the leader line itself (which spans the full x in [0, 1]).
+        cap_lines = [
+            ln
+            for ln in bridge_ax.lines
+            if len(ln.get_xdata()) == 2
+            and ln.get_ydata()[0] == ln.get_ydata()[1]
+            and ln.get_xdata()[0] == pytest.approx(-ln.get_xdata()[1])
+        ]
+        assert cap_lines, "Expected bracket end caps."
+        cap_widths = [abs(ln.get_xdata()[1] - ln.get_xdata()[0]) for ln in cap_lines]
+        assert all(w == pytest.approx(0.15) for w in cap_widths)
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+def test_plot_cluster_labels_compact_cluster_span_style_independent_of_line_style(toy_results):
+    """
+    Ensures cluster_span_color/lw/alpha are resolved independently of line_color/lw/alpha:
+    setting only line_color must not change the rendered span/bracket color, and
+    cluster_span_color must be set explicitly to affect it.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        plotter = (
+            Plotter(toy_results)
+            .plot_matrix()
+            .plot_cluster_labels_compact(
+                cluster_span="line",
+                cluster_span_color="#1b9e77",
+                cluster_span_lw=2.5,
+                line_color="#c0562c",
+                line_lw=0.9,
+            )
+        )
+        plotter.show()
+        bridge_ax = plotter._fig.axes[-2]
+        span_lines = [ln for ln in bridge_ax.lines if ln.get_linewidth() == pytest.approx(2.5)]
+        assert span_lines, "Expected span artists drawn at cluster_span_lw."
+        assert all(ln.get_color() == "#1b9e77" for ln in span_lines)
+        assert not any(ln.get_color() == "#c0562c" for ln in span_lines)
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+def test_plot_cluster_labels_compact_line_start_rejects_arrow_line_end_allows_it(toy_results):
+    """
+    Ensures line_start and line_end keep distinct value domains after the rename:
+    "arrow" is valid only for line_end (table-side), not line_start (matrix-side),
+    guarding against the two enums being accidentally merged.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+
+    Raises:
+        ValueError: If line_start="arrow" is rejected as expected.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        with pytest.raises(ValueError, match="line_start"):
+            Plotter(toy_results).plot_cluster_labels_compact(line_start="arrow")
+
+        plotter = Plotter(toy_results).plot_matrix().plot_cluster_labels_compact(line_end="arrow")
+        plotter.show()
+        assert plotter._fig is not None
     finally:
         plt.show = plt_show
 

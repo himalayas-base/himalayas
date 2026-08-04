@@ -78,11 +78,9 @@ class StyleDefaults(TypedDict):
     compact_line_alpha: float
     compact_line_shape: str
     compact_line_style: str
-    compact_source_span: Optional[str]
-    compact_line_source_end: str
-    compact_target_end: str
-    compact_source_gap: float
-    compact_source_cap_width: float
+    compact_line_start: str
+    compact_line_end: str
+    compact_cluster_span_cap_width: float
     cluster_span_color: Optional[str]
     cluster_span_lw: float
     cluster_span_alpha: float
@@ -174,20 +172,16 @@ DEFAULT_STYLE: StyleDefaults = {
     "compact_line_shape": "straight",
     # One of {"solid", "dashed", "dotted"}.
     "compact_line_style": "solid",
-    # Matrix-side cluster-extent span/bracket, one of {None, "line", "bracket"},
-    # mirroring standard cluster_span. None: no span/bracket drawn at the source.
-    "compact_source_span": None,
     # Connector-start point decoration, one of {"tick", "round", "none"}, used only
-    # when compact_source_span is None.
-    "compact_line_source_end": "tick",
+    # when cluster_span is None.
+    "compact_line_start": "tick",
     # One of {"tick", "arrow", "round", "none"}.
-    "compact_target_end": "tick",
-    # Row units trimmed from each end of a source_span bracket/line.
-    "compact_source_gap": 0.15,
-    # Bracket cap width (axes fraction) for source_span="bracket".
-    "compact_source_cap_width": 0.15,
-    # Cluster-abreast span/bracket in the standard label panel (opt-in via
-    # plot_cluster_labels(cluster_span=...)). None color inherits label_sep_color.
+    "compact_line_end": "tick",
+    # Bracket cap width (axes fraction) for cluster_span="bracket", scaled for the
+    # narrower bridge axis (compact_bridge_width) rather than the full label panel.
+    "compact_cluster_span_cap_width": 0.15,
+    # Cluster-abreast span/bracket, opt-in via cluster_span=... on plot_cluster_labels()
+    # or plot_cluster_labels_compact(). None color inherits label_sep_color.
     "cluster_span_color": None,
     "cluster_span_lw": 1.0,
     "cluster_span_alpha": 0.8,

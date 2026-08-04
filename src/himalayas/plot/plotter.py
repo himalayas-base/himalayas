@@ -24,12 +24,12 @@ from .renderers import (
     render_cluster_bar_track,
 )
 from .renderers._compact_label_types import (
+    CLUSTER_MARKERS,
     CLUSTER_SPANS,
+    LINE_ENDS,
     LINE_SHAPES,
-    LINE_SOURCE_ENDS,
+    LINE_STARTS,
     LINE_STYLES,
-    SOURCE_MARKERS,
-    TARGET_ENDS,
 )
 from .renderers.label_bar import render_label_bar_track
 from .style import StyleConfig
@@ -488,7 +488,7 @@ class Plotter:
         for layer_name, kwargs in self._layers:
             if layer_name == "matrix":
                 matrix_kwargs = kwargs
-            elif layer_name == "cluster_labels":
+            elif layer_name in ("cluster_labels", "compact_labels"):
                 cluster_label_kwargs = kwargs
             elif layer_name == "bar_labels":
                 bar_label_kwargs = kwargs
@@ -628,6 +628,11 @@ class Plotter:
         """
         renderer_kwargs = dict(layer_kwargs)
         label_options = renderer_kwargs.pop("_label_options", {})
+        # Matrix cluster-boundary kwargs are consumed by _render()'s boundary registry,
+        # not by CompactLabelsRenderer itself.
+        renderer_kwargs.pop("boundary_color", None)
+        renderer_kwargs.pop("boundary_lw", None)
+        renderer_kwargs.pop("boundary_alpha", None)
         df = self.results.cluster_labels(**label_options)
         renderer = CompactLabelsRenderer(df, **renderer_kwargs)
         renderer.render(fig, self.matrix, layout, self._style)
@@ -1268,7 +1273,7 @@ class Plotter:
         self,
         *,
         overrides: Optional[Dict[int, str]] = None,
-        source_marker: Optional[str] = None,
+        cluster_marker: Optional[str] = None,
         rank_by: str = "p",
         label_mode: str = "top_term",
         max_words: Optional[int] = None,
@@ -1288,13 +1293,20 @@ class Plotter:
         overflow: str = "wrap",
         line_shape: Optional[str] = None,
         line_style: Optional[str] = None,
-        source_span: Optional[str] = None,
-        line_source_end: Optional[str] = None,
-        target_end: Optional[str] = None,
-        source_gap: Optional[float] = None,
+        cluster_span: Optional[str] = None,
+        line_start: Optional[str] = None,
+        line_end: Optional[str] = None,
+        cluster_span_gap: Optional[float] = None,
+        cluster_span_color: Optional[str] = None,
+        cluster_span_lw: Optional[float] = None,
+        cluster_span_alpha: Optional[float] = None,
+        cluster_span_cap_width: Optional[float] = None,
         line_color: Optional[str] = None,
         line_lw: Optional[float] = None,
         line_alpha: Optional[float] = None,
+        boundary_color: Optional[str] = None,
+        boundary_lw: Optional[float] = None,
+        boundary_alpha: Optional[float] = None,
     ) -> Plotter:
         """
         Declares compact radiating cluster labels: a short marker at each cluster's true
@@ -1305,9 +1317,9 @@ class Plotter:
         Kwargs:
             overrides (Optional[Dict[int, str]]): Per-cluster label overrides keyed by cluster id.
                 Defaults to None.
-            source_marker (Optional[str]): Optional identity marker drawn at the source
+            cluster_marker (Optional[str]): Optional identity marker drawn at the source
                 (matrix-side) marker column, one of {None, "cid", "alpha"}. Off by default;
-                the source span/line alone is the pointer, and identity lives with the
+                the cluster span/line alone is the pointer, and identity lives with the
                 floating label via label_prefix. Defaults to None.
             rank_by (str): Ranking statistic for representative terms, one of {"p", "q"}.
                 Defaults to "p".
@@ -1339,31 +1351,46 @@ class Plotter:
                 Defaults to style compact_line_shape ("straight").
             line_style (Optional[str]): Leader-line style, one of {"solid", "dashed", "dotted"}.
                 Defaults to style compact_line_style ("solid").
-            source_span (Optional[str]): Matrix-side cluster-extent span/bracket, one of
+            cluster_span (Optional[str]): Matrix-side cluster-extent span/bracket, one of
                 {None, "line", "bracket"}, mirroring standard plot_cluster_labels(cluster_span=...).
-                "bracket" draws end caps sized by style compact_source_cap_width; "line" draws
-                a bare vertical stroke. Defaults to style compact_source_span (None).
-            line_source_end (Optional[str]): Connector-start point decoration, one of
-                {"tick", "round", "none"}, drawn only when source_span is None. Defaults to
-                style compact_line_source_end ("tick").
-            target_end (Optional[str]): Table-side endpoint decoration, one of
-                {"tick", "arrow", "round", "none"}. Defaults to style compact_target_end ("tick").
-            source_gap (Optional[float]): Row units trimmed from each end of a
-                source_span bracket/line, clamped to at most half the cluster's span
-                height. Defaults to style compact_source_gap.
+                "bracket" draws end caps sized by cluster_span_cap_width; "line" draws
+                a bare vertical stroke. Defaults to None.
+            line_start (Optional[str]): Connector-start point decoration, one of
+                {"tick", "round", "none"}, drawn only when cluster_span is None. Defaults to
+                style compact_line_start ("tick").
+            line_end (Optional[str]): Table-side endpoint decoration, one of
+                {"tick", "arrow", "round", "none"}. Defaults to style compact_line_end ("tick").
+            cluster_span_gap (Optional[float]): Row units trimmed from each end of a
+                cluster_span bracket/line, clamped to at most half the cluster's span
+                height. Defaults to style cluster_span_gap.
+            cluster_span_color (Optional[str]): Span/bracket color, independent of line_color.
+                Defaults to style cluster_span_color (inherits label_sep_color if unset).
+            cluster_span_lw (Optional[float]): Span/bracket line width, independent of line_lw.
+                Defaults to style cluster_span_lw.
+            cluster_span_alpha (Optional[float]): Span/bracket opacity, independent of line_alpha.
+                Defaults to style cluster_span_alpha.
+            cluster_span_cap_width (Optional[float]): Bracket cap width (axes fraction) when
+                cluster_span="bracket". Defaults to style compact_cluster_span_cap_width.
             line_color (Optional[str]): Leader-line color. Defaults to style compact_line_color.
             line_lw (Optional[float]): Leader-line width. Defaults to style compact_line_lw.
             line_alpha (Optional[float]): Leader-line opacity. Defaults to style compact_line_alpha.
+            boundary_color (Optional[str]): Matrix cluster-boundary line color. Defaults to
+                style boundary_color.
+            boundary_lw (Optional[float]): Matrix cluster-boundary line width. Defaults to
+                style boundary_lw.
+            boundary_alpha (Optional[float]): Matrix cluster-boundary opacity. Defaults to
+                style boundary_alpha.
 
         Returns:
             Plotter: Self for chaining.
 
         Raises:
-            ValueError: If source_marker, label_fields, label_prefix, line_shape, line_style,
-                source_span, line_source_end, target_end, or source_gap is unsupported.
+            ValueError: If cluster_marker, label_fields, label_prefix, line_shape, line_style,
+                cluster_span, line_start, line_end, cluster_span_gap, or cluster_span_cap_width
+                is unsupported.
         """
-        if source_marker is not None and source_marker not in SOURCE_MARKERS:
-            raise ValueError(f"source_marker must be one of {[None] + sorted(SOURCE_MARKERS)}")
+        if cluster_marker is not None and cluster_marker not in CLUSTER_MARKERS:
+            raise ValueError(f"cluster_marker must be one of {[None] + sorted(CLUSTER_MARKERS)}")
         if label_fields is not ... and label_fields is not None:
             allowed_fields = {"label", "n", "p", "q", "fe"}
             if any(f not in allowed_fields for f in label_fields):
@@ -1374,14 +1401,16 @@ class Plotter:
             raise ValueError(f"line_shape must be one of {sorted(LINE_SHAPES)}")
         if line_style is not None and line_style not in LINE_STYLES:
             raise ValueError(f"line_style must be one of {sorted(LINE_STYLES)}")
-        if source_span is not None and source_span not in CLUSTER_SPANS:
-            raise ValueError(f"source_span must be one of {[None] + sorted(CLUSTER_SPANS)}")
-        if line_source_end is not None and line_source_end not in LINE_SOURCE_ENDS:
-            raise ValueError(f"line_source_end must be one of {sorted(LINE_SOURCE_ENDS)}")
-        if target_end is not None and target_end not in TARGET_ENDS:
-            raise ValueError(f"target_end must be one of {sorted(TARGET_ENDS)}")
-        if source_gap is not None and source_gap < 0:
-            raise ValueError("source_gap must be >= 0")
+        if cluster_span is not None and cluster_span not in CLUSTER_SPANS:
+            raise ValueError(f"cluster_span must be one of {[None] + sorted(CLUSTER_SPANS)}")
+        if line_start is not None and line_start not in LINE_STARTS:
+            raise ValueError(f"line_start must be one of {sorted(LINE_STARTS)}")
+        if line_end is not None and line_end not in LINE_ENDS:
+            raise ValueError(f"line_end must be one of {sorted(LINE_ENDS)}")
+        if cluster_span_gap is not None and cluster_span_gap < 0:
+            raise ValueError("cluster_span_gap must be >= 0")
+        if cluster_span_cap_width is not None and cluster_span_cap_width < 0:
+            raise ValueError("cluster_span_cap_width must be >= 0")
 
         label_options: Dict[str, Any] = {"rank_by": rank_by, "label_mode": label_mode}
         if max_words is not None:
@@ -1395,8 +1424,8 @@ class Plotter:
             "wrap_text": wrap_text,
             "overflow": overflow,
         }
-        if source_marker is not None:
-            layer_kwargs["source_marker"] = source_marker
+        if cluster_marker is not None:
+            layer_kwargs["cluster_marker"] = cluster_marker
         if label_fields is not ...:
             layer_kwargs["label_fields"] = label_fields
         if font is not None:
@@ -1423,20 +1452,34 @@ class Plotter:
             layer_kwargs["line_shape"] = line_shape
         if line_style is not None:
             layer_kwargs["line_style"] = line_style
-        if source_span is not None:
-            layer_kwargs["source_span"] = source_span
-        if line_source_end is not None:
-            layer_kwargs["line_source_end"] = line_source_end
-        if target_end is not None:
-            layer_kwargs["target_end"] = target_end
-        if source_gap is not None:
-            layer_kwargs["source_gap"] = source_gap
+        if cluster_span is not None:
+            layer_kwargs["cluster_span"] = cluster_span
+        if line_start is not None:
+            layer_kwargs["line_start"] = line_start
+        if line_end is not None:
+            layer_kwargs["line_end"] = line_end
+        if cluster_span_gap is not None:
+            layer_kwargs["cluster_span_gap"] = cluster_span_gap
+        if cluster_span_color is not None:
+            layer_kwargs["cluster_span_color"] = cluster_span_color
+        if cluster_span_lw is not None:
+            layer_kwargs["cluster_span_lw"] = cluster_span_lw
+        if cluster_span_alpha is not None:
+            layer_kwargs["cluster_span_alpha"] = cluster_span_alpha
+        if cluster_span_cap_width is not None:
+            layer_kwargs["cluster_span_cap_width"] = cluster_span_cap_width
         if line_color is not None:
             layer_kwargs["line_color"] = line_color
         if line_lw is not None:
             layer_kwargs["line_lw"] = line_lw
         if line_alpha is not None:
             layer_kwargs["line_alpha"] = line_alpha
+        if boundary_color is not None:
+            layer_kwargs["boundary_color"] = boundary_color
+        if boundary_lw is not None:
+            layer_kwargs["boundary_lw"] = boundary_lw
+        if boundary_alpha is not None:
+            layer_kwargs["boundary_alpha"] = boundary_alpha
         self._layers.append(("compact_labels", layer_kwargs))
         return self
 
