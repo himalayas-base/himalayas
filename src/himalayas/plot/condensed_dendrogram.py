@@ -33,6 +33,7 @@ from .renderers._label_format import (
     apply_label_text_policy,
     collect_label_stats,
     compose_label_text,
+    compute_equal_slots,
     format_label_prefix,
 )
 from .renderers.cluster_labels import _parse_label_overrides
@@ -434,7 +435,7 @@ def _prepare_cluster_labels(
         scores.append(lab_info.score)
     # Convert ranking scores to array.
     score_arr = np.asarray(scores, float)
-    y = np.arange(len(cluster_ids)) * 10.0 + 5.0
+    y = compute_equal_slots(len(cluster_ids), pitch=10.0)
 
     return labels, score_arr, lab_map, cluster_sizes, y
 
