@@ -26,8 +26,9 @@ from .renderers import (
 from .renderers._compact_label_types import (
     CLUSTER_SPANS,
     LINE_SHAPES,
+    LINE_SOURCE_ENDS,
     LINE_STYLES,
-    SOURCE_ENDS,
+    SOURCE_MARKERS,
     TARGET_ENDS,
 )
 from .renderers.label_bar import render_label_bar_track
@@ -1062,9 +1063,6 @@ class Plotter:
         boundary_color: Optional[str] = None,
         boundary_lw: Optional[float] = None,
         boundary_alpha: Optional[float] = None,
-        dendro_boundary_color: Optional[str] = None,
-        dendro_boundary_lw: Optional[float] = None,
-        dendro_boundary_alpha: Optional[float] = None,
         # Cluster-abreast span/bracket
         cluster_span: Optional[str] = None,
         cluster_span_color: Optional[str] = None,
@@ -1136,12 +1134,6 @@ class Plotter:
                 Defaults to style boundary_lw.
             boundary_alpha (Optional[float]): Matrix cluster boundary line opacity.
                 Defaults to style boundary_alpha.
-            dendro_boundary_color (Optional[str]): Dendrogram boundary line color.
-                Defaults to style dendro_boundary_color.
-            dendro_boundary_lw (Optional[float]): Dendrogram boundary line width (points).
-                Defaults to style dendro_boundary_lw.
-            dendro_boundary_alpha (Optional[float]): Dendrogram boundary line opacity.
-                Defaults to style dendro_boundary_alpha.
 
             Cluster-abreast span/bracket:
             cluster_span (Optional[str]): Vertical span drawn beside each cluster's row
@@ -1243,12 +1235,6 @@ class Plotter:
             layer_kwargs["boundary_lw"] = boundary_lw
         if boundary_alpha is not None:
             layer_kwargs["boundary_alpha"] = boundary_alpha
-        if dendro_boundary_color is not None:
-            layer_kwargs["dendro_boundary_color"] = dendro_boundary_color
-        if dendro_boundary_lw is not None:
-            layer_kwargs["dendro_boundary_lw"] = dendro_boundary_lw
-        if dendro_boundary_alpha is not None:
-            layer_kwargs["dendro_boundary_alpha"] = dendro_boundary_alpha
         # Cluster-abreast span/bracket
         if cluster_span is not None:
             layer_kwargs["cluster_span"] = cluster_span
@@ -1282,12 +1268,12 @@ class Plotter:
         self,
         *,
         overrides: Optional[Dict[int, str]] = None,
-        marker_prefix: str = "alpha",
+        source_marker: Optional[str] = None,
         rank_by: str = "p",
         label_mode: str = "top_term",
         max_words: Optional[int] = None,
         label_fields: Optional[Sequence[str]] = ...,  # type: ignore[assignment]
-        label_prefix: Optional[str] = None,
+        label_prefix: Optional[str] = "alpha",
         font: Optional[str] = None,
         fontsize: Optional[float] = None,
         color: Optional[str] = None,
@@ -1302,7 +1288,8 @@ class Plotter:
         overflow: str = "wrap",
         line_shape: Optional[str] = None,
         line_style: Optional[str] = None,
-        source_end: Optional[str] = None,
+        source_span: Optional[str] = None,
+        line_source_end: Optional[str] = None,
         target_end: Optional[str] = None,
         source_gap: Optional[float] = None,
         line_color: Optional[str] = None,
@@ -1318,7 +1305,10 @@ class Plotter:
         Kwargs:
             overrides (Optional[Dict[int, str]]): Per-cluster label overrides keyed by cluster id.
                 Defaults to None.
-            marker_prefix (str): Marker text mode, one of {"cid", "alpha"}. Defaults to "alpha".
+            source_marker (Optional[str]): Optional identity marker drawn at the source
+                (matrix-side) marker column, one of {None, "cid", "alpha"}. Off by default;
+                the source span/line alone is the pointer, and identity lives with the
+                floating label via label_prefix. Defaults to None.
             rank_by (str): Ranking statistic for representative terms, one of {"p", "q"}.
                 Defaults to "p".
             label_mode (str): Label mode, one of {"top_term", "compressed"}. Defaults to "top_term".
@@ -1326,8 +1316,8 @@ class Plotter:
             label_fields (Optional[Sequence[str]]): Fields to include in table labels: one or
                 more of "label", "n", "p", "q", "fe". If None, suppresses base label/stat text.
                 Defaults to style label_fields ("label", "n", "p").
-            label_prefix (Optional[str]): Prefix prepended to table label text, one of
-                {None, "cid", "alpha"}. Defaults to None.
+            label_prefix (Optional[str]): Sole owner of the floating-label identity prefix,
+                one of {None, "cid", "alpha"}. Defaults to "alpha".
             font (Optional[str]): Font family for markers and table labels. Defaults to None.
             fontsize (Optional[float]): Font size for table label text (points). The marker
                 glyph size defaults independently from style compact_marker_fontsize.
@@ -1349,14 +1339,17 @@ class Plotter:
                 Defaults to style compact_line_shape ("straight").
             line_style (Optional[str]): Leader-line style, one of {"solid", "dashed", "dotted"}.
                 Defaults to style compact_line_style ("solid").
-            source_end (Optional[str]): Matrix-side endpoint decoration, one of
-                {"tick", "span", "round", "none"}. "span" draws a vertical bracket spanning
-                the cluster's height, trimmed by source_gap. Defaults to style
-                compact_source_end ("tick").
+            source_span (Optional[str]): Matrix-side cluster-extent span/bracket, one of
+                {None, "line", "bracket"}, mirroring standard plot_cluster_labels(cluster_span=...).
+                "bracket" draws end caps sized by style compact_source_cap_width; "line" draws
+                a bare vertical stroke. Defaults to style compact_source_span (None).
+            line_source_end (Optional[str]): Connector-start point decoration, one of
+                {"tick", "round", "none"}, drawn only when source_span is None. Defaults to
+                style compact_line_source_end ("tick").
             target_end (Optional[str]): Table-side endpoint decoration, one of
                 {"tick", "arrow", "round", "none"}. Defaults to style compact_target_end ("tick").
             source_gap (Optional[float]): Row units trimmed from each end of a
-                source_end="span" bracket, clamped to at most half the cluster's span
+                source_span bracket/line, clamped to at most half the cluster's span
                 height. Defaults to style compact_source_gap.
             line_color (Optional[str]): Leader-line color. Defaults to style compact_line_color.
             line_lw (Optional[float]): Leader-line width. Defaults to style compact_line_lw.
@@ -1366,11 +1359,11 @@ class Plotter:
             Plotter: Self for chaining.
 
         Raises:
-            ValueError: If marker_prefix, label_fields, label_prefix, line_shape, line_style,
-                source_end, target_end, or source_gap is unsupported.
+            ValueError: If source_marker, label_fields, label_prefix, line_shape, line_style,
+                source_span, line_source_end, target_end, or source_gap is unsupported.
         """
-        if marker_prefix not in {"cid", "alpha"}:
-            raise ValueError("marker_prefix must be one of {'cid', 'alpha'}")
+        if source_marker is not None and source_marker not in SOURCE_MARKERS:
+            raise ValueError(f"source_marker must be one of {[None] + sorted(SOURCE_MARKERS)}")
         if label_fields is not ... and label_fields is not None:
             allowed_fields = {"label", "n", "p", "q", "fe"}
             if any(f not in allowed_fields for f in label_fields):
@@ -1381,8 +1374,10 @@ class Plotter:
             raise ValueError(f"line_shape must be one of {sorted(LINE_SHAPES)}")
         if line_style is not None and line_style not in LINE_STYLES:
             raise ValueError(f"line_style must be one of {sorted(LINE_STYLES)}")
-        if source_end is not None and source_end not in SOURCE_ENDS:
-            raise ValueError(f"source_end must be one of {sorted(SOURCE_ENDS)}")
+        if source_span is not None and source_span not in CLUSTER_SPANS:
+            raise ValueError(f"source_span must be one of {[None] + sorted(CLUSTER_SPANS)}")
+        if line_source_end is not None and line_source_end not in LINE_SOURCE_ENDS:
+            raise ValueError(f"line_source_end must be one of {sorted(LINE_SOURCE_ENDS)}")
         if target_end is not None and target_end not in TARGET_ENDS:
             raise ValueError(f"target_end must be one of {sorted(TARGET_ENDS)}")
         if source_gap is not None and source_gap < 0:
@@ -1395,15 +1390,15 @@ class Plotter:
         layer_kwargs: Dict[str, Any] = {
             "_label_options": label_options,
             "overrides": overrides,
-            "marker_prefix": marker_prefix,
+            "label_prefix": label_prefix,
             "skip_unlabeled": skip_unlabeled,
             "wrap_text": wrap_text,
             "overflow": overflow,
         }
+        if source_marker is not None:
+            layer_kwargs["source_marker"] = source_marker
         if label_fields is not ...:
             layer_kwargs["label_fields"] = label_fields
-        if label_prefix is not None:
-            layer_kwargs["label_prefix"] = label_prefix
         if font is not None:
             layer_kwargs["font"] = font
         if fontsize is not None:
@@ -1428,8 +1423,10 @@ class Plotter:
             layer_kwargs["line_shape"] = line_shape
         if line_style is not None:
             layer_kwargs["line_style"] = line_style
-        if source_end is not None:
-            layer_kwargs["source_end"] = source_end
+        if source_span is not None:
+            layer_kwargs["source_span"] = source_span
+        if line_source_end is not None:
+            layer_kwargs["line_source_end"] = line_source_end
         if target_end is not None:
             layer_kwargs["target_end"] = target_end
         if source_gap is not None:
@@ -1562,24 +1559,6 @@ class Plotter:
                     continue
                 boundary_registry.register(b, lw=lw, color=color, alpha=alpha)
 
-        # Derive dendrogram boundary styling from label panel settings.
-        dendro_boundary_style = None
-        if cluster_boundary_kwargs is not None:
-            dendro_boundary_style = {
-                "color": cluster_boundary_kwargs.get(
-                    "dendro_boundary_color",
-                    self._style["dendro_boundary_color"],
-                ),
-                "lw": cluster_boundary_kwargs.get(
-                    "dendro_boundary_lw",
-                    self._style["dendro_boundary_lw"],
-                ),
-                "alpha": cluster_boundary_kwargs.get(
-                    "dendro_boundary_alpha",
-                    self._style["dendro_boundary_alpha"],
-                ),
-            }
-
         # Render declared layers in order.
         for layer, kwargs in self._layers:
             if layer == "matrix":
@@ -1617,7 +1596,6 @@ class Plotter:
                     layout,
                     self._style,
                     results=self.results,
-                    boundary_style=dendro_boundary_style,
                 )
             elif layer == "title":
                 renderer = AxesRenderer("title", **kwargs)

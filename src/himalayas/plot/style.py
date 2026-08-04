@@ -53,9 +53,6 @@ class StyleDefaults(TypedDict):
     boundary_color: str
     boundary_lw: float
     boundary_alpha: float
-    dendro_boundary_color: str
-    dendro_boundary_lw: float
-    dendro_boundary_alpha: float
     placeholder_text: str
     placeholder_color: str
     placeholder_alpha: float
@@ -81,7 +78,8 @@ class StyleDefaults(TypedDict):
     compact_line_alpha: float
     compact_line_shape: str
     compact_line_style: str
-    compact_source_end: str
+    compact_source_span: Optional[str]
+    compact_line_source_end: str
     compact_target_end: str
     compact_source_gap: float
     compact_source_cap_width: float
@@ -134,9 +132,6 @@ DEFAULT_STYLE: StyleDefaults = {
     "boundary_color": "black",
     "boundary_lw": 0.5,
     "boundary_alpha": 0.6,
-    "dendro_boundary_color": "white",
-    "dendro_boundary_lw": 0.5,
-    "dendro_boundary_alpha": 0.3,
     # Placeholder for unlabeled clusters.
     "placeholder_text": "\u2014",
     "placeholder_color": "#b22222",
@@ -179,13 +174,17 @@ DEFAULT_STYLE: StyleDefaults = {
     "compact_line_shape": "straight",
     # One of {"solid", "dashed", "dotted"}.
     "compact_line_style": "solid",
-    # One of {"tick", "span", "round", "none"}.
-    "compact_source_end": "tick",
+    # Matrix-side cluster-extent span/bracket, one of {None, "line", "bracket"},
+    # mirroring standard cluster_span. None: no span/bracket drawn at the source.
+    "compact_source_span": None,
+    # Connector-start point decoration, one of {"tick", "round", "none"}, used only
+    # when compact_source_span is None.
+    "compact_line_source_end": "tick",
     # One of {"tick", "arrow", "round", "none"}.
     "compact_target_end": "tick",
-    # Row units trimmed from each end of a source_end="span" bracket.
+    # Row units trimmed from each end of a source_span bracket/line.
     "compact_source_gap": 0.15,
-    # Bracket cap width (axes fraction) for source_end="span".
+    # Bracket cap width (axes fraction) for source_span="bracket".
     "compact_source_cap_width": 0.15,
     # Cluster-abreast span/bracket in the standard label panel (opt-in via
     # plot_cluster_labels(cluster_span=...)). None color inherits label_sep_color.
