@@ -243,6 +243,131 @@ def test_plotter_requires_layers(toy_results):
 
 
 @pytest.mark.api
+def test_plotter_colorbars_only_renders_without_matrix(toy_results):
+    """
+    Ensures a colorbars-only chain renders without plot_matrix() or any label layer.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        (
+            Plotter(toy_results)
+            .add_colorbar(name="matrix", cmap="RdBu_r", norm=Normalize(-1, 1))
+            .plot_colorbars()
+            .show()
+        )
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+def test_plotter_cluster_labels_without_matrix_hides_placeholder_chrome(toy_results):
+    """
+    Ensures a matrix-less cluster-label + colorbar chain hides the placeholder axes
+    chrome (patch and spines) instead of leaving a visible empty matrix box, and
+    draws no matrix image.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        plotter = (
+            Plotter(toy_results)
+            .plot_cluster_labels()
+            .add_colorbar(name="matrix", cmap="RdBu_r", norm=Normalize(-1, 1))
+            .plot_colorbars()
+        )
+        plotter.show()
+        ax0 = plotter._fig.axes[0]
+        assert ax0.patch.get_visible() is False
+        assert all(not spine.get_visible() for spine in ax0.spines.values())
+        assert all(len(ax.images) == 0 for ax in plotter._fig.axes)
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+def test_plotter_compact_labels_without_matrix_hides_placeholder_chrome(toy_results):
+    """
+    Ensures a matrix-less compact-label + colorbar chain hides the placeholder axes
+    chrome (patch and spines) and draws no matrix image.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        plotter = (
+            Plotter(toy_results)
+            .plot_cluster_labels_compact()
+            .add_colorbar(name="enrichment", cmap="YlOrBr", norm=Normalize(0, 30))
+            .plot_colorbars()
+        )
+        plotter.show()
+        ax0 = plotter._fig.axes[0]
+        assert ax0.patch.get_visible() is False
+        assert all(not spine.get_visible() for spine in ax0.spines.values())
+        assert all(len(ax.images) == 0 for ax in plotter._fig.axes)
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+def test_plotter_title_preserved_without_matrix(toy_results):
+    """
+    Ensures plot_title() still renders when declared without plot_matrix(), since
+    the placeholder axes only has its patch/spines hidden, not the whole axes.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        plotter = Plotter(toy_results).plot_title("X").plot_cluster_labels()
+        plotter.show()
+        ax0 = plotter._fig.axes[0]
+        assert ax0.get_title() == "X"
+        assert ax0.patch.get_visible() is False
+        assert all(not spine.get_visible() for spine in ax0.spines.values())
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+def test_plotter_matrix_present_keeps_placeholder_chrome_visible(toy_results):
+    """
+    Ensures a standard plot_matrix() chain keeps the main axes patch/spines visible
+    and draws exactly one matrix image, unaffected by matrix-less handling.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        plotter = Plotter(toy_results).plot_matrix().plot_cluster_labels()
+        plotter.show()
+        ax0 = plotter._fig.axes[0]
+        assert ax0.patch.get_visible() is True
+        assert all(spine.get_visible() for spine in ax0.spines.values())
+        assert len(ax0.images) == 1
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
 def test_plotter_requires_layout(toy_matrix):
     """
     Ensures Plotter errors when Results has no attached layout.

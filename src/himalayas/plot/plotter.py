@@ -1556,7 +1556,7 @@ class Plotter:
             NotImplementedError: If a declared layer type is not supported.
         """
         # Validation
-        if not self._layers:
+        if not (self._layers or self._colorbars or self._label_legends):
             raise RuntimeError("No plot layers declared.")
         has_cluster_label_layer = any(layer == "cluster_labels" for layer, _ in self._layers)
         has_compact_label_layer = any(layer == "compact_labels" for layer, _ in self._layers)
@@ -1592,6 +1592,11 @@ class Plotter:
         # Create figure and main axis.
         fig, ax = plt.subplots(figsize=self._style["figsize"])
         fig.subplots_adjust(**self._style["subplots_adjust"])
+        if matrix_kwargs is None:
+            # No plot_matrix(): keep ax's bbox for colorbar/legend geometry, drop its chrome.
+            ax.patch.set_visible(False)
+            for spine in ax.spines.values():
+                spine.set_visible(False)
         if self._background is not None:
             fig.patch.set_facecolor(self._background)
 
