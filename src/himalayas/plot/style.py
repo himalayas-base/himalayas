@@ -71,7 +71,7 @@ class StyleDefaults(TypedDict):
     label_omit_words: Optional[Sequence[str]]
     label_fields: Tuple[str, ...]
     label_wrap_width: Optional[int]
-    compact_axes: Sequence[float]
+    compact_axes: Optional[Sequence[float]]
     compact_marker_width: float
     compact_bridge_width: float
     compact_table_pad: float
@@ -163,7 +163,8 @@ DEFAULT_STYLE: StyleDefaults = {
     # Optional label wrapping (characters per line); None = disabled.
     "label_wrap_width": None,
     # Compact radiating-label panel axis box [x0, y0, w, h].
-    "compact_axes": [0.70, 0.05, 0.29, 0.90],
+    # None: defaults to label_axes (set via set_label_panel) unless explicitly overridden.
+    "compact_axes": None,
     # Marker column width (fraction of compact_axes width).
     "compact_marker_width": 0.08,
     # Leader-line bridge width (fraction of compact_axes width).

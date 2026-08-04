@@ -192,7 +192,8 @@ def _setup_compact_axes(
     Returns:
         Tuple[plt.Axes, plt.Axes, plt.Axes]: (marker axis, bridge axis, table axis).
     """
-    x0, y0, w, h = style["compact_axes"]
+    compact_axes = style.get("compact_axes", None)
+    x0, y0, w, h = compact_axes if compact_axes is not None else style["label_axes"]
     marker_w = float(style.get("compact_marker_width", 0.08)) * w
     bridge_w = float(style.get("compact_bridge_width", 0.45)) * w
     table_pad = float(style.get("compact_table_pad", 0.02)) * w
