@@ -315,22 +315,12 @@ def test_draw_cluster_span_clips_gap_and_draws_caps():
     assert len(ax.lines) == 1
     assert sorted(ax.lines[0].get_ydata()) == pytest.approx([5.0, 5.0])
 
-    _plt.close(fig)
-
-
-@pytest.mark.unit
-def test_draw_cluster_span_singleton_does_not_fail():
-    """
-    Ensures draw_cluster_span does not fail for a singleton cluster (start == end),
-    collapsing to a zero-height span at the true center.
-    """
-    import matplotlib.pyplot as _plt
-
-    from himalayas.plot.renderers._cluster_span import draw_cluster_span
-
-    fig = _plt.figure()
-    ax = fig.add_axes([0, 0, 1, 1])
+    # Singleton cluster: collapses to a zero-height span at the true center.
+    ax.clear()
     draw_cluster_span(ax, 0.0, 4, 4, gap=0.2, cap_width=0.1, color="black", lw=1.0, alpha=1.0)
+    vertical = [ln for ln in ax.lines if ln.get_xdata()[0] == ln.get_xdata()[1]][0]
+    assert sorted(vertical.get_ydata()) == pytest.approx([4.0, 4.0])
+
     _plt.close(fig)
 
 
