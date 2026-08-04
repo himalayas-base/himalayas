@@ -616,6 +616,8 @@ class Plotter:
         fig,
         layout,
         layer_kwargs: Dict[str, Any],
+        *,
+        bar_kwargs: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Renders the compact radiating-label panel: markers, leader lines, and the
@@ -625,6 +627,9 @@ class Plotter:
             fig: Matplotlib figure.
             layout: Cluster layout object.
             layer_kwargs (Dict[str, Any]): Declared plot_cluster_labels_compact() layer kwargs.
+
+        Kwargs:
+            bar_kwargs (Optional[Dict[str, Any]]): Bar-label renderer kwargs. Defaults to None.
         """
         renderer_kwargs = dict(layer_kwargs)
         label_options = renderer_kwargs.pop("_label_options", {})
@@ -635,7 +640,14 @@ class Plotter:
         renderer_kwargs.pop("boundary_alpha", None)
         df = self.results.cluster_labels(**label_options)
         renderer = CompactLabelsRenderer(df, **renderer_kwargs)
-        renderer.render(fig, self.matrix, layout, self._style)
+        renderer.render(
+            fig,
+            self.matrix,
+            layout,
+            self._style,
+            self._track_layout,
+            bar_labels_kwargs=bar_kwargs,
+        )
 
     def plot_cluster_bar(
         self,
@@ -1535,7 +1547,8 @@ class Plotter:
         Raises:
             RuntimeError: If no plot layers are declared.
             ValueError: If layout orders do not match matrix dimensions.
-            ValueError: If cluster-level tracks are declared without plot_cluster_labels().
+            ValueError: If cluster-level tracks are declared without plot_cluster_labels()
+                or plot_cluster_labels_compact().
             NotImplementedError: If a declared layer type is not supported.
         """
         # Validation
@@ -1545,9 +1558,10 @@ class Plotter:
         has_compact_label_layer = any(layer == "compact_labels" for layer, _ in self._layers)
         has_row_track = self._has_track_kind("row")
         has_cluster_track = self._has_track_kind("cluster")
-        if has_cluster_track and not has_cluster_label_layer:
+        if has_cluster_track and not (has_cluster_label_layer or has_compact_label_layer):
             raise ValueError(
-                "plot_cluster_bar() requires plot_cluster_labels() in the same plotting chain."
+                "plot_cluster_bar() requires plot_cluster_labels() or "
+                "plot_cluster_labels_compact() in the same plotting chain."
             )
         if has_cluster_label_layer and has_compact_label_layer:
             raise ValueError(
@@ -1646,7 +1660,7 @@ class Plotter:
             elif layer == "cluster_labels":
                 self._render_label_panel(fig, layout, bar_kwargs=bar_kwargs, cluster_kwargs=kwargs)
             elif layer == "compact_labels":
-                self._render_compact_label_panel(fig, layout, kwargs)
+                self._render_compact_label_panel(fig, layout, kwargs, bar_kwargs=bar_kwargs)
             elif layer == "bar_labels":
                 # Consumed inside the cluster label panel; no direct rendering.
                 continue

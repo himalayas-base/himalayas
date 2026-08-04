@@ -805,3 +805,65 @@ def test_plot_cluster_labels_compact_anchors_to_custom_label_panel(toy_results):
             assert h == pytest.approx(custom_axes[3])
     finally:
         plt.show = plt_show
+
+
+@pytest.mark.api
+def test_plot_cluster_labels_compact_supports_cluster_bar_and_bar_labels(toy_results):
+    """
+    Ensures plot_cluster_bar() and plot_bar_labels() render without error alongside
+    plot_cluster_labels_compact(), since cluster bars are cluster-frame metadata and
+    should not require standard inline labels specifically.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        plotter = (
+            Plotter(toy_results)
+            .plot_matrix()
+            .plot_cluster_labels_compact()
+            .plot_cluster_bar(name="sig", title="Enrichment")
+            .plot_bar_labels()
+        )
+        plotter.show()
+        assert plotter._fig is not None
+        texts = extract_figure_text(plotter._fig, strip=True, nonempty=True)
+        assert texts
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+def test_plot_cluster_labels_compact_cluster_bar_track_left_of_compact_axes(toy_results):
+    """
+    Ensures the cluster-bar track occupies a region strictly to the left of the compact
+    marker/bridge/table axes, i.e. it does not overlap the compact equal-slot geometry.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        plotter = (
+            Plotter(toy_results)
+            .plot_matrix()
+            .plot_cluster_labels_compact()
+            .plot_cluster_bar(name="sig")
+        )
+        plotter.show()
+
+        track_ax, marker_ax, bridge_ax, table_ax = plotter._fig.axes[-4:]
+        track_x0, _, track_w, _ = track_ax.get_position().bounds
+        marker_x0, _, _, _ = marker_ax.get_position().bounds
+
+        assert track_x0 + track_w == pytest.approx(marker_x0)
+        for ax in (marker_ax, bridge_ax, table_ax):
+            ax_x0, _, _, _ = ax.get_position().bounds
+            assert track_x0 + track_w <= ax_x0 + 1e-9
+    finally:
+        plt.show = plt_show

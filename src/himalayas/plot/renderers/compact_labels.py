@@ -23,9 +23,11 @@ from ._compact_label_types import (
 )
 from ._label_format import compute_equal_slots, format_label_prefix, resolve_cluster_label_content
 from ._text_style import apply_text_style
+from ._track_rendering import _render_tracks
 
 if TYPE_CHECKING:
     from ..style import StyleConfig
+    from ..track_layout import TrackLayoutManager
     from ...core.layout import ClusterLayout
     from ...core.matrix import Matrix
 
@@ -213,20 +215,39 @@ def _setup_compact_axes(
     fig: plt.Figure,
     n_rows: int,
     style: StyleConfig,
-) -> Tuple[plt.Axes, plt.Axes, plt.Axes]:
+    track_layout: Optional[TrackLayoutManager] = None,
+) -> Tuple[plt.Axes, plt.Axes, plt.Axes, Optional[plt.Axes]]:
     """
-    Creates the marker, bridge, and table sub-axes for the compact-label panel.
+    Creates the marker, bridge, and table sub-axes for the compact-label panel, plus an
+    optional leading track axis reserved for cluster-level tracks (e.g. plot_cluster_bar()).
 
     Args:
         fig (plt.Figure): Target figure.
         n_rows (int): Number of matrix rows.
         style (StyleConfig): Style configuration.
 
+    Kwargs:
+        track_layout (Optional[TrackLayoutManager]): Registered label-panel tracks, if any.
+            Defaults to None.
+
     Returns:
-        Tuple[plt.Axes, plt.Axes, plt.Axes]: (marker axis, bridge axis, table axis).
+        Tuple[plt.Axes, plt.Axes, plt.Axes, Optional[plt.Axes]]:
+            (marker axis, bridge axis, table axis, track axis or None).
     """
     compact_axes = style.get("compact_axes", None)
     x0, y0, w, h = compact_axes if compact_axes is not None else style["label_axes"]
+
+    # Reserve horizontal space for cluster tracks (e.g. plot_cluster_bar()) immediately
+    # before the marker column, mirroring the standard label panel's gutter/track region.
+    ax_trk = None
+    if track_layout is not None:
+        track_layout.compute_layout(base_x=x0, gutter_width=0.0)
+        end_x = track_layout.get_end_x()
+        if end_x is not None and end_x > x0:
+            ax_trk = fig.add_axes([x0, y0, end_x - x0, h], frameon=False)
+            w -= end_x - x0
+            x0 = end_x
+
     marker_w = float(style.get("compact_marker_width", 0.08)) * w
     bridge_w = float(style.get("compact_bridge_width", 0.45)) * w
     table_pad = float(style.get("compact_table_pad", 0.02)) * w
@@ -237,13 +258,16 @@ def _setup_compact_axes(
     ax_bridge = fig.add_axes([x0 + marker_w, y0, bridge_w, h], frameon=False)
     ax_tbl = fig.add_axes([table_x0, y0, table_w, h], frameon=False)
 
-    for ax in (ax_mrk, ax_bridge, ax_tbl):
+    all_axes = (
+        (ax_mrk, ax_bridge, ax_tbl, ax_trk) if ax_trk is not None else (ax_mrk, ax_bridge, ax_tbl)
+    )
+    for ax in all_axes:
         ax.set_xlim(0, 1)
         ax.set_ylim(n_rows - 0.5, -0.5)
         ax.set_xticks([])
         ax.set_yticks([])
 
-    return ax_mrk, ax_bridge, ax_tbl
+    return ax_mrk, ax_bridge, ax_tbl, ax_trk
 
 
 class CompactLabelsRenderer:
@@ -423,6 +447,8 @@ class CompactLabelsRenderer:
         matrix: Matrix,
         layout: ClusterLayout,
         style: StyleConfig,
+        track_layout: Optional[TrackLayoutManager] = None,
+        bar_labels_kwargs: Optional[Dict[str, object]] = None,
     ) -> None:
         """
         Renders markers at true cluster centers, leader lines, and an equally-spaced label table.
@@ -432,6 +458,13 @@ class CompactLabelsRenderer:
             matrix (Matrix): Matrix object providing row count.
             layout (ClusterLayout): Cluster layout providing `cluster_spans` in dendrogram order.
             style (StyleConfig): Style configuration.
+
+        Kwargs:
+            track_layout (Optional[TrackLayoutManager]): Registered label-panel tracks. Only
+                cluster-kind tracks (e.g. plot_cluster_bar()) are drawn; row-kind tracks are not
+                supported in the compact panel. Defaults to None.
+            bar_labels_kwargs (Optional[Dict[str, object]]): Bar title rendering options,
+                consumed only when cluster tracks are drawn. Defaults to None.
         """
         n_rows = matrix.df.shape[0]
         spans: List[Tuple[int, int, int]] = list(layout.cluster_spans)
@@ -440,7 +473,19 @@ class CompactLabelsRenderer:
         label_map = _build_label_map(self.df, override_map)
         label_fields = self.label_fields if self.label_fields is not ... else style["label_fields"]
 
-        ax_mrk, ax_bridge, ax_tbl = _setup_compact_axes(fig, n_rows, style)
+        ax_mrk, ax_bridge, ax_tbl, ax_trk = _setup_compact_axes(fig, n_rows, style, track_layout)
+        if ax_trk is not None:
+            cluster_tracks = [t for t in track_layout.get_tracks() if t.get("kind") == "cluster"]
+            _render_tracks(
+                ax_trk,
+                cluster_tracks,
+                matrix=matrix,
+                row_order=layout.leaf_order,
+                spans=spans,
+                label_map=label_map,
+                style=style,
+                bar_labels_kwargs=bar_labels_kwargs,
+            )
 
         text_color = self.color if self.color is not None else style.get("text_color", "black")
         text_alpha = self.alpha if self.alpha is not None else 0.9
