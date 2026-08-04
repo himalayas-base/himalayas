@@ -16,7 +16,6 @@ from typing import (
 )
 
 import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
 
 from ._cluster_label_data import _build_label_map, _parse_label_overrides
@@ -132,8 +131,8 @@ def _resolve_labels_and_layout(
         sep_xmin = label_text_x
     if sep_xmax is None:
         sep_xmax = 1.0
-    sep_xmin = float(np.clip(sep_xmin, 0.0, 1.0))
-    sep_xmax = float(np.clip(sep_xmax, 0.0, 1.0))
+    sep_xmin = float(sep_xmin)
+    sep_xmax = float(sep_xmax)
     if sep_xmin > sep_xmax:
         sep_xmin, sep_xmax = sep_xmax, sep_xmin
     # Resolve text style options.
@@ -302,14 +301,16 @@ def _render_cluster_text_and_separators(
             sep_color = kwargs.get("label_sep_color", style["label_sep_color"])
             sep_lw = kwargs.get("label_sep_lw", style["label_sep_lw"])
             sep_alpha = kwargs.get("label_sep_alpha", style["label_sep_alpha"])
-            ax_lab.axhline(
-                s - 0.5,
-                xmin=sep_xmin,
-                xmax=sep_xmax,
+            # Drawn as an explicit line (not axhline) so xmin/xmax may extend past
+            # the label axis' [0, 1] range; clip_on=False lets that overshoot show.
+            ax_lab.plot(
+                [sep_xmin, sep_xmax],
+                [s - 0.5, s - 0.5],
                 color=sep_color,
                 linewidth=sep_lw,
                 alpha=sep_alpha,
                 zorder=0,
+                clip_on=False,
             )
 
 

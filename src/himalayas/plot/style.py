@@ -144,7 +144,8 @@ DEFAULT_STYLE: StyleDefaults = {
     "label_sep_color": "gray",
     "label_sep_lw": 0.5,
     "label_sep_alpha": 0.3,
-    # Optional override for label separator segment span (axes coords 0..1).
+    # Optional override for label separator segment span (label-axes fraction;
+    # 0..1 spans the label panel, values outside extend beyond it).
     # If None, separators start after gutter+sigbar+pad and extend to 1.0.
     "label_sep_xmin": None,
     "label_sep_xmax": None,

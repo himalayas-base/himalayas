@@ -1133,10 +1133,14 @@ class Plotter:
                 Defaults to style placeholder_alpha.
 
             Separator lines:
-            label_sep_xmin (Optional[float]): Left extent of inter-cluster separator lines
-                (0–1, figure fraction). Defaults to the label text x-position.
-            label_sep_xmax (Optional[float]): Right extent of inter-cluster separator lines
-                (0–1, figure fraction). Defaults to 1.0.
+            label_sep_xmin (Optional[float]): Left extent of inter-cluster separator lines,
+                as a label-panel axes fraction (0 = label panel left edge, 1 = right edge).
+                Values outside [0, 1] intentionally extend beyond the label panel.
+                Defaults to the label text x-position.
+            label_sep_xmax (Optional[float]): Right extent of inter-cluster separator lines,
+                as a label-panel axes fraction (0 = label panel left edge, 1 = right edge).
+                Values outside [0, 1] intentionally extend beyond the label panel.
+                Defaults to 1.0.
             label_sep_color (Optional[str]): Separator line color.
                 Defaults to style label_sep_color.
             label_sep_lw (Optional[float]): Separator line width (points).

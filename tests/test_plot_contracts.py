@@ -1158,6 +1158,124 @@ def test_plot_cluster_labels_max_words_controls_display(toy_results):
         plt.show = plt_show
 
 
+def _separator_lines(ax_lab):
+    """
+    Filters an axes' line artists down to horizontal inter-cluster separator lines.
+
+    Args:
+        ax_lab (matplotlib.axes.Axes): Label panel axes to inspect.
+
+    Returns:
+        list: Line2D artists whose endpoints share a y-value and differ in x.
+    """
+    return [
+        ln
+        for ln in ax_lab.lines
+        if ln.get_xdata()[0] != ln.get_xdata()[1] and ln.get_ydata()[0] == ln.get_ydata()[1]
+    ]
+
+
+@pytest.mark.api
+def test_plot_cluster_labels_label_sep_xmax_extends_past_one(toy_results):
+    """
+    Ensures label_sep_xmax > 1.0 is not clamped and reaches the drawn separator line.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        plotter = (
+            Plotter(toy_results)
+            .plot_matrix()
+            .plot_cluster_labels(label_sep_xmax=1.4)
+        )
+        plotter.show()
+        ax_lab = plotter._fig.axes[-1]
+        seps = _separator_lines(ax_lab)
+        assert seps, "Expected at least one separator line to be drawn."
+        assert all(max(ln.get_xdata()) == pytest.approx(1.4) for ln in seps)
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+def test_plot_cluster_labels_label_sep_lines_not_clipped(toy_results):
+    """
+    Ensures separator line artists are drawn with clip_on=False so extended spans
+    beyond the label panel remain visible.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        plotter = Plotter(toy_results).plot_matrix().plot_cluster_labels(label_sep_xmax=1.4)
+        plotter.show()
+        ax_lab = plotter._fig.axes[-1]
+        seps = _separator_lines(ax_lab)
+        assert seps, "Expected at least one separator line to be drawn."
+        assert all(ln.get_clip_on() is False for ln in seps)
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+def test_plot_cluster_labels_label_sep_xmax_default_unchanged(toy_results):
+    """
+    Ensures omitting label_sep_xmax still resolves separator lines to end at 1.0.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        plotter = Plotter(toy_results).plot_matrix().plot_cluster_labels()
+        plotter.show()
+        ax_lab = plotter._fig.axes[-1]
+        seps = _separator_lines(ax_lab)
+        assert seps, "Expected at least one separator line to be drawn."
+        assert all(max(ln.get_xdata()) == pytest.approx(1.0) for ln in seps)
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+def test_plot_cluster_labels_label_sep_xmin_xmax_swap_outside_unit_range(toy_results):
+    """
+    Ensures the xmin/xmax swap safety check still applies when values fall outside
+    [0, 1], now that they are no longer clamped before comparison.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        plotter = (
+            Plotter(toy_results)
+            .plot_matrix()
+            .plot_cluster_labels(label_sep_xmin=1.5, label_sep_xmax=-0.5)
+        )
+        plotter.show()
+        ax_lab = plotter._fig.axes[-1]
+        seps = _separator_lines(ax_lab)
+        assert seps, "Expected at least one separator line to be drawn."
+        for ln in seps:
+            xdata = ln.get_xdata()
+            assert min(xdata) == pytest.approx(-0.5)
+            assert max(xdata) == pytest.approx(1.5)
+    finally:
+        plt.show = plt_show
+
+
 @pytest.mark.unit
 def test_track_layout_duplicate_names_raise():
     """
