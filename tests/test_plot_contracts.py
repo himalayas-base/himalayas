@@ -392,22 +392,49 @@ def test_plotter_requires_layout(toy_matrix):
 
 
 @pytest.mark.api
-def test_plot_cluster_bar_requires_cluster_labels_layer(toy_results):
+def test_plot_cluster_bar_renders_standalone(toy_results):
     """
-    Ensures cluster bars require the cluster label layer in the same plot chain.
+    Ensures plot_cluster_bar renders without plot_cluster_labels or
+    plot_cluster_labels_compact, using the tracks-only fallback.
 
     Args:
         toy_results (Results): Results fixture with clusters and layout.
-
-    Raises:
-        ValueError: If plot_cluster_bar is used without plot_cluster_labels.
     """
     plt = use_agg_backend()
     plt_show = plt.show
     plt.show = lambda *args, **kwargs: None
     try:
-        with pytest.raises(ValueError, match="plot_cluster_labels"):
-            Plotter(toy_results).plot_matrix().plot_cluster_bar(name="sig").show()
+        Plotter(toy_results).plot_cluster_bar(name="sig").plot_bar_labels().show()
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+def test_plot_cluster_bar_standalone_without_matrix_hides_placeholder_chrome(toy_results):
+    """
+    Ensures a matrix-less standalone cluster-bar + colorbar chain hides the
+    placeholder axes chrome (patch and spines) instead of leaving a visible empty
+    matrix box, and draws no matrix image.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        plotter = (
+            Plotter(toy_results)
+            .plot_cluster_bar(name="sig")
+            .plot_bar_labels()
+            .add_colorbar(name="matrix", cmap="RdBu_r", norm=Normalize(-1, 1))
+            .plot_colorbars()
+        )
+        plotter.show()
+        ax0 = plotter._fig.axes[0]
+        assert ax0.patch.get_visible() is False
+        assert all(not spine.get_visible() for spine in ax0.spines.values())
+        assert all(len(ax.images) == 0 for ax in plotter._fig.axes)
     finally:
         plt.show = plt_show
 

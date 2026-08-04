@@ -1551,8 +1551,6 @@ class Plotter:
         Raises:
             RuntimeError: If no plot layers are declared.
             ValueError: If layout orders do not match matrix dimensions.
-            ValueError: If cluster-level tracks are declared without plot_cluster_labels()
-                or plot_cluster_labels_compact().
             NotImplementedError: If a declared layer type is not supported.
         """
         # Validation
@@ -1562,11 +1560,6 @@ class Plotter:
         has_compact_label_layer = any(layer == "compact_labels" for layer, _ in self._layers)
         has_row_track = self._has_track_kind("row")
         has_cluster_track = self._has_track_kind("cluster")
-        if has_cluster_track and not (has_cluster_label_layer or has_compact_label_layer):
-            raise ValueError(
-                "plot_cluster_bar() requires plot_cluster_labels() or "
-                "plot_cluster_labels_compact() in the same plotting chain."
-            )
         if has_cluster_label_layer and has_compact_label_layer:
             raise ValueError(
                 "plot_cluster_labels() and plot_cluster_labels_compact() are mutually exclusive "
@@ -1675,8 +1668,10 @@ class Plotter:
                 continue
             else:
                 raise NotImplementedError(f"Unknown plot layer: {layer}")
-        # Row-level label tracks can render without cluster label text.
-        if has_row_track and not has_cluster_label_layer:
+        # Row- and cluster-level label tracks can render without cluster label text.
+        if (has_row_track or has_cluster_track) and not (
+            has_cluster_label_layer or has_compact_label_layer
+        ):
             self._render_label_panel(fig, layout, bar_kwargs=bar_kwargs)
 
         # Render bottom colorbar strip (global legends).
