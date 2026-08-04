@@ -287,9 +287,10 @@ def test_plot_cluster_labels_compact_source_span_renders_with_every_line_shape(t
 @pytest.mark.unit
 def test_draw_cluster_span_clips_gap_and_draws_caps():
     """
-    Ensures draw_cluster_span trims (start + gap, end - gap), clamps an excessive
-    gap to half the span height instead of inverting, and draws horizontal end
-    caps only when cap_width > 0.
+    Ensures draw_cluster_span trims (s - 0.5 + gap, e + 0.5 - gap) — the cluster's
+    true row extent, matching matrix/boundary/bar geometry — clamps an excessive
+    gap to half that extent instead of inverting, and draws horizontal end caps
+    only when cap_width > 0.
 
     Raises:
         AssertionError: If clamped extents or cap presence are wrong.
@@ -301,23 +302,41 @@ def test_draw_cluster_span_clips_gap_and_draws_caps():
     fig = _plt.figure()
     ax = fig.add_axes([0, 0, 1, 1])
 
-    # Normal cluster with caps: vertical stroke trims symmetrically, plus two caps.
+    # Normal cluster with caps: vertical stroke trims symmetrically from the true
+    # row extent (s - 0.5 to e + 0.5), plus two caps.
     draw_cluster_span(ax, 0.0, 2, 8, gap=1.0, cap_width=0.1, color="black", lw=1.0, alpha=1.0)
     assert len(ax.lines) == 3
     vertical = [ln for ln in ax.lines if ln.get_xdata()[0] == ln.get_xdata()[1]][0]
-    assert sorted(vertical.get_ydata()) == pytest.approx([3.0, 7.0])
+    assert sorted(vertical.get_ydata()) == pytest.approx([2.5, 7.5])
     cap_ys = sorted(ln.get_ydata()[0] for ln in ax.lines if ln.get_xdata()[0] != ln.get_xdata()[1])
-    assert cap_ys == pytest.approx([3.0, 7.0])
+    assert cap_ys == pytest.approx([2.5, 7.5])
+    # All span/cap artists disable axes-patch clipping so endpoints landing exactly on
+    # the panel's row-index ylim (first/last cluster) aren't visually truncated.
+    assert all(ln.get_clip_on() is False for ln in ax.lines)
 
-    # Excessive gap: clamps to half the span height instead of crossing over.
+    # No gap: bracket edges land exactly on the cluster's true row-extent boundaries
+    # (s - 0.5, e + 0.5), matching cluster boundary lines and cluster bar rectangles.
+    ax.clear()
+    draw_cluster_span(ax, 0.0, 2, 8, gap=0.0, cap_width=0.0, color="black", lw=1.0, alpha=1.0)
+    assert sorted(ax.lines[0].get_ydata()) == pytest.approx([1.5, 8.5])
+
+    # Excessive gap: clamps to half the full row extent instead of crossing over.
     ax.clear()
     draw_cluster_span(ax, 0.0, 4, 6, gap=10.0, cap_width=0.0, color="black", lw=1.0, alpha=1.0)
     assert len(ax.lines) == 1
     assert sorted(ax.lines[0].get_ydata()) == pytest.approx([5.0, 5.0])
 
-    # Singleton cluster: collapses to a zero-height span at the true center.
+    # Singleton cluster: a small gap produces a real bracket within the true
+    # one-row extent (s - 0.5 to e + 0.5).
     ax.clear()
     draw_cluster_span(ax, 0.0, 4, 4, gap=0.2, cap_width=0.1, color="black", lw=1.0, alpha=1.0)
+    vertical = [ln for ln in ax.lines if ln.get_xdata()[0] == ln.get_xdata()[1]][0]
+    assert sorted(vertical.get_ydata()) == pytest.approx([3.7, 4.3])
+
+    # Singleton cluster, gap beyond half the row extent: collapses to a zero-height
+    # span at the true center.
+    ax.clear()
+    draw_cluster_span(ax, 0.0, 4, 4, gap=0.6, cap_width=0.1, color="black", lw=1.0, alpha=1.0)
     vertical = [ln for ln in ax.lines if ln.get_xdata()[0] == ln.get_xdata()[1]][0]
     assert sorted(vertical.get_ydata()) == pytest.approx([4.0, 4.0])
 
@@ -547,5 +566,37 @@ def test_plot_cluster_labels_cluster_span_pad_defaults_match_explicit_values(toy
         assert default_span_x == pytest.approx(explicit_span_x)
         assert default_label_x and explicit_label_x
         assert default_label_x == pytest.approx(explicit_label_x)
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+def test_plot_cluster_labels_compact_anchors_to_custom_label_panel(toy_results):
+    """
+    Ensures compact labels default to the label-panel region set via set_label_panel(axes=...),
+    matching standard cluster labels' vertical anchoring rather than a stale compact_axes default.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        custom_axes = [0.61, 0.13, 0.35, 0.77]
+        plotter = (
+            Plotter(toy_results)
+            .plot_matrix()
+            .set_label_panel(axes=custom_axes)
+            .plot_cluster_labels_compact()
+        )
+        plotter.show()
+
+        compact_axes = plotter._fig.axes[-3:]
+        assert len(compact_axes) == 3
+        for ax in compact_axes:
+            x0, y0, w, h = ax.get_position().bounds
+            assert y0 == pytest.approx(custom_axes[1])
+            assert h == pytest.approx(custom_axes[3])
     finally:
         plt.show = plt_show
