@@ -73,6 +73,89 @@ def test_plotter_set_background_sets_figure_facecolor(toy_results):
 
 
 @pytest.mark.api
+def test_plotter_set_figure_figsize_applies_without_matrix(toy_results):
+    """
+    Ensures set_figure(figsize=...) sizes a matrix-less colorbars-only figure.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        plotter = (
+            Plotter(toy_results)
+            .set_figure(figsize=(4.2, 1.0))
+            .add_colorbar(name="matrix", cmap="RdBu_r", norm=Normalize(-1, 1))
+            .plot_colorbars()
+        )
+        plotter.show()
+        assert plotter._fig.get_size_inches() == pytest.approx((4.2, 1.0))
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+def test_plotter_set_figure_figsize_applies_with_matrix(toy_results):
+    """
+    Ensures set_figure(figsize=...) sizes the figure when a matrix layer is declared.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        plotter = Plotter(toy_results).set_figure(figsize=(4.2, 1.0)).plot_matrix()
+        plotter.show()
+        assert plotter._fig.get_size_inches() == pytest.approx((4.2, 1.0))
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+def test_plotter_set_figure_subplots_adjust_applies_without_matrix(toy_results):
+    """
+    Ensures set_figure(subplots_adjust=...) applies to a matrix-less colorbars-only figure.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        plotter = (
+            Plotter(toy_results)
+            .set_figure(subplots_adjust={"left": 0.3})
+            .add_colorbar(name="matrix", cmap="RdBu_r", norm=Normalize(-1, 1))
+            .plot_colorbars()
+        )
+        plotter.show()
+        assert plotter._fig.subplotpars.left == 0.3
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+def test_plotter_set_figure_validation_errors(toy_results):
+    """
+    Ensures set_figure() rejects malformed figsize/subplots_adjust arguments.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    with pytest.raises(TypeError):
+        Plotter(toy_results).set_figure(figsize=(1, 2, 3))
+    with pytest.raises(ValueError):
+        Plotter(toy_results).set_figure(figsize=(0, 1))
+    with pytest.raises(TypeError):
+        Plotter(toy_results).set_figure(subplots_adjust="bad")
+
+
+@pytest.mark.api
 def test_plotter_stacked_defaults_smoke(toy_results):
     """
     Ensures a stacked default Plotter chain renders without explicit style kwargs
@@ -285,11 +368,42 @@ def test_plotter_colorbars_only_renders_without_matrix(toy_results):
 
 
 @pytest.mark.api
+def test_plotter_colorbars_only_save_crops_tightly(toy_results, tmp_path):
+    """
+    Ensures a colorbars-only save with bbox_inches="tight" crops around the
+    colorbar strip instead of retaining the matrix-sized placeholder bbox.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+        tmp_path (Path): Temporary output directory.
+    """
+    import matplotlib.image as mpimg
+
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        plotter = (
+            Plotter(toy_results)
+            .add_colorbar(name="matrix", cmap="RdBu_r", norm=Normalize(-1, 1))
+            .plot_colorbars()
+        )
+        out = tmp_path / "colorbars_only.png"
+        dpi = 100
+        plotter.save(out, dpi=dpi, bbox_inches="tight", pad_inches=0.02)
+        height_px = mpimg.imread(out).shape[0]
+        # Default figsize is 7in tall; a tight colorbar-only crop should be
+        # a small fraction of that, not the full matrix-sized placeholder.
+        assert height_px < 2.0 * dpi
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
 def test_plotter_cluster_labels_without_matrix_hides_placeholder_chrome(toy_results):
     """
-    Ensures a matrix-less cluster-label + colorbar chain hides the placeholder axes
-    chrome (patch and spines) instead of leaving a visible empty matrix box, and
-    draws no matrix image.
+    Ensures a matrix-less cluster-label + colorbar chain hides the whole placeholder
+    axes instead of leaving a visible empty matrix box, and draws no matrix image.
 
     Args:
         toy_results (Results): Results fixture with clusters and layout.
@@ -306,8 +420,7 @@ def test_plotter_cluster_labels_without_matrix_hides_placeholder_chrome(toy_resu
         )
         plotter.show()
         ax0 = plotter._fig.axes[0]
-        assert ax0.patch.get_visible() is False
-        assert all(not spine.get_visible() for spine in ax0.spines.values())
+        assert ax0.get_visible() is False
         assert all(len(ax.images) == 0 for ax in plotter._fig.axes)
     finally:
         plt.show = plt_show
@@ -316,8 +429,8 @@ def test_plotter_cluster_labels_without_matrix_hides_placeholder_chrome(toy_resu
 @pytest.mark.api
 def test_plotter_compact_labels_without_matrix_hides_placeholder_chrome(toy_results):
     """
-    Ensures a matrix-less compact-label + colorbar chain hides the placeholder axes
-    chrome (patch and spines) and draws no matrix image.
+    Ensures a matrix-less compact-label + colorbar chain hides the whole placeholder
+    axes and draws no matrix image.
 
     Args:
         toy_results (Results): Results fixture with clusters and layout.
@@ -334,18 +447,19 @@ def test_plotter_compact_labels_without_matrix_hides_placeholder_chrome(toy_resu
         )
         plotter.show()
         ax0 = plotter._fig.axes[0]
-        assert ax0.patch.get_visible() is False
-        assert all(not spine.get_visible() for spine in ax0.spines.values())
+        assert ax0.get_visible() is False
         assert all(len(ax.images) == 0 for ax in plotter._fig.axes)
     finally:
         plt.show = plt_show
 
 
 @pytest.mark.api
-def test_plotter_title_preserved_without_matrix(toy_results):
+def test_plotter_title_without_matrix_hides_placeholder_axes(toy_results):
     """
-    Ensures plot_title() still renders when declared without plot_matrix(), since
-    the placeholder axes only has its patch/spines hidden, not the whole axes.
+    Ensures plot_title() without plot_matrix() still sets title text on the
+    placeholder axes, even though the whole axes (and thus the title) is now
+    excluded from tight-bbox cropping. Standalone title placement is out of
+    scope here; see plot_cluster_labels_without_matrix_hides_placeholder_chrome.
 
     Args:
         toy_results (Results): Results fixture with clusters and layout.
@@ -358,8 +472,7 @@ def test_plotter_title_preserved_without_matrix(toy_results):
         plotter.show()
         ax0 = plotter._fig.axes[0]
         assert ax0.get_title() == "X"
-        assert ax0.patch.get_visible() is False
-        assert all(not spine.get_visible() for spine in ax0.spines.values())
+        assert ax0.get_visible() is False
     finally:
         plt.show = plt_show
 
@@ -380,9 +493,51 @@ def test_plotter_matrix_present_keeps_placeholder_chrome_visible(toy_results):
         plotter = Plotter(toy_results).plot_matrix().plot_cluster_labels()
         plotter.show()
         ax0 = plotter._fig.axes[0]
+        assert ax0.get_visible() is True
         assert ax0.patch.get_visible() is True
         assert all(spine.get_visible() for spine in ax0.spines.values())
         assert len(ax0.images) == 1
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+def test_plot_cluster_labels_gutter_does_not_occlude_matrix_spine(toy_results):
+    """
+    Ensures the label-panel gutter starts inside the label panel when axes are
+    flush, so it cannot paint over the matrix's right spine.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        matrix_right = 0.70
+        plotter = (
+            Plotter(toy_results)
+            .plot_matrix(outer_lw=2.0)
+            .set_label_panel(
+                axes=[matrix_right, 0.05, 0.29, 0.90],
+                gutter_color="white",
+            )
+            .plot_cluster_labels()
+        )
+        plotter.show()
+        fig = plotter._fig
+        ax_matrix, ax_lab = fig.axes[0], fig.axes[1]
+        gutter_patches = [p for p in ax_lab.patches if isinstance(p, plt.Rectangle)]
+        assert gutter_patches, "Expected the label-panel gutter rectangle to be drawn."
+
+        fig.canvas.draw()
+        gutter = gutter_patches[0]
+        assert gutter.get_width() >= 0.0
+        gutter_left_fig_x = fig.transFigure.inverted().transform(
+            ax_lab.transData.transform(gutter.get_xy())
+        )[0]
+
+        assert gutter_left_fig_x > ax_matrix.get_position().x1
     finally:
         plt.show = plt_show
 
@@ -432,9 +587,9 @@ def test_plot_cluster_bar_renders_standalone(toy_results):
 @pytest.mark.api
 def test_plot_cluster_bar_standalone_without_matrix_hides_placeholder_chrome(toy_results):
     """
-    Ensures a matrix-less standalone cluster-bar + colorbar chain hides the
-    placeholder axes chrome (patch and spines) instead of leaving a visible empty
-    matrix box, and draws no matrix image.
+    Ensures a matrix-less standalone cluster-bar + colorbar chain hides the whole
+    placeholder axes instead of leaving a visible empty matrix box, and draws no
+    matrix image.
 
     Args:
         toy_results (Results): Results fixture with clusters and layout.
@@ -452,8 +607,7 @@ def test_plot_cluster_bar_standalone_without_matrix_hides_placeholder_chrome(toy
         )
         plotter.show()
         ax0 = plotter._fig.axes[0]
-        assert ax0.patch.get_visible() is False
-        assert all(not spine.get_visible() for spine in ax0.spines.values())
+        assert ax0.get_visible() is False
         assert all(len(ax.images) == 0 for ax in plotter._fig.axes)
     finally:
         plt.show = plt_show
