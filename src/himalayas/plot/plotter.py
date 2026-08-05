@@ -358,6 +358,39 @@ class Plotter:
         self._background = color
         return self
 
+    def set_figure(
+        self,
+        *,
+        figsize: Optional[Sequence[float]] = None,
+        subplots_adjust: Optional[Dict[str, float]] = None,
+    ) -> Plotter:
+        """
+        Configures figure-level geometry (size and subplot margins).
+
+        Kwargs:
+            figsize (Optional[Sequence[float]]): Figure size in inches, (width, height). Defaults to None.
+            subplots_adjust (Optional[Dict[str, float]]): Figure subplot spacing. Defaults to None.
+
+        Returns:
+            Plotter: Self for chaining.
+
+        Raises:
+            TypeError: If figsize is not a numeric sequence of length 2, or subplots_adjust is not a dict.
+            ValueError: If figsize values are not both > 0.
+        """
+        if figsize is not None:
+            if not isinstance(figsize, (list, tuple)) or len(figsize) != 2:
+                raise TypeError("set_figure(figsize=...) expects a sequence of length 2")
+            w, h = float(figsize[0]), float(figsize[1])
+            if w <= 0 or h <= 0:
+                raise ValueError("set_figure(figsize=...) values must be > 0")
+            self._style.set("figsize", (w, h))
+        if subplots_adjust is not None:
+            if not isinstance(subplots_adjust, dict):
+                raise TypeError("set_figure(subplots_adjust=...) expects a dict")
+            self._style.set("subplots_adjust", subplots_adjust)
+        return self
+
     def set_label_track_order(self, order: Optional[Sequence[str]] = None) -> Plotter:
         """
         Sets the order of label-panel tracks in the label panel.
@@ -715,8 +748,6 @@ class Plotter:
         outer_lw: float = 1.2,
         outer_color: str = "black",
         gutter_color: Optional[str] = None,
-        figsize: Optional[Tuple[float, float]] = None,
-        subplots_adjust: Optional[Dict[str, float]] = None,
     ) -> Plotter:
         """
         Declares the main matrix heatmap layer.
@@ -733,10 +764,6 @@ class Plotter:
             outer_lw (float): Outer border line width. Defaults to 1.2.
             outer_color (str): Outer border color. Defaults to "black".
             gutter_color (Optional[str]): Background gutter color behind the matrix. Defaults to None.
-            figsize (Optional[tuple[float, float]]): Figure size override in inches (width, height).
-                Defaults to None.
-            subplots_adjust (Optional[Dict[str, float]]): Override for figure subplot spacing.
-                Defaults to None.
 
         Returns:
             Plotter: Self for chaining.
@@ -758,10 +785,6 @@ class Plotter:
             layer_kwargs["vmax"] = vmax
         if gutter_color is not None:
             layer_kwargs["gutter_color"] = gutter_color
-        if figsize is not None:
-            layer_kwargs["figsize"] = figsize
-        if subplots_adjust is not None:
-            layer_kwargs["subplots_adjust"] = subplots_adjust
         self._layers.append(("matrix", layer_kwargs))
         return self
 
@@ -1586,10 +1609,8 @@ class Plotter:
         fig, ax = plt.subplots(figsize=self._style["figsize"])
         fig.subplots_adjust(**self._style["subplots_adjust"])
         if matrix_kwargs is None:
-            # No plot_matrix(): keep ax's bbox for colorbar/legend geometry, drop its chrome.
-            ax.patch.set_visible(False)
-            for spine in ax.spines.values():
-                spine.set_visible(False)
+            # No plot_matrix(): keep ax's bbox for colorbar/legend geometry, exclude it from tight cropping.
+            ax.set_visible(False)
         if self._background is not None:
             fig.patch.set_facecolor(self._background)
 
@@ -1621,12 +1642,6 @@ class Plotter:
         # Render declared layers in order.
         for layer, kwargs in self._layers:
             if layer == "matrix":
-                figsize = kwargs.get("figsize", None)
-                if figsize is not None:
-                    fig.set_size_inches(figsize[0], figsize[1], forward=True)
-                subplots_adjust = kwargs.get("subplots_adjust", None)
-                if subplots_adjust is not None:
-                    fig.subplots_adjust(**subplots_adjust)
                 renderer = MatrixRenderer(**kwargs)
                 renderer.render(
                     ax,
