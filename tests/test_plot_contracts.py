@@ -4,6 +4,7 @@ tests/test_plot_contracts
 """
 
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import pytest
 from matplotlib.colors import Normalize, to_rgba
@@ -502,13 +503,15 @@ def test_plotter_matrix_present_keeps_placeholder_chrome_visible(toy_results):
 
 
 @pytest.mark.api
-def test_plot_cluster_labels_gutter_does_not_occlude_matrix_spine(toy_results):
+@pytest.mark.parametrize("outer_lw", [2.0, 10.0])
+def test_plot_cluster_labels_matrix_border_stays_solid_at_boundary(toy_results, outer_lw):
     """
-    Ensures the label-panel gutter starts inside the label panel when axes are
-    flush, so it cannot paint over the matrix's right spine.
+    Ensures the matrix's right spine renders fully at the shared matrix/label-panel
+    boundary instead of being clipped or painted over by a flush label gutter.
 
     Args:
         toy_results (Results): Results fixture with clusters and layout.
+        outer_lw (float): Matrix border linewidth under test.
     """
     plt = use_agg_backend()
     plt_show = plt.show
@@ -517,7 +520,8 @@ def test_plot_cluster_labels_gutter_does_not_occlude_matrix_spine(toy_results):
         matrix_right = 0.70
         plotter = (
             Plotter(toy_results)
-            .plot_matrix(outer_lw=2.0)
+            .set_figure(figsize=(9, 15))
+            .plot_matrix(outer_lw=outer_lw, outer_color="black")
             .set_label_panel(
                 axes=[matrix_right, 0.05, 0.29, 0.90],
                 gutter_color="white",
@@ -526,18 +530,23 @@ def test_plot_cluster_labels_gutter_does_not_occlude_matrix_spine(toy_results):
         )
         plotter.show()
         fig = plotter._fig
-        ax_matrix, ax_lab = fig.axes[0], fig.axes[1]
-        gutter_patches = [p for p in ax_lab.patches if isinstance(p, plt.Rectangle)]
-        assert gutter_patches, "Expected the label-panel gutter rectangle to be drawn."
+        ax_matrix = fig.axes[0]
 
         fig.canvas.draw()
-        gutter = gutter_patches[0]
-        assert gutter.get_width() >= 0.0
-        gutter_left_fig_x = fig.transFigure.inverted().transform(
-            ax_lab.transData.transform(gutter.get_xy())
-        )[0]
+        buf = np.asarray(fig.canvas.buffer_rgba())
+        h, w, _ = buf.shape
+        mid_row = int((1.0 - (ax_matrix.get_position().y0 + ax_matrix.get_position().y1) / 2.0) * h)
+        # The spine is centered on the matrix's right edge, so its outward half
+        # (from the boundary to half the linewidth past it) must render solid;
+        # a painted-over or clipped border shows up as a white gap in this span.
+        matrix_right_fig_x = ax_matrix.get_position().x1
+        outward_fig_x = matrix_right_fig_x + (outer_lw / 2.0) / (72.0 * fig.get_figwidth())
+        x0_px = int(matrix_right_fig_x * w)
+        x1_px = int(outward_fig_x * w)
 
-        assert gutter_left_fig_x > ax_matrix.get_position().x1
+        span = buf[mid_row, x0_px:x1_px, :3]
+        assert span.size > 0
+        assert (span.max(axis=1) < 50).all()
     finally:
         plt.show = plt_show
 

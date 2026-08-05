@@ -144,10 +144,15 @@ def _draw_matrix(
         for spine in ax.spines.values():
             spine.set_visible(False)
     else:
+        # Composite above adjacent axes (e.g. an aligned label panel) and skip the
+        # default per-axes clip so the full border linewidth stays visible instead
+        # of being clipped at the shared boundary or painted over.
+        ax.set_zorder(1)
         for spine in ax.spines.values():
             spine.set_visible(True)
             spine.set_linewidth(outer_lw)
             spine.set_color(outer_color)
+            spine.set_clip_on(False)
     # Draw boundaries if provided.
     if isinstance(boundary_registry, BoundaryRegistry):
         boundary_registry.render(ax, -0.5, n_cols - 0.5, zorder=2)

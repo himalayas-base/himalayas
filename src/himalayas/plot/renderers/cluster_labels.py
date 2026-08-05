@@ -346,16 +346,10 @@ def _setup_label_axis(
     # Set up label gutter.
     gutter_w = style["label_gutter_width"]
     gutter_color = style["label_gutter_color"]
-    label_axes_width = float(label_axes[2])
-    gutter_inset = 0.0
-    if gutter_w > 0 and label_axes_width > 0 and fig.get_figwidth() > 0:
-        # Leave a one-point clearance so the gutter does not paint over a
-        # matrix spine centered on the shared matrix/label-panel boundary.
-        gutter_inset = min(gutter_w, 1.0 / (72.0 * fig.get_figwidth() * label_axes_width))
     ax_lab.add_patch(
         plt.Rectangle(
-            (gutter_inset, -0.5),
-            max(gutter_w - gutter_inset, 0.0),
+            (0.0, -0.5),
+            gutter_w,
             n_rows,
             facecolor=gutter_color,
             edgecolor="none",
