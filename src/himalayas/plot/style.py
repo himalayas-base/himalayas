@@ -178,17 +178,19 @@ DEFAULT_STYLE: StyleDefaults = {
     "compact_line_start": "tick",
     # One of {"tick", "arrow", "round", "none"}.
     "compact_line_end": "tick",
-    # Bracket cap width (axes fraction) for cluster_span="bracket", scaled for the
-    # narrower bridge axis (compact_bridge_width) rather than the full label panel.
-    "compact_cluster_span_cap_width": 0.15,
-    # Cluster-abreast span/bracket, opt-in via cluster_span=... on plot_cluster_labels()
+    # Optional end-cap width (axes fraction) for a cluster_span="line" span, scaled
+    # for the narrower bridge axis (compact_bridge_width) rather than the full label
+    # panel. 0.0 draws a bare line; caps are opt-in.
+    "compact_cluster_span_cap_width": 0.0,
+    # Cluster-abreast span, opt-in via cluster_span=... on plot_cluster_labels()
     # or plot_cluster_labels_compact(). None color inherits label_sep_color.
     "cluster_span_color": None,
     "cluster_span_lw": 1.0,
     "cluster_span_alpha": 0.8,
     "cluster_span_gap": 0.15,
-    "cluster_span_cap_width": 0.006,
-    # Horizontal padding around the span/bracket centerline, independent of label_bar_pad.
+    # Optional end-cap width (axes fraction). 0.0 draws a bare line; caps are opt-in.
+    "cluster_span_cap_width": 0.0,
+    # Horizontal padding around the span centerline, independent of label_bar_pad.
     "cluster_span_left_pad": 0.0,
     "cluster_span_right_pad": 0.01,
 }

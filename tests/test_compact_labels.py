@@ -80,12 +80,17 @@ def test_plot_cluster_labels_compact_default_draws_no_cluster_marker(toy_results
 @pytest.mark.parametrize(
     "kwargs",
     [
-        {"line_shape": "curved", "cluster_span": "bracket", "line_end": "arrow"},
+        {
+            "line_shape": "curved",
+            "cluster_span": "line",
+            "cluster_span_cap_width": 0.15,
+            "line_end": "arrow",
+        },
         {"line_shape": "elbow", "line_start": "none", "line_end": "none"},
         {"line_start": "round", "line_end": "round"},
         {"cluster_marker": "cid", "font": "serif", "fontsize": 12},
     ],
-    ids=["curved_bracket_arrow", "elbow_none_none", "round_round", "cid_serif"],
+    ids=["curved_capped_span_arrow", "elbow_none_none", "round_round", "cid_serif"],
 )
 def test_plot_cluster_labels_compact_style_variants_render(toy_results, kwargs):
     """
@@ -305,8 +310,8 @@ def test_plot_cluster_labels_compact_table_order_follows_dendrogram_span_order(t
 @pytest.mark.parametrize("line_shape", ["straight", "curved", "elbow"])
 def test_plot_cluster_labels_compact_cluster_span_renders_with_every_line_shape(toy_results, line_shape):
     """
-    Ensures cluster_span="bracket" is compatible with every leader-line shape: the
-    cluster-side bracket sits at the matrix-side edge independent of how the leader
+    Ensures a capped cluster_span="line" is compatible with every leader-line shape:
+    the cluster-side span sits at the matrix-side edge independent of how the leader
     line travels to the table.
 
     Args:
@@ -321,7 +326,10 @@ def test_plot_cluster_labels_compact_cluster_span_renders_with_every_line_shape(
             Plotter(toy_results)
             .plot_matrix()
             .plot_cluster_labels_compact(
-                cluster_span="bracket", line_shape=line_shape, cluster_span_gap=0.2
+                cluster_span="line",
+                cluster_span_cap_width=0.15,
+                line_shape=line_shape,
+                cluster_span_gap=0.2,
             )
         )
         plotter.show()
@@ -390,12 +398,12 @@ def test_draw_cluster_span_clips_gap_and_draws_caps():
 
 
 @pytest.mark.api
-def test_plot_cluster_labels_compact_cluster_span_bracket_has_no_cluster_marker(toy_results):
+def test_plot_cluster_labels_compact_cluster_span_cap_width_has_no_cluster_marker(toy_results):
     """
-    Ensures compact cluster_span="bracket" renders visible end caps (a bracket, not a
-    subtle bare line) via the shared draw_cluster_span primitive, draws no matrix-side
-    marker text by default, and gives each table row exactly one identity prefix
-    (from label_prefix, not duplicated by a cluster marker).
+    Ensures compact cluster_span="line" with a positive cluster_span_cap_width renders
+    visible end caps (not a bare line) via the shared draw_cluster_span primitive, draws
+    no matrix-side marker text by default, and gives each table row exactly one identity
+    prefix (from label_prefix, not duplicated by a cluster marker).
 
     Args:
         toy_results (Results): Results fixture with clusters and layout.
@@ -408,7 +416,10 @@ def test_plot_cluster_labels_compact_cluster_span_bracket_has_no_cluster_marker(
             Plotter(toy_results)
             .plot_matrix()
             .plot_cluster_labels_compact(
-                cluster_span="bracket", label_fields=("label",), wrap_text=False
+                cluster_span="line",
+                cluster_span_cap_width=0.15,
+                label_fields=("label",),
+                wrap_text=False,
             )
         )
         plotter.show()
@@ -416,7 +427,7 @@ def test_plot_cluster_labels_compact_cluster_span_bracket_has_no_cluster_marker(
         horizontal_lines = [
             ln for ln in bridge_ax.lines if len(ln.get_xdata()) == 2 and ln.get_xdata()[0] != ln.get_xdata()[1]
         ]
-        assert horizontal_lines, "Expected bracket end caps for cluster_span='bracket'."
+        assert horizontal_lines, "Expected end caps when cluster_span_cap_width > 0."
 
         marker_texts = [t.get_text().strip() for t in marker_ax.texts if t.get_text().strip()]
         assert not marker_texts, "Expected no matrix-side marker text by default."
@@ -432,15 +443,12 @@ def test_plot_cluster_labels_compact_cluster_span_bracket_has_no_cluster_marker(
 
 
 @pytest.mark.api
-@pytest.mark.parametrize("cluster_span", ["line", "bracket"])
-def test_plot_cluster_labels_cluster_span_opt_in_renders(toy_results, cluster_span):
+def test_plot_cluster_labels_cluster_span_opt_in_renders(toy_results):
     """
-    Ensures plot_cluster_labels(cluster_span=...) renders a span only when opted in,
-    for both "line" and "bracket" modes.
+    Ensures plot_cluster_labels(cluster_span="line") renders a span only when opted in.
 
     Args:
         toy_results (Results): Results fixture with clusters and layout.
-        cluster_span (str): Span mode under test.
     """
     plt = use_agg_backend()
     plt_show = plt.show
@@ -451,7 +459,7 @@ def test_plot_cluster_labels_cluster_span_opt_in_renders(toy_results, cluster_sp
         default_lines = len(default_plotter._fig.axes[-1].lines)
 
         span_plotter = (
-            Plotter(toy_results).plot_matrix().plot_cluster_labels(cluster_span=cluster_span)
+            Plotter(toy_results).plot_matrix().plot_cluster_labels(cluster_span="line")
         )
         span_plotter.show()
         span_lines = len(span_plotter._fig.axes[-1].lines)
@@ -476,7 +484,7 @@ def test_plot_cluster_labels_cluster_span_style_kwargs_propagate(toy_results):
             Plotter(toy_results)
             .plot_matrix()
             .plot_cluster_labels(
-                cluster_span="bracket",
+                cluster_span="line",
                 cluster_span_color="#1b9e77",
                 cluster_span_lw=2.5,
                 cluster_span_gap=0.3,
@@ -504,7 +512,7 @@ def test_plot_cluster_labels_invalid_cluster_span_raises(toy_results):
         toy_results (Results): Results fixture with clusters and layout.
 
     Raises:
-        ValueError: If cluster_span is not one of {None, "line", "bracket"}, or
+        ValueError: If cluster_span is not one of {None, "line"}, or
             cluster_span_gap, cluster_span_cap_width, cluster_span_left_pad, or
             cluster_span_right_pad is negative.
     """
@@ -513,7 +521,7 @@ def test_plot_cluster_labels_invalid_cluster_span_raises(toy_results):
     with pytest.raises(ValueError, match="cluster_span_gap"):
         Plotter(toy_results).plot_cluster_labels(cluster_span="line", cluster_span_gap=-0.1)
     with pytest.raises(ValueError, match="cluster_span_cap_width"):
-        Plotter(toy_results).plot_cluster_labels(cluster_span="bracket", cluster_span_cap_width=-0.1)
+        Plotter(toy_results).plot_cluster_labels(cluster_span="line", cluster_span_cap_width=-0.1)
     with pytest.raises(ValueError, match="cluster_span_left_pad"):
         Plotter(toy_results).plot_cluster_labels(cluster_span="line", cluster_span_left_pad=-0.1)
     with pytest.raises(ValueError, match="cluster_span_right_pad"):
@@ -678,12 +686,10 @@ def test_plot_cluster_labels_compact_boundary_kwargs_reach_matrix_boundaries(toy
 
 
 @pytest.mark.api
-def test_plot_cluster_labels_compact_cluster_span_cap_width_uses_compact_scale(toy_results):
+def test_plot_cluster_labels_compact_cluster_span_cap_width_propagates(toy_results):
     """
-    Ensures cluster_span_cap_width resolves against the compact-scoped style default
-    (compact_cluster_span_cap_width, 0.15) rather than the standard label panel's
-    much smaller cluster_span_cap_width default (0.006), since the compact bracket
-    is drawn on the narrower bridge axis.
+    Ensures an explicit cluster_span_cap_width on the compact bridge axis draws end
+    caps of exactly that width.
 
     Args:
         toy_results (Results): Results fixture with clusters and layout.
@@ -693,12 +699,14 @@ def test_plot_cluster_labels_compact_cluster_span_cap_width_uses_compact_scale(t
     plt.show = lambda *args, **kwargs: None
     try:
         plotter = (
-            Plotter(toy_results).plot_matrix().plot_cluster_labels_compact(cluster_span="bracket")
+            Plotter(toy_results)
+            .plot_matrix()
+            .plot_cluster_labels_compact(cluster_span="line", cluster_span_cap_width=0.15)
         )
         plotter.show()
         bridge_ax = plotter._fig.axes[-2]
-        # Bracket caps are horizontal, straddle the matrix-side x=0.0 centerline, and
-        # are distinct from the leader line itself (which spans the full x in [0, 1]).
+        # End caps are horizontal, straddle the matrix-side x=0.0 centerline, and are
+        # distinct from the leader line itself (which spans the full x in [0, 1]).
         cap_lines = [
             ln
             for ln in bridge_ax.lines
@@ -706,9 +714,57 @@ def test_plot_cluster_labels_compact_cluster_span_cap_width_uses_compact_scale(t
             and ln.get_ydata()[0] == ln.get_ydata()[1]
             and ln.get_xdata()[0] == pytest.approx(-ln.get_xdata()[1])
         ]
-        assert cap_lines, "Expected bracket end caps."
+        assert cap_lines, "Expected end caps when cluster_span_cap_width > 0."
         cap_widths = [abs(ln.get_xdata()[1] - ln.get_xdata()[0]) for ln in cap_lines]
         assert all(w == pytest.approx(0.15) for w in cap_widths)
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+def test_plot_cluster_labels_cluster_span_default_cap_width_is_bare_line(toy_results):
+    """
+    Ensures cluster_span="line" with no explicit cluster_span_cap_width draws no
+    horizontal end-cap lines by default, in both the standard and compact label
+    panels — the 0.0 default must not silently reintroduce caps.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        standard_plotter = (
+            Plotter(toy_results).plot_matrix().plot_cluster_labels(cluster_span="line")
+        )
+        standard_plotter.show()
+        ax_lab = standard_plotter._fig.axes[-1]
+        # Cap lines are short horizontal segments straddling the span centerline;
+        # separator lines are unrelated full-width horizontal segments and must be
+        # excluded so this assertion isolates cap presence specifically.
+        standard_caps = [
+            ln
+            for ln in ax_lab.lines
+            if len(ln.get_xdata()) == 2
+            and ln.get_xdata()[0] != ln.get_xdata()[1]
+            and abs(ln.get_xdata()[1] - ln.get_xdata()[0]) < 0.1
+        ]
+        assert not standard_caps, "Expected no end caps by default for cluster_span='line'."
+
+        compact_plotter = (
+            Plotter(toy_results).plot_matrix().plot_cluster_labels_compact(cluster_span="line")
+        )
+        compact_plotter.show()
+        bridge_ax = compact_plotter._fig.axes[-2]
+        compact_caps = [
+            ln
+            for ln in bridge_ax.lines
+            if len(ln.get_xdata()) == 2
+            and ln.get_ydata()[0] == ln.get_ydata()[1]
+            and ln.get_xdata()[0] == pytest.approx(-ln.get_xdata()[1])
+        ]
+        assert not compact_caps, "Expected no end caps by default for cluster_span='line'."
     finally:
         plt.show = plt_show
 
@@ -717,7 +773,7 @@ def test_plot_cluster_labels_compact_cluster_span_cap_width_uses_compact_scale(t
 def test_plot_cluster_labels_compact_cluster_span_style_independent_of_line_style(toy_results):
     """
     Ensures cluster_span_color/lw/alpha are resolved independently of line_color/lw/alpha:
-    setting only line_color must not change the rendered span/bracket color, and
+    setting only line_color must not change the rendered span color, and
     cluster_span_color must be set explicitly to affect it.
 
     Args:

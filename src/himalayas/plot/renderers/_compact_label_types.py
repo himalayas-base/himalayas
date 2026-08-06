@@ -15,12 +15,13 @@ LINE_STYLES = {"solid", "dashed", "dotted"}
 CLUSTER_MARKERS = {"alpha", "cid"}
 
 # Connector-start point decoration for a compact-label leader line, used when
-# cluster_span is None (i.e. there is no cluster-span/bracket to anchor to).
+# cluster_span is None (i.e. there is no cluster-span to anchor to).
 LINE_STARTS = {"tick", "round", "none"}
 
 # Table-side (end) endpoint decoration for a compact-label leader line.
 LINE_ENDS = {"tick", "arrow", "round", "none"}
 
-# Cluster-abreast span/bracket kind, shared by Plotter.plot_cluster_labels() and
-# _render_cluster_text_and_separators().
-CLUSTER_SPANS = {"line", "bracket"}
+# Cluster-abreast span kind, shared by Plotter.plot_cluster_labels() and
+# _render_cluster_text_and_separators(). Optional end caps are controlled by
+# cluster_span_cap_width, not a separate span kind.
+CLUSTER_SPANS = {"line"}

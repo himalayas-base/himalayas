@@ -1103,7 +1103,7 @@ class Plotter:
         boundary_color: Optional[str] = None,
         boundary_lw: Optional[float] = None,
         boundary_alpha: Optional[float] = None,
-        # Cluster-abreast span/bracket
+        # Cluster-abreast span
         cluster_span: Optional[str] = None,
         cluster_span_color: Optional[str] = None,
         cluster_span_lw: Optional[float] = None,
@@ -1179,11 +1179,11 @@ class Plotter:
             boundary_alpha (Optional[float]): Matrix cluster boundary line opacity.
                 Defaults to style boundary_alpha.
 
-            Cluster-abreast span/bracket:
+            Cluster-abreast span:
             cluster_span (Optional[str]): Vertical span drawn beside each cluster's row
-                extent, one of {None, "line", "bracket"}. None draws no span (default,
-                current behavior). "line" draws a bare gapped vertical line; "bracket"
-                adds horizontal end caps. Defaults to None.
+                extent, one of {None, "line"}. None draws no span (default, current
+                behavior); "line" draws a gapped vertical line, with optional end caps
+                sized by cluster_span_cap_width. Defaults to None.
             cluster_span_color (Optional[str]): Span line color. Defaults to style
                 cluster_span_color, which falls back to style label_sep_color.
             cluster_span_lw (Optional[float]): Span line width. Defaults to style
@@ -1193,14 +1193,15 @@ class Plotter:
             cluster_span_gap (Optional[float]): Row units trimmed from each end of the
                 span, clamped to at most half the cluster's row extent. Defaults to
                 style cluster_span_gap.
-            cluster_span_cap_width (Optional[float]): Bracket cap width (axes fraction)
-                when cluster_span="bracket". Defaults to style cluster_span_cap_width.
+            cluster_span_cap_width (Optional[float]): Optional end-cap width (axes
+                fraction). 0 draws a bare line; >0 draws end caps. Defaults to style
+                cluster_span_cap_width (0.0).
             cluster_span_left_pad (Optional[float]): Horizontal space (axes fraction)
-                between the label-panel track/gutter region and the span/bracket
+                between the label-panel track/gutter region and the span
                 centerline, independent of label_bar_pad. Defaults to style
                 cluster_span_left_pad.
             cluster_span_right_pad (Optional[float]): Horizontal space (axes fraction)
-                between the span/bracket centerline and the label text. Defaults to
+                between the span centerline and the label text. Defaults to
                 style cluster_span_right_pad.
 
             Text formatting:
@@ -1217,7 +1218,7 @@ class Plotter:
             Plotter: Self for chaining.
 
         Raises:
-            ValueError: If cluster_span is not one of {None, "line", "bracket"}, or
+            ValueError: If cluster_span is not one of {None, "line"}, or
                 cluster_span_gap, cluster_span_cap_width, cluster_span_left_pad, or
                 cluster_span_right_pad is negative.
         """
@@ -1279,7 +1280,7 @@ class Plotter:
             layer_kwargs["boundary_lw"] = boundary_lw
         if boundary_alpha is not None:
             layer_kwargs["boundary_alpha"] = boundary_alpha
-        # Cluster-abreast span/bracket
+        # Cluster-abreast span
         if cluster_span is not None:
             layer_kwargs["cluster_span"] = cluster_span
         if cluster_span_color is not None:
@@ -1390,26 +1391,27 @@ class Plotter:
                 Defaults to style compact_line_shape ("straight").
             line_style (Optional[str]): Leader-line style, one of {"solid", "dashed", "dotted"}.
                 Defaults to style compact_line_style ("solid").
-            cluster_span (Optional[str]): Matrix-side cluster-extent span/bracket, one of
-                {None, "line", "bracket"}, mirroring standard plot_cluster_labels(cluster_span=...).
-                "bracket" draws end caps sized by cluster_span_cap_width; "line" draws
-                a bare vertical stroke. Defaults to None.
+            cluster_span (Optional[str]): Matrix-side cluster-extent span, one of
+                {None, "line"}, mirroring standard plot_cluster_labels(cluster_span=...).
+                "line" draws a vertical stroke, with optional end caps sized by
+                cluster_span_cap_width. Defaults to None.
             line_start (Optional[str]): Connector-start point decoration, one of
                 {"tick", "round", "none"}, drawn only when cluster_span is None. Defaults to
                 style compact_line_start ("tick").
             line_end (Optional[str]): Table-side endpoint decoration, one of
                 {"tick", "arrow", "round", "none"}. Defaults to style compact_line_end ("tick").
             cluster_span_gap (Optional[float]): Row units trimmed from each end of a
-                cluster_span bracket/line, clamped to at most half the cluster's span
-                height. Defaults to style cluster_span_gap.
-            cluster_span_color (Optional[str]): Span/bracket color, independent of line_color.
+                cluster_span, clamped to at most half the cluster's span height.
+                Defaults to style cluster_span_gap.
+            cluster_span_color (Optional[str]): Span color, independent of line_color.
                 Defaults to style cluster_span_color (inherits label_sep_color if unset).
-            cluster_span_lw (Optional[float]): Span/bracket line width, independent of line_lw.
+            cluster_span_lw (Optional[float]): Span line width, independent of line_lw.
                 Defaults to style cluster_span_lw.
-            cluster_span_alpha (Optional[float]): Span/bracket opacity, independent of line_alpha.
+            cluster_span_alpha (Optional[float]): Span opacity, independent of line_alpha.
                 Defaults to style cluster_span_alpha.
-            cluster_span_cap_width (Optional[float]): Bracket cap width (axes fraction) when
-                cluster_span="bracket". Defaults to style compact_cluster_span_cap_width.
+            cluster_span_cap_width (Optional[float]): Optional end-cap width (axes
+                fraction). 0 draws a bare line; >0 draws end caps. Defaults to style
+                compact_cluster_span_cap_width (0.0).
             line_color (Optional[str]): Leader-line color. Defaults to style compact_line_color.
             line_lw (Optional[float]): Leader-line width. Defaults to style compact_line_lw.
             line_alpha (Optional[float]): Leader-line opacity. Defaults to style compact_line_alpha.

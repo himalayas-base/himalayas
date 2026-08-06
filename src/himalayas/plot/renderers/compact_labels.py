@@ -71,44 +71,6 @@ def _resolve_line_path(
     raise ValueError(f"line_shape must be one of {sorted(LINE_SHAPES)}, got {shape!r}")
 
 
-def _draw_compact_cluster_span(
-    ax: plt.Axes,
-    s: int,
-    e: int,
-    *,
-    kind: str,
-    gap: float,
-    cap_width: float,
-    color: str,
-    lw: float,
-    alpha: float,
-) -> None:
-    """
-    Draws the matrix-side (x=0) cluster-extent span/bracket for one cluster's leader
-    line, mirroring the standard-label cluster_span primitive.
-
-    Args:
-        ax (plt.Axes): Bridge axis spanning x in [0, 1].
-        s (int): Cluster span start (row index).
-        e (int): Cluster span end (row index).
-
-    Kwargs:
-        kind (str): Span decoration, one of {"line", "bracket"}. Callers validate this
-            against CLUSTER_SPANS before rendering. "line" draws a bare vertical stroke
-            (cap_width forced to 0.0); "bracket" adds end caps.
-        gap (float): Row units trimmed from each end of the span. See draw_cluster_span
-            for clamping behavior.
-        cap_width (float): Bracket cap width (axes fraction), used only for kind="bracket".
-        color (str): Line color.
-        lw (float): Line width.
-        alpha (float): Opacity.
-    """
-    resolved_cap_width = cap_width if kind == "bracket" else 0.0
-    draw_cluster_span(
-        ax, 0.0, s, e, gap=gap, cap_width=resolved_cap_width, color=color, lw=lw, alpha=alpha
-    )
-
-
 def _draw_line_start(
     ax: plt.Axes,
     y_center: float,
@@ -120,7 +82,7 @@ def _draw_line_start(
     """
     Draws the connector's matrix-side start-point decoration for one cluster's leader
     line. Callers invoke this only when cluster_span is None, to mark the leader line's
-    origin in place of a cluster-extent span/bracket.
+    origin in place of a cluster-extent span.
 
     Args:
         ax (plt.Axes): Bridge axis spanning x in [0, 1].
@@ -344,24 +306,24 @@ class CompactLabelsRenderer:
                 Defaults to None.
             line_style (Optional[str]): Leader-line style, one of {"solid", "dashed", "dotted"}.
                 Defaults to None.
-            cluster_span (Optional[str]): Matrix-side cluster-extent span/bracket, one of
-                {None, "line", "bracket"}, mirroring standard plot_cluster_labels(cluster_span=...).
+            cluster_span (Optional[str]): Matrix-side cluster-extent span, one of
+                {None, "line"}, mirroring standard plot_cluster_labels(cluster_span=...).
                 Defaults to None.
             line_start (Optional[str]): Connector-start point decoration, one of
                 {"tick", "round", "none"}, used only when cluster_span is None. Defaults to None.
             line_end (Optional[str]): Table-side endpoint decoration, one of
                 {"tick", "arrow", "round", "none"}. Defaults to None.
             cluster_span_gap (Optional[float]): Row units trimmed from each end of a
-                cluster_span bracket/line, clamped to at most half the cluster's span
-                height. Defaults to None.
-            cluster_span_color (Optional[str]): Span/bracket color, independent of line_color.
+                cluster_span, clamped to at most half the cluster's span height.
                 Defaults to None.
-            cluster_span_lw (Optional[float]): Span/bracket line width, independent of line_lw.
+            cluster_span_color (Optional[str]): Span color, independent of line_color.
                 Defaults to None.
-            cluster_span_alpha (Optional[float]): Span/bracket opacity, independent of line_alpha.
+            cluster_span_lw (Optional[float]): Span line width, independent of line_lw.
                 Defaults to None.
-            cluster_span_cap_width (Optional[float]): Bracket cap width (axes fraction) when
-                cluster_span="bracket". Defaults to None.
+            cluster_span_alpha (Optional[float]): Span opacity, independent of line_alpha.
+                Defaults to None.
+            cluster_span_cap_width (Optional[float]): Optional end-cap width (axes fraction)
+                for the span; 0 draws a bare line, >0 draws caps. Defaults to None.
             line_color (Optional[str]): Leader-line color. Defaults to None.
             line_lw (Optional[float]): Leader-line width. Defaults to None.
             line_alpha (Optional[float]): Leader-line opacity. Defaults to None.
@@ -517,7 +479,7 @@ class CompactLabelsRenderer:
             if self.line_alpha is not None
             else style.get("compact_line_alpha", 0.65)
         )
-        # Cluster-span/bracket styling is independent of connector line_* styling
+        # Cluster-span styling is independent of connector line_* styling
         # (mirrors the standard-label span, not the leader line it accompanies).
         cluster_span_color = (
             self.cluster_span_color
@@ -542,7 +504,7 @@ class CompactLabelsRenderer:
         cluster_span_cap_width = (
             self.cluster_span_cap_width
             if self.cluster_span_cap_width is not None
-            else style.get("compact_cluster_span_cap_width", 0.15)
+            else style.get("compact_cluster_span_cap_width", 0.0)
         )
 
         # Table slots follow dendrogram/top-to-bottom order (layout.cluster_spans order),
@@ -604,11 +566,11 @@ class CompactLabelsRenderer:
                 )
 
             if cluster_span is not None:
-                _draw_compact_cluster_span(
+                draw_cluster_span(
                     ax_bridge,
+                    0.0,
                     s,
                     e,
-                    kind=cluster_span,
                     gap=cluster_span_gap,
                     cap_width=cluster_span_cap_width,
                     color=cluster_span_color,

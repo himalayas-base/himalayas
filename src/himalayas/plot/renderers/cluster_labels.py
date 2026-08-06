@@ -87,7 +87,7 @@ def _resolve_labels_and_layout(
             - Optional[Tuple[str, ...]]: Fields to display in labels.
             - bool: Whether to skip unlabeled clusters.
             - Optional[str]: Label prefix mode.
-            - Optional[float]: Span/bracket centerline x-position, or None if cluster_span
+            - Optional[float]: Span centerline x-position, or None if cluster_span
               is not active.
 
     Raises:
@@ -110,7 +110,7 @@ def _resolve_labels_and_layout(
     cluster_sizes = layout.cluster_sizes
     ax_lab, label_text_x, tracks, end_x = _setup_label_axis(fig, matrix, style, track_layout)
 
-    # Cluster-abreast span/bracket: opt-in, positioned from end_x directly so placement
+    # Cluster-abreast span: opt-in, positioned from end_x directly so placement
     # never depends on label_bar_pad. Padding is measured from the span centerline.
     cluster_span = kwargs.get("cluster_span", None)
     span_x: Optional[float] = None
@@ -202,7 +202,7 @@ def _render_cluster_text_and_separators(
         label_map (Dict[int, ClusterLabelStats]): Mapping cluster_id -> (label, pval, qval, score, fe).
         override_map (Dict[int, str]): Mapping cluster_id -> validated override label.
         label_text_x (float): X-position for label text.
-        span_x (Optional[float]): Span/bracket centerline x-position, already resolved by
+        span_x (Optional[float]): Span centerline x-position, already resolved by
             _resolve_labels_and_layout from end_x + cluster_span_left_pad. None if
             cluster_span is not active.
         sep_xmin (float): Minimum x-position for separator lines.
@@ -221,7 +221,7 @@ def _render_cluster_text_and_separators(
     wrap_width = kwargs.get("wrap_width", style.get("label_wrap_width", None))
     overflow = kwargs.get("overflow", "wrap")
 
-    # Cluster-abreast span/bracket: opt-in, placed just left of label text.
+    # Cluster-abreast span: opt-in, placed just left of label text.
     cluster_span = kwargs.get("cluster_span", None)
     if cluster_span is not None:
         if cluster_span not in CLUSTER_SPANS:
@@ -234,10 +234,8 @@ def _render_cluster_text_and_separators(
         span_gap = kwargs.get("cluster_span_gap", style.get("cluster_span_gap", 0.15))
         if span_gap < 0:
             raise ValueError("cluster_span_gap must be >= 0")
-        span_cap_width = (
-            kwargs.get("cluster_span_cap_width", style.get("cluster_span_cap_width", 0.006))
-            if cluster_span == "bracket"
-            else 0.0
+        span_cap_width = kwargs.get(
+            "cluster_span_cap_width", style.get("cluster_span_cap_width", 0.0)
         )
         if span_cap_width < 0:
             raise ValueError("cluster_span_cap_width must be >= 0")
