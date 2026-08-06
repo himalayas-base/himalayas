@@ -116,14 +116,11 @@ DEFAULT_STYLE: StyleDefaults = {
     # Row-level annotation bar (label-panel track).
     "label_bar_width": 0.012,
     "label_bar_missing_color": "#eeeeee",
-    # Bars rendered inside the label panel (to the left of text).
-    # (label_bar_default_width, label_bar_default_gap removed).
     # Default settings for cluster score bars (e.g., sigbar).
     # NOTE: scaling is controlled by an explicit `norm` passed to plot_cluster_bar.
     "sigbar_width": 0.015,
     "sigbar_cmap": "YlOrBr",
     "sigbar_alpha": 0.9,
-    # (Sigbar_gap removed)
     # Label panel bar/text spacing.
     "label_bar_pad": 0.01,
     # Cluster boundary lines.
