@@ -21,9 +21,9 @@ def draw_cluster_span(
     alpha: float,
 ) -> None:
     """
-    Draws a gapped vertical line spanning one cluster's row extent, optionally capped
-    into a bracket. Shared by inline and compact label renderers so cluster-abreast
-    spans are drawn identically everywhere.
+    Draws a gapped vertical line spanning one cluster's row extent, with optional end
+    caps. Shared by inline and compact label renderers so cluster-abreast spans are
+    drawn identically everywhere.
 
     Args:
         ax (plt.Axes): Target axis, with y in row-index space and x in axes fraction.

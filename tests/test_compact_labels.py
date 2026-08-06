@@ -368,7 +368,7 @@ def test_draw_cluster_span_clips_gap_and_draws_caps():
     # the panel's row-index ylim (first/last cluster) aren't visually truncated.
     assert all(ln.get_clip_on() is False for ln in ax.lines)
 
-    # No gap: bracket edges land exactly on the cluster's true row-extent boundaries
+    # No gap: span edges land exactly on the cluster's true row-extent boundaries
     # (s - 0.5, e + 0.5), matching cluster boundary lines and cluster bar rectangles.
     ax.clear()
     draw_cluster_span(ax, 0.0, 2, 8, gap=0.0, cap_width=0.0, color="black", lw=1.0, alpha=1.0)
@@ -380,7 +380,7 @@ def test_draw_cluster_span_clips_gap_and_draws_caps():
     assert len(ax.lines) == 1
     assert sorted(ax.lines[0].get_ydata()) == pytest.approx([5.0, 5.0])
 
-    # Singleton cluster: a small gap produces a real bracket within the true
+    # Singleton cluster: a small gap produces a real capped span within the true
     # one-row extent (s - 0.5 to e + 0.5).
     ax.clear()
     draw_cluster_span(ax, 0.0, 4, 4, gap=0.2, cap_width=0.1, color="black", lw=1.0, alpha=1.0)
