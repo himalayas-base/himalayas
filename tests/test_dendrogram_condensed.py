@@ -573,3 +573,79 @@ def test_dendrogram_condensed_single_cluster_raises_clear_error(
 
     with pytest.raises(ValueError, match="at least two clusters"):
         plot_dendrogram_condensed(results)
+
+
+@pytest.mark.api
+def test_dendrogram_condensed_default_geometry_unchanged(toy_results):
+    """
+    Ensures default axes geometry matches the pre-existing hardcoded layout.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    use_agg_backend()
+    plot = plot_dendrogram_condensed(toy_results)
+    try:
+        assert plot.ax_den.get_position().bounds == pytest.approx((0.05, 0.05, 0.60, 0.90))
+        assert plot.ax_sig.get_position().bounds == pytest.approx((0.66, 0.05, 0.06, 0.90))
+        assert plot.ax_txt.get_position().bounds == pytest.approx((0.74, 0.05, 0.25, 0.90))
+    finally:
+        plt.close(plot.fig)
+
+
+@pytest.mark.api
+def test_dendrogram_condensed_width_shifts_panels_horizontally(toy_results):
+    """
+    Ensures dendrogram_width resizes only the dendrogram panel and shifts sigbar/text
+    panels left, while all three axes keep identical y0 and height.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    use_agg_backend()
+    plot = plot_dendrogram_condensed(toy_results, dendrogram_width=0.30)
+    try:
+        den_x0, den_y0, den_w, den_h = plot.ax_den.get_position().bounds
+        sig_x0, sig_y0, sig_w, sig_h = plot.ax_sig.get_position().bounds
+        txt_x0, txt_y0, txt_w, txt_h = plot.ax_txt.get_position().bounds
+
+        assert den_x0 == pytest.approx(0.05)
+        assert den_w == pytest.approx(0.30)
+        assert sig_x0 == pytest.approx(0.36)
+        assert txt_x0 == pytest.approx(0.44)
+
+        assert den_y0 == pytest.approx(sig_y0) == pytest.approx(txt_y0)
+        assert den_h == pytest.approx(sig_h) == pytest.approx(txt_h)
+    finally:
+        plt.close(plot.fig)
+
+
+@pytest.mark.api
+def test_dendrogram_condensed_invalid_dendrogram_width_raises(toy_results):
+    """
+    Ensures a non-positive dendrogram_width raises a ValueError.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+
+    Raises:
+        ValueError: If dendrogram_width is not positive.
+    """
+    with pytest.raises(ValueError, match="dendrogram_width must be > 0"):
+        plot_dendrogram_condensed(toy_results, dendrogram_width=0.0)
+
+
+@pytest.mark.api
+def test_dendrogram_condensed_no_room_for_labels_raises(toy_results):
+    """
+    Ensures a layout that leaves no room for the label panel raises a ValueError.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+
+    Raises:
+        ValueError: If dendrogram_width, sigbar_width, and label_left_pad leave no
+            room for the label panel.
+    """
+    with pytest.raises(ValueError, match="leave no room for labels"):
+        plot_dendrogram_condensed(toy_results, dendrogram_width=0.99, sigbar_width=0.5)
