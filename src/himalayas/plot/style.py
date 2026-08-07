@@ -72,6 +72,7 @@ class StyleDefaults(TypedDict):
     compact_marker_width: float
     compact_bridge_width: float
     compact_table_pad: float
+    compact_label_left_pad: float
     compact_marker_fontsize: float
     compact_line_color: str
     compact_line_lw: float
@@ -162,6 +163,8 @@ DEFAULT_STYLE: StyleDefaults = {
     "compact_bridge_width": 0.45,
     # Padding between the bridge and the label table (fraction of compact_axes width).
     "compact_table_pad": 0.02,
+    # Table-axis-local x where floating label text starts (0.0 = table axis left edge).
+    "compact_label_left_pad": 0.0,
     "compact_marker_fontsize": 8,
     "compact_line_color": "#c0562c",
     "compact_line_lw": 0.9,

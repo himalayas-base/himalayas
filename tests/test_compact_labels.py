@@ -923,3 +923,292 @@ def test_plot_cluster_labels_compact_cluster_bar_track_left_of_compact_axes(toy_
             assert track_x0 + track_w <= ax_x0 + 1e-9
     finally:
         plt.show = plt_show
+
+
+@pytest.mark.api
+@pytest.mark.parametrize("line_shape", ["straight", "curved", "elbow"])
+def test_plot_cluster_labels_compact_cluster_span_pads_position_span_and_leader_start(
+    toy_results, line_shape
+):
+    """
+    Ensures cluster_span_left_pad/right_pad position the compact span and leader-line
+    start as span_x = left_pad and leader_start_x = span_x + right_pad, on the bridge
+    axis's local x in [0, 1] (0.0 = matrix/marker-side edge, 1.0 = table side), for
+    every leader-line shape (each resolves x_start differently in _resolve_line_path).
+    Also ensures the pads have no effect when cluster_span is inactive: the leader-line
+    start stays at x=0.0.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+        line_shape (str): Leader-line shape under test.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        span_color = "#1b9e77"
+        plotter = (
+            Plotter(toy_results)
+            .plot_matrix()
+            .plot_cluster_labels_compact(
+                cluster_span="line",
+                cluster_span_left_pad=0.05,
+                cluster_span_right_pad=0.02,
+                cluster_span_color=span_color,
+                line_shape=line_shape,
+            )
+        )
+        plotter.show()
+        bridge_ax = plotter._fig.axes[-2]
+
+        span_lines = [
+            ln
+            for ln in bridge_ax.lines
+            if ln.get_color() == span_color and ln.get_xdata()[0] == ln.get_xdata()[1]
+        ]
+        assert span_lines, "Expected at least one vertical span line."
+        assert all(ln.get_xdata()[0] == pytest.approx(0.05) for ln in span_lines)
+
+        leader_lines = [
+            ln for ln in bridge_ax.lines if ln.get_color() != span_color and len(ln.get_xdata()) > 1
+        ]
+        assert leader_lines, "Expected leader lines to be drawn."
+        assert all(ln.get_xdata()[0] == pytest.approx(0.07) for ln in leader_lines)
+    finally:
+        plt.show = plt_show
+
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        no_span_plotter = (
+            Plotter(toy_results)
+            .plot_matrix()
+            .plot_cluster_labels_compact(
+                cluster_span_left_pad=0.05,
+                cluster_span_right_pad=0.03,
+                line_shape=line_shape,
+            )
+        )
+        no_span_plotter.show()
+        no_span_bridge_ax = no_span_plotter._fig.axes[-2]
+        no_span_leader_lines = [
+            ln
+            for ln in no_span_bridge_ax.lines
+            if len(ln.get_xdata()) > 1 and ln.get_xdata()[0] != ln.get_xdata()[-1]
+        ]
+        assert no_span_leader_lines, "Expected leader lines to be drawn."
+        assert all(ln.get_xdata()[0] == pytest.approx(0.0) for ln in no_span_leader_lines)
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+def test_plot_cluster_labels_compact_invalid_cluster_span_pads_raise(toy_results):
+    """
+    Ensures negative cluster_span_left_pad/right_pad/label_left_pad raise ValueError,
+    matching the standard-label validation pattern.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+
+    Raises:
+        ValueError: If cluster_span_left_pad, cluster_span_right_pad, or
+            label_left_pad is negative.
+    """
+    with pytest.raises(ValueError, match="cluster_span_left_pad"):
+        Plotter(toy_results).plot_cluster_labels_compact(
+            cluster_span="line", cluster_span_left_pad=-0.1
+        )
+    with pytest.raises(ValueError, match="cluster_span_right_pad"):
+        Plotter(toy_results).plot_cluster_labels_compact(
+            cluster_span="line", cluster_span_right_pad=-0.1
+        )
+    with pytest.raises(ValueError, match="label_left_pad"):
+        Plotter(toy_results).plot_cluster_labels_compact(label_left_pad=-0.1)
+
+
+@pytest.mark.api
+def test_plot_cluster_labels_compact_no_marker_reserves_zero_marker_width(toy_results):
+    """
+    Ensures cluster_marker=None (the default) reserves no marker-column width, so
+    cluster_span_left_pad=0.0 places the bridge axis (and span) flush against the
+    matrix/track edge instead of behind an empty compact_marker_width gap. Covers both
+    no-track (bridge starts at the marker axis x0) and with-track (bridge starts
+    immediately after the cluster-bar track axis, not after an intervening empty
+    marker column) cases.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        plotter = (
+            Plotter(toy_results)
+            .plot_matrix()
+            .plot_cluster_labels_compact(cluster_span="line", cluster_span_left_pad=0.0)
+        )
+        plotter.show()
+        marker_ax, bridge_ax, _table_ax = plotter._fig.axes[-3:]
+        marker_x0, _, marker_w, _ = marker_ax.get_position().bounds
+        bridge_x0, _, _, _ = bridge_ax.get_position().bounds
+        assert marker_w == pytest.approx(0.0)
+        assert bridge_x0 == pytest.approx(marker_x0)
+    finally:
+        plt.show = plt_show
+
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        tracked_plotter = (
+            Plotter(toy_results)
+            .plot_matrix()
+            .plot_cluster_labels_compact(cluster_span="line", cluster_span_left_pad=0.0)
+            .plot_cluster_bar(name="sig")
+        )
+        tracked_plotter.show()
+        track_ax, marker_ax, bridge_ax, _table_ax = tracked_plotter._fig.axes[-4:]
+        track_x0, _, track_w, _ = track_ax.get_position().bounds
+        marker_x0, _, marker_w, _ = marker_ax.get_position().bounds
+        bridge_x0, _, _, _ = bridge_ax.get_position().bounds
+        assert marker_w == pytest.approx(0.0)
+        assert marker_x0 == pytest.approx(track_x0 + track_w)
+        assert bridge_x0 == pytest.approx(track_x0 + track_w)
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+def test_plot_cluster_labels_compact_cluster_bar_patches_inside_track_axis_xlim(toy_results):
+    """
+    Ensures compact cluster-bar patches are drawn inside ax_trk's own [0, 1] data range,
+    not at ax_trk's figure-coordinate position. TrackLayoutManager stores track x0/x1/width
+    in figure coordinates, but ax_trk (created by _setup_compact_axes) has local xlim
+    [0, 1]; unlocalized figure-coordinate patches would land far outside that range and
+    render invisibly.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        plotter = (
+            Plotter(toy_results)
+            .plot_matrix()
+            .plot_cluster_labels_compact()
+            .plot_cluster_bar(name="sig")
+        )
+        plotter.show()
+        track_ax = plotter._fig.axes[-4]
+        xlim = track_ax.get_xlim()
+        x_lo, x_hi = min(xlim), max(xlim)
+        assert track_ax.patches, "Expected cluster-bar patches on ax_trk."
+        for patch in track_ax.patches:
+            x, _y = patch.get_xy()
+            assert x_lo - 1e-9 <= x <= x_hi + 1e-9
+            assert x_lo - 1e-9 <= x + patch.get_width() <= x_hi + 1e-9
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+def test_plot_cluster_labels_compact_cluster_bar_right_edge_aligns_with_bridge_start(
+    toy_results,
+):
+    """
+    Ensures that with plot_cluster_bar(right_pad=0.0), cluster_marker=None,
+    cluster_span="line", and cluster_span_left_pad=0.0, the cluster bar's visible right
+    edge (converted from ax_trk-local to figure coordinates) aligns with the compact
+    bridge axis's figure-coordinate start, i.e. no fake gap between the bar and the
+    compact span/leader region.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        plotter = (
+            Plotter(toy_results)
+            .plot_matrix()
+            .plot_cluster_labels_compact(
+                cluster_marker=None,
+                cluster_span="line",
+                cluster_span_left_pad=0.0,
+            )
+            .plot_cluster_bar(name="sig", right_pad=0.0)
+        )
+        plotter.show()
+        track_ax, _marker_ax, bridge_ax, _table_ax = plotter._fig.axes[-4:]
+        track_x0, _, track_w, _ = track_ax.get_position().bounds
+        bridge_x0, _, _, _ = bridge_ax.get_position().bounds
+
+        assert track_ax.patches, "Expected cluster-bar patches on ax_trk."
+        bar_right_local = max(p.get_xy()[0] + p.get_width() for p in track_ax.patches)
+        bar_right_fig = track_x0 + bar_right_local * track_w
+
+        assert bar_right_fig == pytest.approx(bridge_x0, abs=1e-6)
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+def test_plot_cluster_labels_compact_label_left_pad_moves_table_text_only(toy_results):
+    """
+    Ensures label_left_pad moves floating label text to that table-axis-local x
+    without changing leader-line geometry: the leader line still ends at bridge-axis
+    x=1.0, so only the text is repositioned.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        plotter = (
+            Plotter(toy_results)
+            .plot_matrix()
+            .plot_cluster_labels_compact(label_left_pad=0.05)
+        )
+        plotter.show()
+        bridge_ax, table_ax = plotter._fig.axes[-2:]
+
+        table_texts = [t for t in table_ax.texts if t.get_text().strip()]
+        assert table_texts, "Expected floating label text to be rendered."
+        assert all(t.get_position()[0] == pytest.approx(0.05) for t in table_texts)
+
+        leader_lines = [ln for ln in bridge_ax.lines if len(ln.get_xdata()) > 1]
+        assert leader_lines, "Expected leader lines to be drawn."
+        assert all(ln.get_xdata()[-1] == pytest.approx(1.0) for ln in leader_lines)
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+def test_plot_cluster_labels_compact_label_left_pad_default_is_zero(toy_results):
+    """
+    Ensures the default label_left_pad (unset) preserves current behavior: floating
+    label text starts at table-axis x=0.0.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        plotter = Plotter(toy_results).plot_matrix().plot_cluster_labels_compact()
+        plotter.show()
+        table_ax = plotter._fig.axes[-1]
+        table_texts = [t for t in table_ax.texts if t.get_text().strip()]
+        assert table_texts, "Expected floating label text to be rendered."
+        assert all(t.get_position()[0] == pytest.approx(0.0) for t in table_texts)
+    finally:
+        plt.show = plt_show

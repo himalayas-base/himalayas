@@ -1341,6 +1341,9 @@ class Plotter:
         cluster_span_lw: Optional[float] = None,
         cluster_span_alpha: Optional[float] = None,
         cluster_span_cap_width: Optional[float] = None,
+        cluster_span_left_pad: Optional[float] = None,
+        cluster_span_right_pad: Optional[float] = None,
+        label_left_pad: Optional[float] = None,
         line_color: Optional[str] = None,
         line_lw: Optional[float] = None,
         line_alpha: Optional[float] = None,
@@ -1412,6 +1415,15 @@ class Plotter:
             cluster_span_cap_width (Optional[float]): Optional end-cap width (axes
                 fraction). 0 draws a bare line; >0 draws end caps. Defaults to style
                 compact_cluster_span_cap_width (0.0).
+            cluster_span_left_pad (Optional[float]): Bridge-axis space between the
+                matrix/marker-side edge and the span centerline. Only applies when
+                cluster_span is not None. Defaults to style cluster_span_left_pad.
+            cluster_span_right_pad (Optional[float]): Bridge-axis space between the
+                span centerline and the leader-line start. Only applies when
+                cluster_span is not None. Defaults to style cluster_span_right_pad.
+            label_left_pad (Optional[float]): Table-axis-local x where floating label
+                text starts. Moves table text only; the leader line still ends at
+                bridge-axis x=1.0. Defaults to style compact_label_left_pad (0.0).
             line_color (Optional[str]): Leader-line color. Defaults to style compact_line_color.
             line_lw (Optional[float]): Leader-line width. Defaults to style compact_line_lw.
             line_alpha (Optional[float]): Leader-line opacity. Defaults to style compact_line_alpha.
@@ -1427,8 +1439,9 @@ class Plotter:
 
         Raises:
             ValueError: If cluster_marker, label_fields, label_prefix, line_shape, line_style,
-                cluster_span, line_start, line_end, cluster_span_gap, or cluster_span_cap_width
-                is unsupported.
+                cluster_span, line_start, or line_end is unsupported, or if cluster_span_gap,
+                cluster_span_cap_width, cluster_span_left_pad, cluster_span_right_pad, or
+                label_left_pad is negative.
         """
         if cluster_marker is not None and cluster_marker not in CLUSTER_MARKERS:
             raise ValueError(f"cluster_marker must be one of {[None] + sorted(CLUSTER_MARKERS)}")
@@ -1452,6 +1465,12 @@ class Plotter:
             raise ValueError("cluster_span_gap must be >= 0")
         if cluster_span_cap_width is not None and cluster_span_cap_width < 0:
             raise ValueError("cluster_span_cap_width must be >= 0")
+        if cluster_span_left_pad is not None and cluster_span_left_pad < 0:
+            raise ValueError("cluster_span_left_pad must be >= 0")
+        if cluster_span_right_pad is not None and cluster_span_right_pad < 0:
+            raise ValueError("cluster_span_right_pad must be >= 0")
+        if label_left_pad is not None and label_left_pad < 0:
+            raise ValueError("label_left_pad must be >= 0")
 
         label_options: Dict[str, Any] = {"rank_by": rank_by, "label_mode": label_mode}
         if max_words is not None:
@@ -1509,6 +1528,12 @@ class Plotter:
             layer_kwargs["cluster_span_alpha"] = cluster_span_alpha
         if cluster_span_cap_width is not None:
             layer_kwargs["cluster_span_cap_width"] = cluster_span_cap_width
+        if cluster_span_left_pad is not None:
+            layer_kwargs["cluster_span_left_pad"] = cluster_span_left_pad
+        if cluster_span_right_pad is not None:
+            layer_kwargs["cluster_span_right_pad"] = cluster_span_right_pad
+        if label_left_pad is not None:
+            layer_kwargs["label_left_pad"] = label_left_pad
         if line_color is not None:
             layer_kwargs["line_color"] = line_color
         if line_lw is not None:
