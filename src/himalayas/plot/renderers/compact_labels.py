@@ -23,7 +23,7 @@ from ._compact_label_types import (
 )
 from ._label_format import compute_equal_slots, format_label_prefix, resolve_cluster_label_content
 from ._text_style import apply_text_style
-from ._track_rendering import _render_tracks
+from ._track_rendering import TrackSpec, _render_tracks
 
 if TYPE_CHECKING:
     from ..style import StyleConfig
@@ -187,10 +187,11 @@ def _setup_compact_axes(
     track_layout: Optional[TrackLayoutManager] = None,
     *,
     reserve_marker: bool = True,
-) -> Tuple[plt.Axes, plt.Axes, plt.Axes, Optional[plt.Axes]]:
+) -> Tuple[plt.Axes, plt.Axes, plt.Axes, Optional[plt.Axes], List[TrackSpec]]:
     """
     Creates the marker, bridge, and table sub-axes for the compact-label panel, plus an
-    optional leading track axis reserved for cluster-level tracks (e.g. plot_cluster_bar()).
+    optional leading track axis carrying the label-panel tracks (row-level tracks from
+    plot_label_bar() and cluster-level tracks from plot_cluster_bar()).
 
     Args:
         fig (plt.Figure): Target figure.
@@ -205,29 +206,47 @@ def _setup_compact_axes(
             the bridge axis starts flush against the track/matrix edge. Defaults to True.
 
     Returns:
-        Tuple[plt.Axes, plt.Axes, plt.Axes, Optional[plt.Axes]]:
-            (marker axis, bridge axis, table axis, track axis or None).
+        Tuple[plt.Axes, plt.Axes, plt.Axes, Optional[plt.Axes], List[TrackSpec]]:
+            (marker axis, bridge axis, table axis, track axis or None, resolved tracks).
+            The returned tracks are the same resolved set the reserved geometry was
+            measured from, so callers render exactly what was measured.
+
+    Raises:
+        ValueError: If track widths/pads leave no room for the compact label geometry.
     """
     compact_axes = style.get("compact_axes", None)
     x0, y0, w, h = compact_axes if compact_axes is not None else style["label_axes"]
 
-    # Reserve horizontal space for cluster tracks (e.g. plot_cluster_bar()) immediately
-    # before the marker column, mirroring the standard label panel's gutter/track region.
-    ax_trk = None
+    # Resolve tracks in the label panel's local axes fraction, seeded exactly as
+    # _setup_label_axis() does, so a track lands identically in either label renderer.
+    # The track axis spans the whole panel with xlim (0, 1), so tracks draw at their
+    # resolved positions with no coordinate conversion.
+    tracks: List[TrackSpec] = []
+    end_x_local = 0.0
     if track_layout is not None:
-        track_layout.compute_layout(base_x=x0, gutter_width=0.0)
-        end_x = track_layout.get_end_x()
-        if end_x is not None and end_x > x0:
-            ax_trk = fig.add_axes([x0, y0, end_x - x0, h], frameon=False)
-            w -= end_x - x0
-            x0 = end_x
+        track_layout.compute_layout(style["label_x"], style["label_gutter_width"])
+        tracks = track_layout.get_tracks()
+        if tracks:
+            end_x_local = track_layout.get_end_x()
+    track_x0, track_w = x0, w
+
+    # Reserve the drawn track strip, then lay the compact geometry out in what remains.
+    x0 += end_x_local * w
+    w -= end_x_local * w
 
     marker_w = float(style.get("compact_marker_width", 0.08)) * w if reserve_marker else 0.0
     bridge_w = float(style.get("compact_bridge_width", 0.45)) * w
     table_pad = float(style.get("compact_table_pad", 0.02)) * w
     table_x0 = x0 + marker_w + bridge_w + table_pad
-    table_w = max(w - marker_w - bridge_w - table_pad, 0.01)
+    table_w = w - marker_w - bridge_w - table_pad
+    # Validate before adding any axes, so a rejected layout leaves the figure untouched.
+    if table_w <= 0:
+        raise ValueError(
+            "label-panel track widths/pads exceed the available compact label-panel "
+            "width; reduce plot_label_bar()/plot_cluster_bar() width or pads"
+        )
 
+    ax_trk = fig.add_axes([track_x0, y0, track_w, h], frameon=False) if tracks else None
     ax_mrk = fig.add_axes([x0, y0, marker_w, h], frameon=False)
     ax_bridge = fig.add_axes([x0 + marker_w, y0, bridge_w, h], frameon=False)
     ax_tbl = fig.add_axes([table_x0, y0, table_w, h], frameon=False)
@@ -241,7 +260,7 @@ def _setup_compact_axes(
         ax.set_xticks([])
         ax.set_yticks([])
 
-    return ax_mrk, ax_bridge, ax_tbl, ax_trk
+    return ax_mrk, ax_bridge, ax_tbl, ax_trk, tracks
 
 
 class CompactLabelsRenderer:
@@ -457,11 +476,14 @@ class CompactLabelsRenderer:
             style (StyleConfig): Style configuration.
 
         Kwargs:
-            track_layout (Optional[TrackLayoutManager]): Registered label-panel tracks. Only
-                cluster-kind tracks (e.g. plot_cluster_bar()) are drawn; row-kind tracks are not
-                supported in the compact panel. Defaults to None.
+            track_layout (Optional[TrackLayoutManager]): Registered label-panel tracks. Both
+                row-kind tracks (plot_label_bar()) and cluster-kind tracks (plot_cluster_bar())
+                are drawn, in set_label_track_order() order. Defaults to None.
             bar_labels_kwargs (Optional[Dict[str, object]]): Bar title rendering options,
-                consumed only when cluster tracks are drawn. Defaults to None.
+                consumed only when tracks are drawn. Defaults to None.
+
+        Raises:
+            ValueError: If track widths/pads leave no room for the compact label geometry.
         """
         n_rows = matrix.df.shape[0]
         spans: List[Tuple[int, int, int]] = list(layout.cluster_spans)
@@ -470,27 +492,13 @@ class CompactLabelsRenderer:
         label_map = _build_label_map(self.df, override_map)
         label_fields = self.label_fields if self.label_fields is not ... else style["label_fields"]
 
-        ax_mrk, ax_bridge, ax_tbl, ax_trk = _setup_compact_axes(
+        ax_mrk, ax_bridge, ax_tbl, ax_trk, tracks = _setup_compact_axes(
             fig, n_rows, style, track_layout, reserve_marker=self.cluster_marker is not None
         )
         if ax_trk is not None:
-            # ax_trk's data coordinates are local [0, 1], but TrackLayoutManager stores
-            # track x0/x1/width in figure coordinates. Localize copies so
-            # render_cluster_bar_track() draws inside ax_trk's visible range instead of
-            # far outside it.
-            track_axis_x0, _, track_axis_width, _ = ax_trk.get_position().bounds
-            cluster_tracks = []
-            for t in track_layout.get_tracks():
-                if t.get("kind") != "cluster":
-                    continue
-                t = dict(t)
-                t["x0"] = (t["x0"] - track_axis_x0) / track_axis_width
-                t["x1"] = (t["x1"] - track_axis_x0) / track_axis_width
-                t["width"] = t["width"] / track_axis_width
-                cluster_tracks.append(t)
             _render_tracks(
                 ax_trk,
-                cluster_tracks,
+                tracks,
                 matrix=matrix,
                 row_order=layout.leaf_order,
                 spans=spans,

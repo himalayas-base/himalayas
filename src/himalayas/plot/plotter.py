@@ -703,9 +703,10 @@ class Plotter:
             name (str): Track name.
 
         Kwargs:
-            width (Optional[float]): Track width (figure fraction). Defaults to style sigbar_width.
-            left_pad (float): Left padding (figure fraction). Defaults to 0.0.
-            right_pad (float): Right padding (figure fraction). Defaults to 0.0.
+            width (Optional[float]): Track width (label-panel axes fraction). Defaults to
+                style sigbar_width.
+            left_pad (float): Left padding (label-panel axes fraction). Defaults to 0.0.
+            right_pad (float): Right padding (label-panel axes fraction). Defaults to 0.0.
             cmap (Optional[str]): Colormap name. Defaults to style sigbar_cmap.
             norm: Matplotlib normalization instance. Defaults to None.
             alpha (Optional[float]): Bar opacity. Defaults to style sigbar_alpha.
@@ -1031,9 +1032,10 @@ class Plotter:
             vmin (Optional[float]): Color scale minimum (continuous mode). Defaults to None.
             vmax (Optional[float]): Color scale maximum (continuous mode). Defaults to None.
             missing_color (Optional[str]): Color for missing values. Defaults to None.
-            width (Optional[float]): Track width (figure fraction). Defaults to style label_bar_width.
-            left_pad (float): Left padding (figure fraction). Defaults to 0.0.
-            right_pad (float): Right padding (figure fraction). Defaults to 0.0.
+            width (Optional[float]): Track width (label-panel axes fraction). Defaults to
+                style label_bar_width.
+            left_pad (float): Left padding (label-panel axes fraction). Defaults to 0.0.
+            right_pad (float): Right padding (label-panel axes fraction). Defaults to 0.0.
             enabled (bool): Whether to register the track. Defaults to True.
             title (Optional[str]): Optional bar title shown below the track. Defaults to None.
 
@@ -1356,6 +1358,8 @@ class Plotter:
         vertical center, connected by a leader line to its full label in an equally-spaced
         right-side table. An additive alternative to plot_cluster_labels() for figures with
         many or highly size-skewed clusters; the two are mutually exclusive in one render.
+        Supports the same label-panel tracks as plot_cluster_labels(), both row-level
+        (plot_label_bar()) and cluster-level (plot_cluster_bar()).
 
         Kwargs:
             overrides (Optional[Dict[int, str]]): Per-cluster label overrides keyed by cluster id.
@@ -1441,7 +1445,8 @@ class Plotter:
             ValueError: If cluster_marker, label_fields, label_prefix, line_shape, line_style,
                 cluster_span, line_start, or line_end is unsupported, or if cluster_span_gap,
                 cluster_span_cap_width, cluster_span_left_pad, cluster_span_right_pad, or
-                label_left_pad is negative.
+                label_left_pad is negative. Raised at render time if label-panel track
+                widths/pads exceed the available compact label-panel width.
         """
         if cluster_marker is not None and cluster_marker not in CLUSTER_MARKERS:
             raise ValueError(f"cluster_marker must be one of {[None] + sorted(CLUSTER_MARKERS)}")
