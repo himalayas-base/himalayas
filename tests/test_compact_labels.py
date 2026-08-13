@@ -1361,7 +1361,9 @@ def test_plot_label_bar_track_geometry_matches_standard_and_compact(toy_results)
 def test_plot_cluster_labels_compact_mixed_tracks_follow_label_track_order(toy_results):
     """
     Ensures compact labels render cluster-level and row-level tracks together, laid out
-    left to right in the explicit set_label_track_order() sequence.
+    left to right in the explicit set_label_track_order() sequence. The chain mirrors a
+    publication-style stack mixing a cluster bar, a categorical row track, and a
+    continuous row track.
 
     Args:
         toy_results (Results): Results fixture with clusters and layout.
@@ -1370,14 +1372,22 @@ def test_plot_cluster_labels_compact_mixed_tracks_follow_label_track_order(toy_r
     plt_show = plt.show
     plt.show = lambda *args, **kwargs: None
     try:
-        values = {"a": "x", "b": "x", "c": "y", "d": "y"}
+        categories = {"a": "x", "b": "x", "c": "y", "d": "y"}
+        scores = {"a": 0.0, "b": 1.0, "c": 0.5, "d": float("nan")}
         plotter = (
             Plotter(toy_results)
             .plot_matrix()
             .plot_cluster_labels_compact()
             .plot_cluster_bar(name="sigbar")
-            .plot_label_bar(values, name="essentiality", colors={"x": "red", "y": "blue"})
-            .plot_label_bar(values, name="fitness", colors={"x": "green", "y": "purple"})
+            .plot_label_bar(categories, name="essentiality", colors={"x": "red", "y": "blue"})
+            .plot_label_bar(
+                scores,
+                name="fitness",
+                mode="continuous",
+                cmap="viridis",
+                vmin=0.0,
+                vmax=1.0,
+            )
             .set_label_track_order(("sigbar", "essentiality", "fitness"))
         )
         plotter.show()
