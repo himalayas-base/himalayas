@@ -200,8 +200,8 @@ def test_plotter_stacked_defaults_smoke(toy_results):
 @pytest.mark.parametrize(
     "stack",
     [
-        # Keep this matrix to valid combinations only: legend requires row_bar,
-        # and cluster_bar requires cluster_labels.
+        # Keep this matrix to valid combinations only: legend requires row_bar.
+        # Cluster bars render standalone, so they need no cluster_labels layer.
         {
             "cluster_labels": False,
             "cluster_bar": False,

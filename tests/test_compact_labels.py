@@ -1424,3 +1424,135 @@ def test_plot_cluster_labels_compact_track_overflow_raises_value_error(toy_resul
             plotter.show()
     finally:
         plt.show = plt_show
+
+
+@pytest.mark.api
+def test_plot_cluster_labels_compact_row_bar_feeds_label_legend(toy_results):
+    """
+    Ensures a categorical row label bar renders in the compact panel and is described by
+    a label legend in the same chain, so the legend never documents an undrawn track.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        values = {"a": "1", "b": "2", "c": "1", "d": "2"}
+        colors = {"1": "#1b9e77", "2": "#d95f02"}
+        plotter = (
+            Plotter(toy_results)
+            .plot_matrix()
+            .plot_cluster_labels_compact()
+            .plot_label_bar(
+                values=values,
+                name="orf_category",
+                mode="categorical",
+                colors=colors,
+                title="ORF Category",
+            )
+            .add_label_legend(name="orf_category")
+            .plot_label_legends()
+        )
+        plotter.show()
+
+        track_ax = _compact_axes(plotter, has_tracks=True).track
+        assert track_ax.patches, "Expected row label-bar patches on the compact track axis."
+        drawn_colors = {to_rgba(patch.get_facecolor()) for patch in track_ax.patches}
+        assert drawn_colors == {to_rgba(colors["1"]), to_rgba(colors["2"])}
+
+        assert plotter.label_legend_layout_ is not None
+        texts = extract_figure_text(plotter._fig, strip=True, nonempty=True)
+        assert "ORF Category" in texts
+        assert "1" in texts
+        assert "2" in texts
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+def test_plot_cluster_labels_compact_bar_titles_center_on_row_track(toy_results):
+    """
+    Ensures plot_bar_labels() centers a row track's title on that track in the compact
+    panel. Titles are anchored in axes coordinates, which only matches the resolved
+    track geometry while the compact track axis spans the label panel with xlim [0, 1].
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        values = {"a": "1", "b": "2", "c": "1", "d": "2"}
+        plotter = (
+            Plotter(toy_results)
+            .plot_matrix()
+            .plot_cluster_labels_compact()
+            .plot_label_bar(
+                values=values,
+                name="orf_category",
+                mode="categorical",
+                colors={"1": "#1b9e77", "2": "#d95f02"},
+                title="ORF Category",
+            )
+            .plot_bar_labels()
+        )
+        plotter.show()
+
+        track_ax = _compact_axes(plotter, has_tracks=True).track
+        assert track_ax.patches, "Expected row label-bar patches on the compact track axis."
+        bar_left = min(patch.get_xy()[0] for patch in track_ax.patches)
+        bar_right = max(patch.get_xy()[0] + patch.get_width() for patch in track_ax.patches)
+
+        titles = [t for t in track_ax.texts if t.get_text().strip() == "ORF Category"]
+        assert len(titles) == 1, "Expected exactly one bar title on the compact track axis."
+        assert titles[0].xy[0] == pytest.approx((bar_left + bar_right) / 2.0)
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+def test_plot_cluster_labels_compact_custom_panel_scales_track_strip(toy_results):
+    """
+    Ensures compact track geometry scales to a custom set_label_panel() box when cluster
+    and row tracks are mixed. Track positions are label-panel axes fractions, so the
+    reserved strip must be measured against the custom panel width, not the figure.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        custom_axes = [0.61, 0.13, 0.35, 0.77]
+        values = {"a": "1", "b": "2", "c": "1", "d": "2"}
+        plotter = (
+            Plotter(toy_results)
+            .plot_matrix()
+            .set_label_panel(axes=custom_axes)
+            .plot_cluster_labels_compact()
+            .plot_cluster_bar(name="sig")
+            .plot_label_bar(
+                values=values,
+                name="orf_category",
+                mode="categorical",
+                colors={"1": "#1b9e77", "2": "#d95f02"},
+            )
+        )
+        plotter.show()
+
+        track_ax, marker_ax, bridge_ax, table_ax = _compact_axes(plotter, has_tracks=True)
+        panel_x0, _, panel_w, _ = track_ax.get_position().bounds
+        assert (panel_x0, panel_w) == pytest.approx((custom_axes[0], custom_axes[2]))
+
+        assert track_ax.patches, "Expected mixed track patches on the compact track axis."
+        track_right = max(p.get_xy()[0] + p.get_width() for p in track_ax.patches)
+        assert marker_ax.get_position().x0 == pytest.approx(panel_x0 + track_right * panel_w)
+
+        for ax in (marker_ax, bridge_ax, table_ax):
+            assert ax.get_position().width >= 0.0
+    finally:
+        plt.show = plt_show
