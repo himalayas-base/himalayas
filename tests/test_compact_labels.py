@@ -3,6 +3,8 @@ tests/test_compact_labels
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 """
 
+from typing import NamedTuple, Optional
+
 import matplotlib.pyplot as plt
 import pytest
 from matplotlib.colors import to_rgba
@@ -18,6 +20,54 @@ def _close_all_figures_after_each_test():
     """
     yield
     plt.close("all")
+
+
+class CompactAxes(NamedTuple):
+    """
+    Resolved compact label-panel axes.
+    """
+
+    track: Optional[plt.Axes]
+    marker: plt.Axes
+    bridge: plt.Axes
+    table: plt.Axes
+
+
+def _compact_axes(plotter, *, has_tracks=False):
+    """
+    Resolves the compact label-panel axes by their shared geometry rather than by the
+    order Matplotlib appends axes to the figure.
+
+    Compact sub-axes are the only axes spanning x in [0, 1] over the inverted matrix row
+    range, which separates them from the matrix, dendrogram, and colorbar axes. They are
+    then ordered left to right; the marker axis can be zero-width (cluster_marker=None),
+    so ties on x0 are broken by width to keep marker before bridge.
+
+    Args:
+        plotter (Plotter): Rendered plotter instance.
+
+    Kwargs:
+        has_tracks (bool): Whether a label-panel track axis is expected. Defaults to False.
+
+    Returns:
+        CompactAxes: (track, marker, bridge, table); track is None when has_tracks is False.
+    """
+    n_rows = plotter.matrix.df.shape[0]
+    candidates = [
+        ax
+        for ax in plotter._fig.axes
+        if ax.get_xlim() == pytest.approx((0.0, 1.0))
+        and ax.get_ylim() == pytest.approx((n_rows - 0.5, -0.5))
+    ]
+    expected = 4 if has_tracks else 3
+    assert (
+        len(candidates) == expected
+    ), f"Expected {expected} compact label-panel axes, found {len(candidates)}."
+    candidates.sort(key=lambda ax: (ax.get_position().x0, ax.get_position().width))
+    track = candidates.pop(0) if has_tracks else None
+    marker, bridge, table = candidates
+
+    return CompactAxes(track, marker, bridge, table)
 
 
 @pytest.mark.api
@@ -61,7 +111,7 @@ def test_plot_cluster_labels_compact_default_draws_no_cluster_marker(toy_results
             .plot_cluster_labels_compact(label_fields=("label",), wrap_text=False)
         )
         plotter.show()
-        marker_ax, _bridge_ax, table_ax = plotter._fig.axes[-3:]
+        _track_ax, marker_ax, _bridge_ax, table_ax = _compact_axes(plotter)
 
         marker_texts = [t.get_text().strip() for t in marker_ax.texts if t.get_text().strip()]
         assert not marker_texts, "Expected no matrix-side marker text by default."
@@ -224,7 +274,7 @@ def test_plot_cluster_labels_compact_cluster_marker_and_label_prefix_independent
             )
         )
         plotter.show()
-        marker_ax, table_ax = plotter._fig.axes[-3], plotter._fig.axes[-1]
+        _track_ax, marker_ax, _bridge_ax, table_ax = _compact_axes(plotter)
         marker_texts = [t.get_text().strip() for t in marker_ax.texts if t.get_text().strip()]
         table_texts = [t.get_text().strip() for t in table_ax.texts if t.get_text().strip()]
         assert marker_texts and all(t.isalpha() and t.isupper() for t in marker_texts)
@@ -234,7 +284,9 @@ def test_plot_cluster_labels_compact_cluster_marker_and_label_prefix_independent
         for txt in table_texts:
             first_token = txt.split(" ", 1)[0].rstrip(".")
             assert first_token.isdigit()
-            assert not any(marker in txt.split(" ", 1)[0] for marker in marker_texts if marker.isalpha())
+            assert not any(
+                marker in txt.split(" ", 1)[0] for marker in marker_texts if marker.isalpha()
+            )
     finally:
         plt.show = plt_show
 
@@ -256,10 +308,12 @@ def test_plot_cluster_labels_compact_n_matches_layout_cluster_sizes(toy_results)
         plotter = (
             Plotter(toy_results)
             .plot_matrix()
-            .plot_cluster_labels_compact(label_fields=("label", "n"), label_prefix="cid", wrap_text=False)
+            .plot_cluster_labels_compact(
+                label_fields=("label", "n"), label_prefix="cid", wrap_text=False
+            )
         )
         plotter.show()
-        table_ax = plotter._fig.axes[-1]
+        table_ax = _compact_axes(plotter).table
         for txt in table_ax.texts:
             text = txt.get_text().strip()
             if not text or "n=" not in text:
@@ -293,12 +347,8 @@ def test_plot_cluster_labels_compact_table_order_follows_dendrogram_span_order(t
         # Table-column texts render as "<cid prefix>. <label...>"; recover cid order by
         # the vertical (y) position of each text artist in the table axis (last axis
         # created by the compact-label panel).
-        table_ax = plotter._fig.axes[-1]
-        rows = [
-            (t.get_position()[1], t.get_text())
-            for t in table_ax.texts
-            if t.get_text().strip()
-        ]
+        table_ax = _compact_axes(plotter).table
+        rows = [(t.get_position()[1], t.get_text()) for t in table_ax.texts if t.get_text().strip()]
         rows.sort(key=lambda pair: pair[0])
         rendered_order = [int(text.split(".", 1)[0]) for _y, text in rows]
         assert rendered_order == expected_order
@@ -308,7 +358,9 @@ def test_plot_cluster_labels_compact_table_order_follows_dendrogram_span_order(t
 
 @pytest.mark.api
 @pytest.mark.parametrize("line_shape", ["straight", "curved", "elbow"])
-def test_plot_cluster_labels_compact_cluster_span_renders_with_every_line_shape(toy_results, line_shape):
+def test_plot_cluster_labels_compact_cluster_span_renders_with_every_line_shape(
+    toy_results, line_shape
+):
     """
     Ensures a capped cluster_span="line" is compatible with every leader-line shape:
     the cluster-side span sits at the matrix-side edge independent of how the leader
@@ -423,9 +475,11 @@ def test_plot_cluster_labels_compact_cluster_span_cap_width_has_no_cluster_marke
             )
         )
         plotter.show()
-        marker_ax, bridge_ax, table_ax = plotter._fig.axes[-3:]
+        _track_ax, marker_ax, bridge_ax, table_ax = _compact_axes(plotter)
         horizontal_lines = [
-            ln for ln in bridge_ax.lines if len(ln.get_xdata()) == 2 and ln.get_xdata()[0] != ln.get_xdata()[1]
+            ln
+            for ln in bridge_ax.lines
+            if len(ln.get_xdata()) == 2 and ln.get_xdata()[0] != ln.get_xdata()[1]
         ]
         assert horizontal_lines, "Expected end caps when cluster_span_cap_width > 0."
 
@@ -458,9 +512,7 @@ def test_plot_cluster_labels_cluster_span_opt_in_renders(toy_results):
         default_plotter.show()
         default_lines = len(default_plotter._fig.axes[-1].lines)
 
-        span_plotter = (
-            Plotter(toy_results).plot_matrix().plot_cluster_labels(cluster_span="line")
-        )
+        span_plotter = Plotter(toy_results).plot_matrix().plot_cluster_labels(cluster_span="line")
         span_plotter.show()
         span_lines = len(span_plotter._fig.axes[-1].lines)
         assert span_lines > default_lines
@@ -572,15 +624,11 @@ def test_plot_cluster_labels_cluster_span_pads_position_span_and_label_text(toy_
             if ln.get_color() == span_color and ln.get_xdata()[0] == ln.get_xdata()[1]
         ]
         assert span_lines, "Expected at least one vertical span line."
-        assert all(
-            ln.get_xdata()[0] == pytest.approx(expected_span_x) for ln in span_lines
-        )
+        assert all(ln.get_xdata()[0] == pytest.approx(expected_span_x) for ln in span_lines)
 
         label_texts = [t for t in ax_lab.texts if t.get_text().strip()]
         assert label_texts, "Expected label text to be drawn."
-        assert all(
-            t.get_position()[0] == pytest.approx(expected_label_text_x) for t in label_texts
-        )
+        assert all(t.get_position()[0] == pytest.approx(expected_label_text_x) for t in label_texts)
     finally:
         plt.show = plt_show
 
@@ -630,9 +678,7 @@ def test_plot_cluster_labels_cluster_span_pad_defaults_match_explicit_values(toy
             for ln in explicit_ax.lines
             if ln.get_color() == span_color and ln.get_xdata()[0] == ln.get_xdata()[1]
         ]
-        explicit_label_x = [
-            t.get_position()[0] for t in explicit_ax.texts if t.get_text().strip()
-        ]
+        explicit_label_x = [t.get_position()[0] for t in explicit_ax.texts if t.get_text().strip()]
 
         assert default_span_x and explicit_span_x
         assert default_span_x == pytest.approx(explicit_span_x)
@@ -704,7 +750,7 @@ def test_plot_cluster_labels_compact_cluster_span_cap_width_propagates(toy_resul
             .plot_cluster_labels_compact(cluster_span="line", cluster_span_cap_width=0.15)
         )
         plotter.show()
-        bridge_ax = plotter._fig.axes[-2]
+        bridge_ax = _compact_axes(plotter).bridge
         # End caps are horizontal, straddle the matrix-side x=0.0 centerline, and are
         # distinct from the leader line itself (which spans the full x in [0, 1]).
         cap_lines = [
@@ -756,7 +802,7 @@ def test_plot_cluster_labels_cluster_span_default_cap_width_is_bare_line(toy_res
             Plotter(toy_results).plot_matrix().plot_cluster_labels_compact(cluster_span="line")
         )
         compact_plotter.show()
-        bridge_ax = compact_plotter._fig.axes[-2]
+        bridge_ax = _compact_axes(compact_plotter).bridge
         compact_caps = [
             ln
             for ln in bridge_ax.lines
@@ -795,7 +841,7 @@ def test_plot_cluster_labels_compact_cluster_span_style_independent_of_line_styl
             )
         )
         plotter.show()
-        bridge_ax = plotter._fig.axes[-2]
+        bridge_ax = _compact_axes(plotter).bridge
         span_lines = [ln for ln in bridge_ax.lines if ln.get_linewidth() == pytest.approx(2.5)]
         assert span_lines, "Expected span artists drawn at cluster_span_lw."
         assert all(ln.get_color() == "#1b9e77" for ln in span_lines)
@@ -853,8 +899,8 @@ def test_plot_cluster_labels_compact_anchors_to_custom_label_panel(toy_results):
         )
         plotter.show()
 
-        compact_axes = plotter._fig.axes[-3:]
-        assert len(compact_axes) == 3
+        resolved = _compact_axes(plotter)
+        compact_axes = (resolved.marker, resolved.bridge, resolved.table)
         for ax in compact_axes:
             x0, y0, w, h = ax.get_position().bounds
             assert y0 == pytest.approx(custom_axes[1])
@@ -895,8 +941,10 @@ def test_plot_cluster_labels_compact_supports_cluster_bar_and_bar_labels(toy_res
 @pytest.mark.api
 def test_plot_cluster_labels_compact_cluster_bar_track_left_of_compact_axes(toy_results):
     """
-    Ensures the cluster-bar track occupies a region strictly to the left of the compact
+    Ensures the painted cluster-bar track stays strictly to the left of the compact
     marker/bridge/table axes, i.e. it does not overlap the compact equal-slot geometry.
+    The track axis itself spans the whole label panel, so the property is asserted
+    against the drawn track extent rather than the track axis bounds.
 
     Args:
         toy_results (Results): Results fixture with clusters and layout.
@@ -913,14 +961,18 @@ def test_plot_cluster_labels_compact_cluster_bar_track_left_of_compact_axes(toy_
         )
         plotter.show()
 
-        track_ax, marker_ax, bridge_ax, table_ax = plotter._fig.axes[-4:]
+        track_ax, marker_ax, bridge_ax, table_ax = _compact_axes(plotter, has_tracks=True)
         track_x0, _, track_w, _ = track_ax.get_position().bounds
         marker_x0, _, _, _ = marker_ax.get_position().bounds
 
-        assert track_x0 + track_w == pytest.approx(marker_x0)
+        assert track_ax.patches, "Expected cluster-bar patches on the compact track axis."
+        track_right = (
+            track_x0 + max(p.get_xy()[0] + p.get_width() for p in track_ax.patches) * track_w
+        )
+        assert track_right == pytest.approx(marker_x0)
         for ax in (marker_ax, bridge_ax, table_ax):
             ax_x0, _, _, _ = ax.get_position().bounds
-            assert track_x0 + track_w <= ax_x0 + 1e-9
+            assert track_right <= ax_x0 + 1e-9
     finally:
         plt.show = plt_show
 
@@ -959,7 +1011,7 @@ def test_plot_cluster_labels_compact_cluster_span_pads_position_span_and_leader_
             )
         )
         plotter.show()
-        bridge_ax = plotter._fig.axes[-2]
+        bridge_ax = _compact_axes(plotter).bridge
 
         span_lines = [
             ln
@@ -991,7 +1043,7 @@ def test_plot_cluster_labels_compact_cluster_span_pads_position_span_and_leader_
             )
         )
         no_span_plotter.show()
-        no_span_bridge_ax = no_span_plotter._fig.axes[-2]
+        no_span_bridge_ax = _compact_axes(no_span_plotter).bridge
         no_span_leader_lines = [
             ln
             for ln in no_span_bridge_ax.lines
@@ -1051,7 +1103,7 @@ def test_plot_cluster_labels_compact_no_marker_reserves_zero_marker_width(toy_re
             .plot_cluster_labels_compact(cluster_span="line", cluster_span_left_pad=0.0)
         )
         plotter.show()
-        marker_ax, bridge_ax, _table_ax = plotter._fig.axes[-3:]
+        _track_ax, marker_ax, bridge_ax, _table_ax = _compact_axes(plotter)
         marker_x0, _, marker_w, _ = marker_ax.get_position().bounds
         bridge_x0, _, _, _ = bridge_ax.get_position().bounds
         assert marker_w == pytest.approx(0.0)
@@ -1070,13 +1122,19 @@ def test_plot_cluster_labels_compact_no_marker_reserves_zero_marker_width(toy_re
             .plot_cluster_bar(name="sig")
         )
         tracked_plotter.show()
-        track_ax, marker_ax, bridge_ax, _table_ax = tracked_plotter._fig.axes[-4:]
+        track_ax, marker_ax, bridge_ax, _table_ax = _compact_axes(tracked_plotter, has_tracks=True)
         track_x0, _, track_w, _ = track_ax.get_position().bounds
         marker_x0, _, marker_w, _ = marker_ax.get_position().bounds
         bridge_x0, _, _, _ = bridge_ax.get_position().bounds
+        # The track axis spans the whole label panel; the compact geometry starts at the
+        # painted track extent, not at the track axis' right edge.
+        assert track_ax.patches, "Expected cluster-bar patches on the compact track axis."
+        track_right = (
+            track_x0 + max(p.get_xy()[0] + p.get_width() for p in track_ax.patches) * track_w
+        )
         assert marker_w == pytest.approx(0.0)
-        assert marker_x0 == pytest.approx(track_x0 + track_w)
-        assert bridge_x0 == pytest.approx(track_x0 + track_w)
+        assert marker_x0 == pytest.approx(track_right)
+        assert bridge_x0 == pytest.approx(track_right)
     finally:
         plt.show = plt_show
 
@@ -1084,11 +1142,10 @@ def test_plot_cluster_labels_compact_no_marker_reserves_zero_marker_width(toy_re
 @pytest.mark.api
 def test_plot_cluster_labels_compact_cluster_bar_patches_inside_track_axis_xlim(toy_results):
     """
-    Ensures compact cluster-bar patches are drawn inside ax_trk's own [0, 1] data range,
-    not at ax_trk's figure-coordinate position. TrackLayoutManager stores track x0/x1/width
-    in figure coordinates, but ax_trk (created by _setup_compact_axes) has local xlim
-    [0, 1]; unlocalized figure-coordinate patches would land far outside that range and
-    render invisibly.
+    Ensures compact cluster-bar patches are drawn inside ax_trk's own [0, 1] data range.
+    TrackLayoutManager positions are label-panel axes fractions, and ax_trk spans the
+    label panel with xlim [0, 1], so resolved positions are already in ax_trk's frame;
+    reading them as figure coordinates would push patches outside that range.
 
     Args:
         toy_results (Results): Results fixture with clusters and layout.
@@ -1104,7 +1161,7 @@ def test_plot_cluster_labels_compact_cluster_bar_patches_inside_track_axis_xlim(
             .plot_cluster_bar(name="sig")
         )
         plotter.show()
-        track_ax = plotter._fig.axes[-4]
+        track_ax = _compact_axes(plotter, has_tracks=True).track
         xlim = track_ax.get_xlim()
         x_lo, x_hi = min(xlim), max(xlim)
         assert track_ax.patches, "Expected cluster-bar patches on ax_trk."
@@ -1145,7 +1202,7 @@ def test_plot_cluster_labels_compact_cluster_bar_right_edge_aligns_with_bridge_s
             .plot_cluster_bar(name="sig", right_pad=0.0)
         )
         plotter.show()
-        track_ax, _marker_ax, bridge_ax, _table_ax = plotter._fig.axes[-4:]
+        track_ax, _marker_ax, bridge_ax, _table_ax = _compact_axes(plotter, has_tracks=True)
         track_x0, _, track_w, _ = track_ax.get_position().bounds
         bridge_x0, _, _, _ = bridge_ax.get_position().bounds
 
@@ -1173,12 +1230,10 @@ def test_plot_cluster_labels_compact_label_left_pad_moves_table_text_only(toy_re
     plt.show = lambda *args, **kwargs: None
     try:
         plotter = (
-            Plotter(toy_results)
-            .plot_matrix()
-            .plot_cluster_labels_compact(label_left_pad=0.05)
+            Plotter(toy_results).plot_matrix().plot_cluster_labels_compact(label_left_pad=0.05)
         )
         plotter.show()
-        bridge_ax, table_ax = plotter._fig.axes[-2:]
+        _track_ax, _marker_ax, bridge_ax, table_ax = _compact_axes(plotter)
 
         table_texts = [t for t in table_ax.texts if t.get_text().strip()]
         assert table_texts, "Expected floating label text to be rendered."
@@ -1206,9 +1261,166 @@ def test_plot_cluster_labels_compact_label_left_pad_default_is_zero(toy_results)
     try:
         plotter = Plotter(toy_results).plot_matrix().plot_cluster_labels_compact()
         plotter.show()
-        table_ax = plotter._fig.axes[-1]
+        table_ax = _compact_axes(plotter).table
         table_texts = [t for t in table_ax.texts if t.get_text().strip()]
         assert table_texts, "Expected floating label text to be rendered."
         assert all(t.get_position()[0] == pytest.approx(0.0) for t in table_texts)
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+def test_plot_cluster_labels_compact_renders_row_label_bar_track(toy_results):
+    """
+    Ensures a row-level plot_label_bar() track is drawn in the compact label panel.
+    Compact labels are an alternative cluster-label text renderer, so they support the
+    same label-panel track kinds as the standard panel.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        values = {"a": "x", "b": "x", "c": "y", "d": "y"}
+        plotter = (
+            Plotter(toy_results)
+            .plot_matrix()
+            .plot_label_bar(values, colors={"x": "red", "y": "blue"})
+            .plot_cluster_labels_compact()
+        )
+        plotter.show()
+        track_ax = _compact_axes(plotter, has_tracks=True).track
+        assert track_ax.patches, "Expected row label-bar patches on the compact track axis."
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+def test_plot_label_bar_track_geometry_matches_standard_and_compact(toy_results):
+    """
+    Ensures a row label bar occupies identical figure coordinates under
+    plot_cluster_labels() and plot_cluster_labels_compact(). TrackLayoutManager
+    positions are label-panel axes fractions, so both renderers must resolve the same
+    track in the same frame; a figure-coordinate reading would widen the compact bar.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        values = {"a": "x", "b": "x", "c": "y", "d": "y"}
+        colors = {"x": "red", "y": "blue"}
+
+        def bar_extent_in_figure_coords(plotter, track_ax):
+            """
+            Converts the widest track patch's x extent from axes-local to figure coords.
+
+            Args:
+                plotter (Plotter): Rendered plotter instance.
+                track_ax (plt.Axes): Axis holding the track patches.
+
+            Returns:
+                tuple[float, float]: (left, right) figure-coordinate x extent.
+            """
+            ax_x0, _, ax_w, _ = track_ax.get_position().bounds
+            patch = max(track_ax.patches, key=lambda p: p.get_width())
+            left = patch.get_xy()[0]
+            return ax_x0 + left * ax_w, ax_x0 + (left + patch.get_width()) * ax_w
+
+        standard = (
+            Plotter(toy_results)
+            .plot_matrix()
+            .plot_label_bar(values, colors=colors)
+            .plot_cluster_labels()
+        )
+        standard.show()
+        standard_extent = bar_extent_in_figure_coords(standard, standard._fig.axes[-1])
+
+        compact = (
+            Plotter(toy_results)
+            .plot_matrix()
+            .plot_label_bar(values, colors=colors)
+            .plot_cluster_labels_compact()
+        )
+        compact.show()
+        compact_extent = bar_extent_in_figure_coords(
+            compact, _compact_axes(compact, has_tracks=True).track
+        )
+
+        assert compact_extent[0] == pytest.approx(standard_extent[0], abs=1e-9)
+        assert compact_extent[1] == pytest.approx(standard_extent[1], abs=1e-9)
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+def test_plot_cluster_labels_compact_mixed_tracks_follow_label_track_order(toy_results):
+    """
+    Ensures compact labels render cluster-level and row-level tracks together, laid out
+    left to right in the explicit set_label_track_order() sequence.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        values = {"a": "x", "b": "x", "c": "y", "d": "y"}
+        plotter = (
+            Plotter(toy_results)
+            .plot_matrix()
+            .plot_cluster_labels_compact()
+            .plot_cluster_bar(name="sigbar")
+            .plot_label_bar(values, name="essentiality", colors={"x": "red", "y": "blue"})
+            .plot_label_bar(values, name="fitness", colors={"x": "green", "y": "purple"})
+            .set_label_track_order(("sigbar", "essentiality", "fitness"))
+        )
+        plotter.show()
+        track_ax = _compact_axes(plotter, has_tracks=True).track
+        assert track_ax.patches, "Expected mixed track patches on the compact track axis."
+
+        positions = plotter._track_layout.compute_layout(
+            plotter._style["label_x"], plotter._style["label_gutter_width"]
+        )
+        ordered = sorted(positions, key=lambda name: positions[name][0])
+        assert ordered == ["sigbar", "essentiality", "fitness"]
+
+        drawn = {round(p.get_xy()[0], 6) for p in track_ax.patches}
+        for name in ("sigbar", "essentiality", "fitness"):
+            x0 = positions[name][0]
+            assert any(x == pytest.approx(x0, abs=1e-6) for x in drawn), f"{name} not drawn"
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+def test_plot_cluster_labels_compact_track_overflow_raises_value_error(toy_results):
+    """
+    Ensures oversized label-panel track widths/pads raise a clear library-level
+    ValueError, rather than letting Matplotlib reject a negative axes width.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        values = {"a": "x", "b": "x", "c": "y", "d": "y"}
+        plotter = (
+            Plotter(toy_results)
+            .plot_matrix()
+            .plot_label_bar(
+                values, name="wide", colors={"x": "red", "y": "blue"}, width=0.8, left_pad=0.4
+            )
+            .plot_cluster_labels_compact()
+        )
+        with pytest.raises(ValueError, match="exceed the available compact"):
+            plotter.show()
     finally:
         plt.show = plt_show
