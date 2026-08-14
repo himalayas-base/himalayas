@@ -70,6 +70,98 @@ def _compact_axes(plotter, *, has_tracks=False):
     return CompactAxes(track, marker, bridge, table)
 
 
+def _standard_label_axis(plotter):
+    """
+    Resolves the single label-panel axis created by plot_cluster_labels(), using the same
+    geometry signature as _compact_axes().
+
+    Args:
+        plotter (Plotter): Rendered plotter instance.
+
+    Returns:
+        plt.Axes: The standard label-panel axis.
+    """
+    n_rows = plotter.matrix.df.shape[0]
+    candidates = [
+        ax
+        for ax in plotter._fig.axes
+        if ax.get_xlim() == pytest.approx((0.0, 1.0))
+        and ax.get_ylim() == pytest.approx((n_rows - 0.5, -0.5))
+    ]
+    assert len(candidates) == 1, f"Expected 1 standard label axis, found {len(candidates)}."
+
+    return candidates[0]
+
+
+def _to_figure_x(ax, local_x):
+    """
+    Converts an axis-local x (axes fraction) to a figure-fraction x.
+
+    Args:
+        ax (plt.Axes): Source axis spanning x in [0, 1].
+        local_x (float): Axis-local x.
+
+    Returns:
+        float: Figure-fraction x.
+    """
+    bounds = ax.get_position()
+
+    return bounds.x0 + local_x * bounds.width
+
+
+def _vertical_span_lines(ax, color):
+    """
+    Collects the vertical cluster-span strokes of a given color on an axis.
+
+    Callers should pass an explicit cluster_span_color distinct from the other line artists
+    on the axis. An unset span color falls back to label_sep_color, which separator lines
+    also use, so the filter would stop isolating spans.
+
+    Args:
+        ax (plt.Axes): Axis holding the span.
+        color (str): Span color used to distinguish spans from leader/separator lines.
+
+    Returns:
+        list: Matching Line2D objects.
+    """
+    return [
+        ln
+        for ln in ax.lines
+        if ln.get_color() == color
+        and len(ln.get_xdata()) == 2
+        and ln.get_xdata()[0] == ln.get_xdata()[1]
+    ]
+
+
+def _horizontal_cap_lines(ax, color):
+    """
+    Collects the horizontal cluster-span end caps of a given color on an axis.
+
+    Callers should pass an explicit cluster_span_color distinct from the other line artists
+    on the axis. An unset span color falls back to label_sep_color, which separator lines
+    also use, so the filter would stop isolating caps.
+
+    A degenerate zero-height span (a singleton cluster trimmed past its own row extent) is
+    both vertical and horizontal, so it matches here as well as in _vertical_span_lines().
+    Callers that count matches should filter further; callers that measure cap width
+    already distinguish it by its zero width.
+
+    Args:
+        ax (plt.Axes): Axis holding the span.
+        color (str): Span color used to distinguish caps from leader/separator lines.
+
+    Returns:
+        list: Matching Line2D objects.
+    """
+    return [
+        ln
+        for ln in ax.lines
+        if ln.get_color() == color
+        and len(ln.get_xdata()) == 2
+        and ln.get_ydata()[0] == ln.get_ydata()[1]
+    ]
+
+
 @pytest.mark.api
 def test_plot_cluster_labels_compact_smoke(toy_results):
     """
@@ -618,11 +710,7 @@ def test_plot_cluster_labels_cluster_span_pads_position_span_and_label_text(toy_
         ax_lab = plotter._fig.axes[-1]
         # Isolate span artists by their distinctive color, not just vertical orientation,
         # since separator/boundary lines in this axis are also vertical or horizontal.
-        span_lines = [
-            ln
-            for ln in ax_lab.lines
-            if ln.get_color() == span_color and ln.get_xdata()[0] == ln.get_xdata()[1]
-        ]
+        span_lines = _vertical_span_lines(ax_lab, span_color)
         assert span_lines, "Expected at least one vertical span line."
         assert all(ln.get_xdata()[0] == pytest.approx(expected_span_x) for ln in span_lines)
 
@@ -654,11 +742,7 @@ def test_plot_cluster_labels_cluster_span_pad_defaults_match_explicit_values(toy
         )
         default_plotter.show()
         default_ax = default_plotter._fig.axes[-1]
-        default_span_x = [
-            ln.get_xdata()[0]
-            for ln in default_ax.lines
-            if ln.get_color() == span_color and ln.get_xdata()[0] == ln.get_xdata()[1]
-        ]
+        default_span_x = [ln.get_xdata()[0] for ln in _vertical_span_lines(default_ax, span_color)]
         default_label_x = [t.get_position()[0] for t in default_ax.texts if t.get_text().strip()]
 
         explicit_plotter = (
@@ -674,9 +758,7 @@ def test_plot_cluster_labels_cluster_span_pad_defaults_match_explicit_values(toy
         explicit_plotter.show()
         explicit_ax = explicit_plotter._fig.axes[-1]
         explicit_span_x = [
-            ln.get_xdata()[0]
-            for ln in explicit_ax.lines
-            if ln.get_color() == span_color and ln.get_xdata()[0] == ln.get_xdata()[1]
+            ln.get_xdata()[0] for ln in _vertical_span_lines(explicit_ax, span_color)
         ]
         explicit_label_x = [t.get_position()[0] for t in explicit_ax.texts if t.get_text().strip()]
 
@@ -734,8 +816,9 @@ def test_plot_cluster_labels_compact_boundary_kwargs_reach_matrix_boundaries(toy
 @pytest.mark.api
 def test_plot_cluster_labels_compact_cluster_span_cap_width_propagates(toy_results):
     """
-    Ensures an explicit cluster_span_cap_width on the compact bridge axis draws end
-    caps of exactly that width.
+    Ensures an explicit cluster_span_cap_width is read as a label-panel axes fraction and
+    converted to the bridge axis' local frame, so caps cover that panel fraction in
+    figure space.
 
     Args:
         toy_results (Results): Results fixture with clusters and layout.
@@ -744,25 +827,31 @@ def test_plot_cluster_labels_compact_cluster_span_cap_width_propagates(toy_resul
     plt_show = plt.show
     plt.show = lambda *args, **kwargs: None
     try:
+        cap_width = 0.15
+        span_color = "#1b9e77"
         plotter = (
             Plotter(toy_results)
             .plot_matrix()
-            .plot_cluster_labels_compact(cluster_span="line", cluster_span_cap_width=0.15)
+            .plot_cluster_labels_compact(
+                cluster_span="line",
+                cluster_span_cap_width=cap_width,
+                cluster_span_color=span_color,
+            )
         )
         plotter.show()
         bridge_ax = _compact_axes(plotter).bridge
-        # End caps are horizontal, straddle the matrix-side x=0.0 centerline, and are
-        # distinct from the leader line itself (which spans the full x in [0, 1]).
+        panel_w = plotter._style["label_axes"][2]
+        expected_local = cap_width * panel_w / bridge_ax.get_position().width
+        # End caps straddle the matrix-side x=0.0 span centerline, which separates them
+        # from the leader line itself (drawn across the full x in [0, 1]).
         cap_lines = [
             ln
-            for ln in bridge_ax.lines
-            if len(ln.get_xdata()) == 2
-            and ln.get_ydata()[0] == ln.get_ydata()[1]
-            and ln.get_xdata()[0] == pytest.approx(-ln.get_xdata()[1])
+            for ln in _horizontal_cap_lines(bridge_ax, span_color)
+            if ln.get_xdata()[0] == pytest.approx(-ln.get_xdata()[1])
         ]
         assert cap_lines, "Expected end caps when cluster_span_cap_width > 0."
         cap_widths = [abs(ln.get_xdata()[1] - ln.get_xdata()[0]) for ln in cap_lines]
-        assert all(w == pytest.approx(0.15) for w in cap_widths)
+        assert all(w == pytest.approx(expected_local) for w in cap_widths)
     finally:
         plt.show = plt_show
 
@@ -983,12 +1072,11 @@ def test_plot_cluster_labels_compact_cluster_span_pads_position_span_and_leader_
     toy_results, line_shape
 ):
     """
-    Ensures cluster_span_left_pad/right_pad position the compact span and leader-line
-    start as span_x = left_pad and leader_start_x = span_x + right_pad, on the bridge
-    axis's local x in [0, 1] (0.0 = matrix/marker-side edge, 1.0 = table side), for
-    every leader-line shape (each resolves x_start differently in _resolve_line_path).
-    Also ensures the pads have no effect when cluster_span is inactive: the leader-line
-    start stays at x=0.0.
+    Ensures cluster_span_left_pad/right_pad are label-panel axes fractions that the
+    renderer converts to the bridge axis' local x in [0, 1] (0.0 = matrix/marker-side
+    edge, 1.0 = table side) by dividing by connector_width, for every leader-line shape
+    (each resolves x_start differently in _resolve_line_path). Also ensures the pads have
+    no effect when cluster_span is inactive: the leader-line start stays at x=0.0.
 
     Args:
         toy_results (Results): Results fixture with clusters and layout.
@@ -999,13 +1087,15 @@ def test_plot_cluster_labels_compact_cluster_span_pads_position_span_and_leader_
     plt.show = lambda *args, **kwargs: None
     try:
         span_color = "#1b9e77"
+        connector_width, left_pad, right_pad = 0.4, 0.05, 0.03
         plotter = (
             Plotter(toy_results)
             .plot_matrix()
             .plot_cluster_labels_compact(
                 cluster_span="line",
-                cluster_span_left_pad=0.05,
-                cluster_span_right_pad=0.02,
+                connector_width=connector_width,
+                cluster_span_left_pad=left_pad,
+                cluster_span_right_pad=right_pad,
                 cluster_span_color=span_color,
                 line_shape=line_shape,
             )
@@ -1013,19 +1103,20 @@ def test_plot_cluster_labels_compact_cluster_span_pads_position_span_and_leader_
         plotter.show()
         bridge_ax = _compact_axes(plotter).bridge
 
-        span_lines = [
-            ln
-            for ln in bridge_ax.lines
-            if ln.get_color() == span_color and ln.get_xdata()[0] == ln.get_xdata()[1]
-        ]
+        span_lines = _vertical_span_lines(bridge_ax, span_color)
         assert span_lines, "Expected at least one vertical span line."
-        assert all(ln.get_xdata()[0] == pytest.approx(0.05) for ln in span_lines)
+        assert all(
+            ln.get_xdata()[0] == pytest.approx(left_pad / connector_width) for ln in span_lines
+        )
 
         leader_lines = [
             ln for ln in bridge_ax.lines if ln.get_color() != span_color and len(ln.get_xdata()) > 1
         ]
         assert leader_lines, "Expected leader lines to be drawn."
-        assert all(ln.get_xdata()[0] == pytest.approx(0.07) for ln in leader_lines)
+        assert all(
+            ln.get_xdata()[0] == pytest.approx((left_pad + right_pad) / connector_width)
+            for ln in leader_lines
+        )
     finally:
         plt.show = plt_show
 
@@ -1218,9 +1309,9 @@ def test_plot_cluster_labels_compact_cluster_bar_right_edge_aligns_with_bridge_s
 @pytest.mark.api
 def test_plot_cluster_labels_compact_label_left_pad_moves_table_text_only(toy_results):
     """
-    Ensures label_left_pad moves floating label text to that table-axis-local x
-    without changing leader-line geometry: the leader line still ends at bridge-axis
-    x=1.0, so only the text is repositioned.
+    Ensures label_left_pad is a label-panel axes fraction that the renderer converts to
+    table-axis-local x, without changing leader-line geometry: the leader line still ends
+    at the connector region's right edge (bridge-axis x=1.0), so only the text moves.
 
     Args:
         toy_results (Results): Results fixture with clusters and layout.
@@ -1229,15 +1320,24 @@ def test_plot_cluster_labels_compact_label_left_pad_moves_table_text_only(toy_re
     plt_show = plt.show
     plt.show = lambda *args, **kwargs: None
     try:
+        label_left_pad = 0.05
         plotter = (
-            Plotter(toy_results).plot_matrix().plot_cluster_labels_compact(label_left_pad=0.05)
+            Plotter(toy_results)
+            .plot_matrix()
+            .plot_cluster_labels_compact(label_left_pad=label_left_pad)
         )
         plotter.show()
         _track_ax, _marker_ax, bridge_ax, table_ax = _compact_axes(plotter)
 
+        # Panel fraction -> table-local fraction: the pad covers the same figure-space
+        # distance it would in plot_cluster_labels(), expressed in the table axis' frame.
+        panel_w = plotter._style["label_axes"][2]
+        table_w = table_ax.get_position().width
+        expected_local = label_left_pad * panel_w / table_w
+
         table_texts = [t for t in table_ax.texts if t.get_text().strip()]
         assert table_texts, "Expected floating label text to be rendered."
-        assert all(t.get_position()[0] == pytest.approx(0.05) for t in table_texts)
+        assert all(t.get_position()[0] == pytest.approx(expected_local) for t in table_texts)
 
         leader_lines = [ln for ln in bridge_ax.lines if len(ln.get_xdata()) > 1]
         assert leader_lines, "Expected leader lines to be drawn."
@@ -1564,5 +1664,222 @@ def test_plot_cluster_labels_compact_custom_panel_scales_track_strip(toy_results
 
         for ax in (marker_ax, bridge_ax, table_ax):
             assert ax.get_position().width >= 0.0
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+def test_cluster_span_left_pad_places_span_identically_in_both_renderers(toy_results):
+    """
+    Ensures cluster_span_left_pad is one currency across both label renderers: the same
+    label-panel axes fraction puts the span centerline at the same figure x under
+    plot_cluster_labels() and plot_cluster_labels_compact(). Compact resolves the span on
+    its own bridge axis, so this is the pad counterpart to the track-strip parity
+    asserted by test_plot_label_bar_track_geometry_matches_standard_and_compact.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        span_color = "#1b9e77"
+        left_pad = 0.06
+        span_kwargs = dict(
+            cluster_span="line",
+            cluster_span_left_pad=left_pad,
+            cluster_span_color=span_color,
+        )
+
+        standard = Plotter(toy_results).plot_matrix().plot_cluster_labels(**span_kwargs)
+        standard.show()
+        standard_ax = _standard_label_axis(standard)
+        standard_spans = _vertical_span_lines(standard_ax, span_color)
+        assert standard_spans, "Expected standard cluster-span strokes."
+        standard_x = _to_figure_x(standard_ax, standard_spans[0].get_xdata()[0])
+
+        compact = Plotter(toy_results).plot_matrix().plot_cluster_labels_compact(**span_kwargs)
+        compact.show()
+        compact_bridge = _compact_axes(compact).bridge
+        compact_spans = _vertical_span_lines(compact_bridge, span_color)
+        assert compact_spans, "Expected compact cluster-span strokes."
+        compact_x = _to_figure_x(compact_bridge, compact_spans[0].get_xdata()[0])
+
+        assert compact_x == pytest.approx(standard_x, abs=1e-9)
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+def test_cluster_span_cap_width_matches_in_both_renderers(toy_results):
+    """
+    Ensures cluster_span_cap_width is one currency across both label renderers: the same
+    label-panel axes fraction draws caps of the same figure-space width. This is what
+    lets a single cluster_span_cap_width style key serve both, with no compact-specific
+    duplicate rescaled for the narrower bridge axis.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        span_color = "#7570b3"
+        cap_kwargs = dict(
+            cluster_span="line",
+            cluster_span_cap_width=0.1,
+            cluster_span_color=span_color,
+        )
+
+        def cap_width_in_figure_coords(ax):
+            """
+            Measures the widest end cap on an axis, in figure-fraction width.
+
+            Args:
+                ax (plt.Axes): Axis holding the span caps.
+
+            Returns:
+                float: Cap width in figure fractions.
+            """
+            caps = _horizontal_cap_lines(ax, span_color)
+            assert caps, "Expected end caps when cluster_span_cap_width > 0."
+            local = max(abs(ln.get_xdata()[1] - ln.get_xdata()[0]) for ln in caps)
+            return local * ax.get_position().width
+
+        standard = Plotter(toy_results).plot_matrix().plot_cluster_labels(**cap_kwargs)
+        standard.show()
+        standard_cap = cap_width_in_figure_coords(_standard_label_axis(standard))
+
+        compact = Plotter(toy_results).plot_matrix().plot_cluster_labels_compact(**cap_kwargs)
+        compact.show()
+        compact_cap = cap_width_in_figure_coords(_compact_axes(compact).bridge)
+
+        assert compact_cap == pytest.approx(standard_cap, abs=1e-9)
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+def test_plot_cluster_labels_compact_zero_tracks_reserve_gutter_baseline(toy_results):
+    """
+    Ensures compact labels reserve label_x + label_gutter_width even with no registered
+    tracks, matching the standard renderer's post-track cursor. Both paths go through
+    resolve_track_strip(), so an empty strip is not the same as a zero-width strip.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        plotter = Plotter(toy_results).plot_matrix().plot_cluster_labels_compact()
+        plotter.show()
+        marker_ax = _compact_axes(plotter).marker
+
+        panel_x0, _, panel_w, _ = plotter._style["label_axes"]
+        baseline = plotter._style["label_x"] + plotter._style["label_gutter_width"]
+        assert marker_ax.get_position().x0 == pytest.approx(panel_x0 + baseline * panel_w)
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+@pytest.mark.parametrize("with_track", [False, True])
+def test_plot_cluster_labels_compact_connector_width_sizes_bridge_axis(toy_results, with_track):
+    """
+    Ensures connector_width reserves that label-panel axes fraction for the connector
+    region, measured against the whole panel rather than the post-track remainder — so
+    adding a bar shifts the connector right without resizing it. Bars stay autonomous:
+    they claim their strip first, and the connector allocation is unchanged.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+        with_track (bool): Whether to register a cluster bar ahead of the connector.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        connector_width = 0.35
+        plotter = (
+            Plotter(toy_results)
+            .plot_matrix()
+            .plot_cluster_labels_compact(connector_width=connector_width)
+        )
+        if with_track:
+            plotter = plotter.plot_cluster_bar(name="sig")
+        plotter.show()
+
+        bridge_ax = _compact_axes(plotter, has_tracks=with_track).bridge
+        panel_w = plotter._style["label_axes"][2]
+        assert bridge_ax.get_position().width == pytest.approx(connector_width * panel_w)
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+@pytest.mark.parametrize("connector_width", [0.0, -0.1])
+def test_plot_cluster_labels_compact_invalid_connector_width_raises(toy_results, connector_width):
+    """
+    Ensures a non-positive connector_width is rejected at declaration time. The renderer
+    divides public pads by connector_width to reach bridge-local coordinates, so a
+    zero-width connector region is a hard precondition failure, not a style preference.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+        connector_width (float): Rejected connector width under test.
+
+    Raises:
+        ValueError: If connector_width is not > 0.
+    """
+    with pytest.raises(ValueError, match="connector_width must be > 0"):
+        Plotter(toy_results).plot_cluster_labels_compact(connector_width=connector_width)
+
+
+@pytest.mark.api
+def test_plot_cluster_labels_compact_span_pads_overrunning_connector_raise(toy_results):
+    """
+    Ensures span pads that reach past the connector region raise a clear ValueError
+    instead of starting the leader line beyond the bridge axis' right edge. Pads and
+    connector_width are the same currency, so the overrun is checkable. The check runs
+    before any compact axis is added, so a caught rejection leaves the figure untouched
+    rather than stranding marker/bridge/table axes on it.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+
+    Raises:
+        ValueError: If cluster_span_left_pad + cluster_span_right_pad > connector_width.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        plotter = (
+            Plotter(toy_results)
+            .plot_matrix()
+            .plot_cluster_labels_compact(
+                cluster_span="line",
+                connector_width=0.1,
+                cluster_span_left_pad=0.08,
+                cluster_span_right_pad=0.05,
+            )
+        )
+        with pytest.raises(ValueError, match="must be <= connector_width"):
+            plotter.show()
+
+        # _render() only publishes plotter._fig on success, so inspect the figure it left
+        # open: the matrix axis is there, but no compact marker/bridge/table axes.
+        n_rows = plotter.matrix.df.shape[0]
+        compact_axes = [
+            ax
+            for ax in plt.gcf().axes
+            if ax.get_xlim() == pytest.approx((0.0, 1.0))
+            and ax.get_ylim() == pytest.approx((n_rows - 0.5, -0.5))
+        ]
+        assert not compact_axes, "Rejected compact geometry must leave no axes behind."
     finally:
         plt.show = plt_show
