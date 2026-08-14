@@ -24,7 +24,7 @@ from ._cluster_span import draw_cluster_span
 from ._compact_label_types import CLUSTER_SPANS
 from ._label_format import resolve_cluster_label_content
 from ._text_style import apply_text_style
-from ._track_rendering import TrackSpec, _render_tracks
+from ._track_rendering import TrackSpec, _render_tracks, resolve_track_strip
 
 if TYPE_CHECKING:
     from ..style import StyleConfig
@@ -356,12 +356,7 @@ def _setup_label_axis(
     )
     # Compute track layout.
     label_text_pad = style.get("label_bar_pad", 0.01)
-    base_x = style["label_x"]
-    track_layout.compute_layout(base_x, gutter_w)
-    tracks = track_layout.get_tracks()
-    end_x = track_layout.get_end_x()
-    if end_x is None:
-        end_x = base_x + gutter_w
+    tracks, end_x = resolve_track_strip(track_layout, style)
     label_text_x = end_x + label_text_pad
 
     return ax_lab, label_text_x, tracks, end_x

@@ -81,7 +81,6 @@ class StyleDefaults(TypedDict):
     compact_line_style: str
     compact_line_start: str
     compact_line_end: str
-    compact_cluster_span_cap_width: float
     cluster_span_color: Optional[str]
     cluster_span_lw: float
     cluster_span_alpha: float
@@ -157,13 +156,19 @@ DEFAULT_STYLE: StyleDefaults = {
     # Compact radiating-label panel axis box [x0, y0, w, h].
     # None: defaults to label_axes (set via set_label_panel) unless explicitly overridden.
     "compact_axes": None,
-    # Marker column width (fraction of compact_axes width).
+    # Compact horizontal allocations are label-panel axes fractions, the same currency
+    # as track widths/pads and the plot_cluster_labels() span pads. Left to right they
+    # partition the panel: track strip, marker column, connector region, table pad, table.
+    # Marker column width (label-panel axes fraction).
     "compact_marker_width": 0.08,
-    # Leader-line bridge width (fraction of compact_axes width).
+    # Connector/leader-line region width (label-panel axes fraction). Overridable per
+    # call via plot_cluster_labels_compact(connector_width=...).
     "compact_bridge_width": 0.45,
-    # Padding between the bridge and the label table (fraction of compact_axes width).
+    # Padding between the connector region and the floating label column
+    # (label-panel axes fraction).
     "compact_table_pad": 0.02,
-    # Table-axis-local x where floating label text starts (0.0 = table axis left edge).
+    # Space between the floating label column's left edge and the label text
+    # (label-panel axes fraction).
     "compact_label_left_pad": 0.0,
     "compact_marker_fontsize": 8,
     "compact_line_color": "#c0562c",
@@ -178,19 +183,18 @@ DEFAULT_STYLE: StyleDefaults = {
     "compact_line_start": "tick",
     # One of {"tick", "arrow", "round", "none"}.
     "compact_line_end": "tick",
-    # Optional end-cap width (axes fraction) for a cluster_span="line" span, scaled
-    # for the narrower bridge axis (compact_bridge_width) rather than the full label
-    # panel. 0.0 draws a bare line; caps are opt-in.
-    "compact_cluster_span_cap_width": 0.0,
     # Cluster-abreast span, opt-in via cluster_span=... on plot_cluster_labels()
     # or plot_cluster_labels_compact(). None color inherits label_sep_color.
     "cluster_span_color": None,
     "cluster_span_lw": 1.0,
     "cluster_span_alpha": 0.8,
     "cluster_span_gap": 0.15,
-    # Optional end-cap width (axes fraction). 0.0 draws a bare line; caps are opt-in.
+    # Optional end-cap width (label-panel axes fraction), shared by both label
+    # renderers. 0.0 draws a bare line; caps are opt-in.
     "cluster_span_cap_width": 0.0,
-    # Horizontal padding around the span centerline, independent of label_bar_pad.
+    # Horizontal padding around the span centerline (label-panel axes fraction),
+    # independent of label_bar_pad. In compact labels, cluster_span_right_pad is the
+    # gap before the leader-line start rather than before the label text.
     "cluster_span_left_pad": 0.0,
     "cluster_span_right_pad": 0.01,
 }

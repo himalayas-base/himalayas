@@ -15,6 +15,7 @@ from ._text_style import apply_text_style
 
 if TYPE_CHECKING:
     from ..style import StyleConfig
+    from ..track_layout import TrackLayoutManager
     from ...core.matrix import Matrix
 
 
@@ -33,6 +34,39 @@ class TrackSpec(TypedDict, total=False):
     payload: Dict[str, Any]
     x0: float
     x1: float
+
+
+def resolve_track_strip(
+    track_layout: Optional[TrackLayoutManager],
+    style: StyleConfig,
+) -> Tuple[List[TrackSpec], float]:
+    """
+    Resolves the label-panel track strip and the x-position immediately after it. Shared
+    by the standard and compact label renderers so a track lands identically in either,
+    and so both reserve the same strip when no tracks are registered.
+
+    Args:
+        track_layout (Optional[TrackLayoutManager]): Registered label-panel tracks, or
+            None when the caller has no track layout at all.
+        style (StyleConfig): Style configuration supplying `label_x` and
+            `label_gutter_width`.
+
+    Returns:
+        Tuple[List[TrackSpec], float]: (resolved tracks, post-track cursor). The cursor
+        is a label-panel axes fraction and is never less than
+        `label_x + label_gutter_width`, so an empty strip still reserves the gutter.
+    """
+    base_x = float(style["label_x"])
+    gutter_w = float(style["label_gutter_width"])
+    if track_layout is None:
+        return [], base_x + gutter_w
+    track_layout.compute_layout(base_x, gutter_w)
+    tracks = track_layout.get_tracks()
+    end_x = track_layout.get_end_x()
+    if end_x is None:
+        end_x = base_x + gutter_w
+
+    return tracks, float(end_x)
 
 
 def _render_tracks(

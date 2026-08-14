@@ -5,7 +5,7 @@ himalayas/plot/renderers/compact_labels
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Sequence, Tuple, TYPE_CHECKING
+from typing import Dict, List, NamedTuple, Optional, Sequence, Tuple, TYPE_CHECKING
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -23,7 +23,7 @@ from ._compact_label_types import (
 )
 from ._label_format import compute_equal_slots, format_label_prefix, resolve_cluster_label_content
 from ._text_style import apply_text_style
-from ._track_rendering import TrackSpec, _render_tracks
+from ._track_rendering import TrackSpec, _render_tracks, resolve_track_strip
 
 if TYPE_CHECKING:
     from ..style import StyleConfig
@@ -180,6 +180,21 @@ def _draw_leader_line(
             ax.plot([1.0], [y1], marker="|", color=color, markersize=5, alpha=alpha)
 
 
+class _CompactGeometry(NamedTuple):
+    """
+    Resolved compact label-panel axes plus the label-panel-fraction allocations the
+    renderer needs to convert public pads into axis-local coordinates.
+    """
+
+    marker: plt.Axes
+    bridge: plt.Axes
+    table: plt.Axes
+    track: Optional[plt.Axes]
+    tracks: List[TrackSpec]
+    connector_frac: float
+    table_frac: float
+
+
 def _setup_compact_axes(
     fig: plt.Figure,
     n_rows: int,
@@ -187,11 +202,18 @@ def _setup_compact_axes(
     track_layout: Optional[TrackLayoutManager] = None,
     *,
     reserve_marker: bool = True,
-) -> Tuple[plt.Axes, plt.Axes, plt.Axes, Optional[plt.Axes], List[TrackSpec]]:
+    connector_width: Optional[float] = None,
+    span_pads: Optional[Tuple[float, float]] = None,
+) -> _CompactGeometry:
     """
     Creates the marker, bridge, and table sub-axes for the compact-label panel, plus an
     optional leading track axis carrying the label-panel tracks (row-level tracks from
     plot_label_bar() and cluster-level tracks from plot_cluster_bar()).
+
+    Every horizontal allocation is a label-panel axes fraction, the same currency used by
+    track widths/pads and by plot_cluster_labels(). The sub-axes each span x in [0, 1]
+    locally; callers convert public pads into those local frames via the returned
+    connector_frac/table_frac.
 
     Args:
         fig (plt.Figure): Target figure.
@@ -204,15 +226,23 @@ def _setup_compact_axes(
         reserve_marker (bool): Whether to reserve compact_marker_width for the marker
             column. False when no marker text will be drawn (cluster_marker=None), so
             the bridge axis starts flush against the track/matrix edge. Defaults to True.
+        connector_width (Optional[float]): Connector/leader-line region width as a
+            label-panel axes fraction. Defaults to None (style compact_bridge_width).
+        span_pads (Optional[Tuple[float, float]]): Resolved
+            (cluster_span_left_pad, cluster_span_right_pad) in label-panel axes fractions,
+            checked against the connector region here so every geometry rejection happens
+            before any axis is added. None when no cluster span is drawn and the pads
+            therefore do not apply. Defaults to None.
 
     Returns:
-        Tuple[plt.Axes, plt.Axes, plt.Axes, Optional[plt.Axes], List[TrackSpec]]:
-            (marker axis, bridge axis, table axis, track axis or None, resolved tracks).
-            The returned tracks are the same resolved set the reserved geometry was
-            measured from, so callers render exactly what was measured.
+        _CompactGeometry: Resolved axes, the tracks the reserved geometry was measured
+        from (so callers render exactly what was measured), and the connector/table
+        label-panel fractions.
 
     Raises:
-        ValueError: If track widths/pads leave no room for the compact label geometry.
+        ValueError: If connector_width is not > 0, if the span pads overrun the connector
+            region, or if track widths/pads and connector_width leave no room for the
+            floating label column.
     """
     compact_axes = style.get("compact_axes", None)
     x0, y0, w, h = compact_axes if compact_axes is not None else style["label_axes"]
@@ -221,35 +251,44 @@ def _setup_compact_axes(
     # _setup_label_axis() does, so a track lands identically in either label renderer.
     # The track axis spans the whole panel with xlim (0, 1), so tracks draw at their
     # resolved positions with no coordinate conversion.
-    tracks: List[TrackSpec] = []
-    end_x_local = 0.0
-    if track_layout is not None:
-        track_layout.compute_layout(style["label_x"], style["label_gutter_width"])
-        tracks = track_layout.get_tracks()
-        if tracks:
-            end_x_local = track_layout.get_end_x()
+    tracks, end_x = resolve_track_strip(track_layout, style)
     track_x0, track_w = x0, w
 
-    # Reserve the drawn track strip, then lay the compact geometry out in what remains.
-    x0 += end_x_local * w
-    w -= end_x_local * w
-
-    marker_w = float(style.get("compact_marker_width", 0.08)) * w if reserve_marker else 0.0
-    bridge_w = float(style.get("compact_bridge_width", 0.45)) * w
-    table_pad = float(style.get("compact_table_pad", 0.02)) * w
-    table_x0 = x0 + marker_w + bridge_w + table_pad
-    table_w = w - marker_w - bridge_w - table_pad
+    # Label-panel-fraction allocations, left to right: track strip, marker column,
+    # connector region, table pad, floating label column.
+    marker_frac = float(style.get("compact_marker_width", 0.08)) if reserve_marker else 0.0
+    connector_frac = (
+        float(connector_width)
+        if connector_width is not None
+        else float(style.get("compact_bridge_width", 0.45))
+    )
+    table_pad_frac = float(style.get("compact_table_pad", 0.02))
+    table_frac = 1.0 - end_x - marker_frac - connector_frac - table_pad_frac
     # Validate before adding any axes, so a rejected layout leaves the figure untouched.
-    if table_w <= 0:
+    # connector_frac is a divisor when pads are converted to bridge-local x, so a
+    # non-positive region is rejected here rather than producing a degenerate axis.
+    if connector_frac <= 0:
+        raise ValueError("connector_width must be > 0")
+    if span_pads is not None and sum(span_pads) > connector_frac:
         raise ValueError(
-            "label-panel track widths/pads exceed the available compact label-panel "
-            "width; reduce plot_label_bar()/plot_cluster_bar() width or pads"
+            "cluster_span_left_pad + cluster_span_right_pad must be <= connector_width "
+            f"({connector_frac}); the leader line would start past the connector region"
+        )
+    if table_frac <= 0:
+        raise ValueError(
+            "label-panel track widths/pads and connector_width exceed the available "
+            "compact label-panel width; reduce plot_label_bar()/plot_cluster_bar() "
+            "width or pads, or reduce connector_width"
         )
 
+    marker_x0 = x0 + end_x * w
+    bridge_x0 = marker_x0 + marker_frac * w
+    table_x0 = bridge_x0 + (connector_frac + table_pad_frac) * w
+
     ax_trk = fig.add_axes([track_x0, y0, track_w, h], frameon=False) if tracks else None
-    ax_mrk = fig.add_axes([x0, y0, marker_w, h], frameon=False)
-    ax_bridge = fig.add_axes([x0 + marker_w, y0, bridge_w, h], frameon=False)
-    ax_tbl = fig.add_axes([table_x0, y0, table_w, h], frameon=False)
+    ax_mrk = fig.add_axes([marker_x0, y0, marker_frac * w, h], frameon=False)
+    ax_bridge = fig.add_axes([bridge_x0, y0, connector_frac * w, h], frameon=False)
+    ax_tbl = fig.add_axes([table_x0, y0, table_frac * w, h], frameon=False)
 
     all_axes = (
         (ax_mrk, ax_bridge, ax_tbl, ax_trk) if ax_trk is not None else (ax_mrk, ax_bridge, ax_tbl)
@@ -260,14 +299,22 @@ def _setup_compact_axes(
         ax.set_xticks([])
         ax.set_yticks([])
 
-    return ax_mrk, ax_bridge, ax_tbl, ax_trk, tracks
+    return _CompactGeometry(
+        marker=ax_mrk,
+        bridge=ax_bridge,
+        table=ax_tbl,
+        track=ax_trk,
+        tracks=tracks,
+        connector_frac=connector_frac,
+        table_frac=table_frac,
+    )
 
 
 class CompactLabelsRenderer:
     """
     Class for rendering compact radiating cluster labels: a short marker at each cluster's
-    true vertical center, a leader line, and a full label in an equally-spaced right-side
-    table.
+    true vertical center, a leader line, and a full label in an equally-spaced floating
+    label column on the right.
     """
 
     def __init__(
@@ -299,6 +346,7 @@ class CompactLabelsRenderer:
         cluster_span_left_pad: Optional[float] = None,
         cluster_span_right_pad: Optional[float] = None,
         label_left_pad: Optional[float] = None,
+        connector_width: Optional[float] = None,
         line_color: Optional[str] = None,
         line_lw: Optional[float] = None,
         line_alpha: Optional[float] = None,
@@ -322,15 +370,17 @@ class CompactLabelsRenderer:
                 (matrix-side) marker column, one of {None, "cid", "alpha"}. Off by default;
                 the cluster span/line alone is the pointer, and identity lives with the
                 floating label via label_prefix. Defaults to None.
-            label_fields (Optional[Sequence[str]]): Fields to include in table labels: one or
-                more of "label", "n", "p", "q", "fe". If None, suppresses base label/stat text.
-                Defaults to ("label", "n", "p").
+            label_fields (Optional[Sequence[str]]): Fields to include in floating labels: one
+                or more of "label", "n", "p", "q", "fe". If None, suppresses base label/stat
+                text. Defaults to ("label", "n", "p").
             label_prefix (Optional[str]): Sole owner of the floating-label identity prefix,
                 one of {None, "cid", "alpha"}. Defaults to "alpha".
-            font (Optional[str]): Font family for table label text. Defaults to None.
-            fontsize (Optional[float]): Font size for table label text (points). Defaults to None.
-            color (Optional[str]): Text color for markers and table labels. Defaults to None.
-            alpha (Optional[float]): Text opacity for markers and table labels. Defaults to None.
+            font (Optional[str]): Font family for floating label text. Defaults to None.
+            fontsize (Optional[float]): Font size for floating label text (points).
+                Defaults to None.
+            color (Optional[str]): Text color for markers and floating labels. Defaults to None.
+            alpha (Optional[float]): Text opacity for markers and floating labels.
+                Defaults to None.
             skip_unlabeled (bool): Whether to omit clusters without a label entirely.
                 Defaults to False.
             placeholder_text (Optional[str]): Text for unlabeled clusters. Defaults to None.
@@ -356,18 +406,22 @@ class CompactLabelsRenderer:
                 Defaults to None.
             cluster_span_alpha (Optional[float]): Span opacity, independent of line_alpha.
                 Defaults to None.
-            cluster_span_cap_width (Optional[float]): Optional end-cap width (axes fraction)
-                for the span; 0 draws a bare line, >0 draws caps. Defaults to None.
-            cluster_span_left_pad (Optional[float]): Bridge-axis space between the
-                matrix/marker-side edge and the span. Only applies when cluster_span
-                is not None. Defaults to None (style cluster_span_left_pad).
-            cluster_span_right_pad (Optional[float]): Bridge-axis space between the
-                span and the leader-line start. Only applies when cluster_span is not
-                None. Defaults to None (style cluster_span_right_pad).
-            label_left_pad (Optional[float]): Table-axis-local x where floating label
-                text starts. Moves table text only; leader-line geometry (which still
-                ends at bridge-axis x=1.0) is unaffected. Defaults to None (style
-                compact_label_left_pad).
+            cluster_span_cap_width (Optional[float]): Optional end-cap width (label-panel
+                axes fraction) for the span; 0 draws a bare line, >0 draws caps.
+                Defaults to None (style cluster_span_cap_width).
+            cluster_span_left_pad (Optional[float]): Space (label-panel axes fraction)
+                between the track/marker-side edge and the span. Only applies when
+                cluster_span is not None. Defaults to None (style cluster_span_left_pad).
+            cluster_span_right_pad (Optional[float]): Space (label-panel axes fraction)
+                between the span and the leader-line start. Only applies when
+                cluster_span is not None. Defaults to None (style cluster_span_right_pad).
+            label_left_pad (Optional[float]): Space (label-panel axes fraction) between
+                the floating label column's left edge and the label text. Moves the label
+                text only; leader-line geometry (which still ends at the connector region's
+                right edge) is unaffected. Defaults to None (style compact_label_left_pad).
+            connector_width (Optional[float]): Width (label-panel axes fraction) reserved
+                for the connector/leader-line region between the cluster span and the
+                floating label column. Defaults to None (style compact_bridge_width).
             line_color (Optional[str]): Leader-line color. Defaults to None.
             line_lw (Optional[float]): Leader-line width. Defaults to None.
             line_alpha (Optional[float]): Leader-line opacity. Defaults to None.
@@ -381,7 +435,8 @@ class CompactLabelsRenderer:
             ValueError: If df is missing required columns, or cluster_marker, label_fields,
                 label_prefix, line_shape, line_style, cluster_span, line_start, or line_end
                 is unsupported, or if cluster_span_gap, cluster_span_cap_width,
-                cluster_span_left_pad, cluster_span_right_pad, or label_left_pad is negative.
+                cluster_span_left_pad, cluster_span_right_pad, or label_left_pad is
+                negative, or if connector_width is not > 0.
         """
         if not isinstance(df, pd.DataFrame):
             raise TypeError("cluster_labels must be a pandas DataFrame.")
@@ -417,6 +472,8 @@ class CompactLabelsRenderer:
             raise ValueError("cluster_span_right_pad must be >= 0")
         if label_left_pad is not None and label_left_pad < 0:
             raise ValueError("label_left_pad must be >= 0")
+        if connector_width is not None and connector_width <= 0:
+            raise ValueError("connector_width must be > 0")
 
         self.df = df
         self.overrides = overrides
@@ -448,6 +505,7 @@ class CompactLabelsRenderer:
         self.cluster_span_left_pad = cluster_span_left_pad
         self.cluster_span_right_pad = cluster_span_right_pad
         self.label_left_pad = label_left_pad
+        self.connector_width = connector_width
         self.line_color = line_color
         self.line_lw = line_lw
         self.line_alpha = line_alpha
@@ -467,7 +525,8 @@ class CompactLabelsRenderer:
         bar_labels_kwargs: Optional[Dict[str, object]] = None,
     ) -> None:
         """
-        Renders markers at true cluster centers, leader lines, and an equally-spaced label table.
+        Renders markers at true cluster centers, leader lines, and an equally-spaced
+        floating label column.
 
         Args:
             fig (plt.Figure): Target figure.
@@ -483,7 +542,9 @@ class CompactLabelsRenderer:
                 consumed only when tracks are drawn. Defaults to None.
 
         Raises:
-            ValueError: If track widths/pads leave no room for the compact label geometry.
+            ValueError: If track widths/pads and connector_width leave no room for the
+                floating label column, or if the cluster-span pads overrun the connector
+                region.
         """
         n_rows = matrix.df.shape[0]
         spans: List[Tuple[int, int, int]] = list(layout.cluster_spans)
@@ -492,13 +553,42 @@ class CompactLabelsRenderer:
         label_map = _build_label_map(self.df, override_map)
         label_fields = self.label_fields if self.label_fields is not ... else style["label_fields"]
 
-        ax_mrk, ax_bridge, ax_tbl, ax_trk, tracks = _setup_compact_axes(
-            fig, n_rows, style, track_layout, reserve_marker=self.cluster_marker is not None
+        # Resolve the span pads before any axis exists: _setup_compact_axes() checks them
+        # against the connector region alongside its own allocation checks, so a rejected
+        # layout leaves the figure untouched. The pads only apply when a span is drawn.
+        cluster_span_left_pad = (
+            self.cluster_span_left_pad
+            if self.cluster_span_left_pad is not None
+            else style.get("cluster_span_left_pad", 0.0)
+        )
+        cluster_span_right_pad = (
+            self.cluster_span_right_pad
+            if self.cluster_span_right_pad is not None
+            else style.get("cluster_span_right_pad", 0.01)
+        )
+        geometry = _setup_compact_axes(
+            fig,
+            n_rows,
+            style,
+            track_layout,
+            reserve_marker=self.cluster_marker is not None,
+            connector_width=self.connector_width,
+            span_pads=(
+                (cluster_span_left_pad, cluster_span_right_pad)
+                if self.cluster_span is not None
+                else None
+            ),
+        )
+        ax_mrk, ax_bridge, ax_tbl, ax_trk = (
+            geometry.marker,
+            geometry.bridge,
+            geometry.table,
+            geometry.track,
         )
         if ax_trk is not None:
             _render_tracks(
                 ax_trk,
-                tracks,
+                geometry.tracks,
                 matrix=matrix,
                 row_order=layout.leaf_order,
                 spans=spans,
@@ -562,29 +652,26 @@ class CompactLabelsRenderer:
         cluster_span_cap_width = (
             self.cluster_span_cap_width
             if self.cluster_span_cap_width is not None
-            else style.get("compact_cluster_span_cap_width", 0.0)
+            else style.get("cluster_span_cap_width", 0.0)
         )
-        cluster_span_left_pad = (
-            self.cluster_span_left_pad
-            if self.cluster_span_left_pad is not None
-            else style.get("cluster_span_left_pad", 0.0)
-        )
-        cluster_span_right_pad = (
-            self.cluster_span_right_pad
-            if self.cluster_span_right_pad is not None
-            else style.get("cluster_span_right_pad", 0.01)
-        )
-        # Bridge-axis x in [0, 1]: 0.0 is the matrix/marker-side edge, 1.0 is the table
-        # side. Pads only apply when cluster_span is active; span_x replaces the
-        # hardcoded 0.0 span position, and leader_start_x replaces the leader line's
-        # hardcoded 0.0 start.
-        span_x = cluster_span_left_pad
-        leader_start_x = span_x + cluster_span_right_pad
         label_left_pad = (
             self.label_left_pad
             if self.label_left_pad is not None
             else style.get("compact_label_left_pad", 0.0)
         )
+        # Public horizontal values are label-panel axes fractions, matching
+        # plot_cluster_labels() and the track strip. Convert them into the bridge and
+        # table axes' local [0, 1] frames here, at the renderer boundary, so the drawing
+        # helpers below stay axis-local. The panel width cancels, leaving plain ratios.
+        connector_frac = geometry.connector_frac
+        # Bridge-axis x in [0, 1]: 0.0 is the matrix/marker-side edge, 1.0 is the table
+        # side. Pads only apply when cluster_span is active; span_x replaces the
+        # hardcoded 0.0 span position, and leader_start_x replaces the leader line's
+        # hardcoded 0.0 start.
+        span_x = cluster_span_left_pad / connector_frac
+        leader_start_x = (cluster_span_left_pad + cluster_span_right_pad) / connector_frac
+        span_cap_width_local = cluster_span_cap_width / connector_frac
+        label_text_x = label_left_pad / geometry.table_frac
 
         # Table slots follow dendrogram/top-to-bottom order (layout.cluster_spans order),
         # equally spaced and mapped onto the shared row-index y-range.
@@ -651,7 +738,7 @@ class CompactLabelsRenderer:
                     s,
                     e,
                     gap=cluster_span_gap,
-                    cap_width=cluster_span_cap_width,
+                    cap_width=span_cap_width_local,
                     color=cluster_span_color,
                     lw=cluster_span_lw,
                     alpha=cluster_span_alpha,
@@ -680,7 +767,7 @@ class CompactLabelsRenderer:
             # Full label at the equal-pitch table slot. Identity comes solely from
             # label_prefix, already folded into label_text above.
             tbl_txt = ax_tbl.text(
-                label_left_pad,
+                label_text_x,
                 slot_y,
                 label_text,
                 ha="left",

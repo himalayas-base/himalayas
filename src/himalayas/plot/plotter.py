@@ -654,7 +654,7 @@ class Plotter:
     ) -> None:
         """
         Renders the compact radiating-label panel: markers, leader lines, and the
-        equally-spaced label table.
+        equally-spaced floating label column.
 
         Args:
             fig: Matplotlib figure.
@@ -1346,6 +1346,7 @@ class Plotter:
         cluster_span_left_pad: Optional[float] = None,
         cluster_span_right_pad: Optional[float] = None,
         label_left_pad: Optional[float] = None,
+        connector_width: Optional[float] = None,
         line_color: Optional[str] = None,
         line_lw: Optional[float] = None,
         line_alpha: Optional[float] = None,
@@ -1356,8 +1357,9 @@ class Plotter:
         """
         Declares compact radiating cluster labels: a short marker at each cluster's true
         vertical center, connected by a leader line to its full label in an equally-spaced
-        right-side table. An additive alternative to plot_cluster_labels() for figures with
-        many or highly size-skewed clusters; the two are mutually exclusive in one render.
+        floating label column on the right. An additive alternative to plot_cluster_labels()
+        for figures with many or highly size-skewed clusters; the two are mutually exclusive
+        in one render.
         Supports the same label-panel tracks as plot_cluster_labels(), both row-level
         (plot_label_bar()) and cluster-level (plot_cluster_bar()).
 
@@ -1372,17 +1374,17 @@ class Plotter:
                 Defaults to "p".
             label_mode (str): Label mode, one of {"top_term", "compressed"}. Defaults to "top_term".
             max_words (Optional[int]): Maximum words in rendered display labels. Defaults to None.
-            label_fields (Optional[Sequence[str]]): Fields to include in table labels: one or
-                more of "label", "n", "p", "q", "fe". If None, suppresses base label/stat text.
-                Defaults to style label_fields ("label", "n", "p").
+            label_fields (Optional[Sequence[str]]): Fields to include in floating labels: one
+                or more of "label", "n", "p", "q", "fe". If None, suppresses base label/stat
+                text. Defaults to style label_fields ("label", "n", "p").
             label_prefix (Optional[str]): Sole owner of the floating-label identity prefix,
                 one of {None, "cid", "alpha"}. Defaults to "alpha".
-            font (Optional[str]): Font family for markers and table labels. Defaults to None.
-            fontsize (Optional[float]): Font size for table label text (points). The marker
+            font (Optional[str]): Font family for markers and floating labels. Defaults to None.
+            fontsize (Optional[float]): Font size for floating label text (points). The marker
                 glyph size defaults independently from style compact_marker_fontsize.
                 Defaults to None.
-            color (Optional[str]): Table label text color. Defaults to None.
-            alpha (Optional[float]): Table label text opacity. Defaults to None.
+            color (Optional[str]): Floating label text color. Defaults to None.
+            alpha (Optional[float]): Floating label text opacity. Defaults to None.
             skip_unlabeled (bool): Whether to omit clusters without a label entirely.
                 Defaults to False.
             placeholder_text (Optional[str]): Text for unlabeled clusters. Defaults to None.
@@ -1416,18 +1418,29 @@ class Plotter:
                 Defaults to style cluster_span_lw.
             cluster_span_alpha (Optional[float]): Span opacity, independent of line_alpha.
                 Defaults to style cluster_span_alpha.
-            cluster_span_cap_width (Optional[float]): Optional end-cap width (axes
-                fraction). 0 draws a bare line; >0 draws end caps. Defaults to style
-                compact_cluster_span_cap_width (0.0).
-            cluster_span_left_pad (Optional[float]): Bridge-axis space between the
-                matrix/marker-side edge and the span centerline. Only applies when
-                cluster_span is not None. Defaults to style cluster_span_left_pad.
-            cluster_span_right_pad (Optional[float]): Bridge-axis space between the
-                span centerline and the leader-line start. Only applies when
-                cluster_span is not None. Defaults to style cluster_span_right_pad.
-            label_left_pad (Optional[float]): Table-axis-local x where floating label
-                text starts. Moves table text only; the leader line still ends at
-                bridge-axis x=1.0. Defaults to style compact_label_left_pad (0.0).
+            cluster_span_cap_width (Optional[float]): Optional end-cap width (label-panel
+                axes fraction). 0 draws a bare line; >0 draws end caps. Defaults to style
+                cluster_span_cap_width (0.0).
+            cluster_span_left_pad (Optional[float]): Horizontal space (label-panel axes
+                fraction) between the label-panel track/gutter region and the span
+                centerline. Only applies when cluster_span is not None. Defaults to style
+                cluster_span_left_pad.
+            cluster_span_right_pad (Optional[float]): Horizontal space (label-panel axes
+                fraction) immediately right of the span centerline. In compact labels the
+                element to the right of the span is the leader line, so this is the
+                span-to-leader-line-start gap (in plot_cluster_labels() it is the
+                span-to-label-text gap). Only applies when cluster_span is not None.
+                Defaults to style cluster_span_right_pad.
+            label_left_pad (Optional[float]): Horizontal space (label-panel axes fraction)
+                between the floating label column's left edge and the label text. Moves
+                the label text only; the leader line still ends at the connector region's
+                right edge. Defaults to style compact_label_left_pad (0.0).
+            connector_width (Optional[float]): Width (label-panel axes fraction) reserved
+                for the connector/leader-line region between the cluster span and the
+                floating label column. Must be > 0. Widening it lengthens the leader lines
+                and pushes the floating label column right; that column takes whatever
+                panel width the track strip, marker column, and connector region leave.
+                Defaults to style compact_bridge_width (0.45).
             line_color (Optional[str]): Leader-line color. Defaults to style compact_line_color.
             line_lw (Optional[float]): Leader-line width. Defaults to style compact_line_lw.
             line_alpha (Optional[float]): Leader-line opacity. Defaults to style compact_line_alpha.
@@ -1445,8 +1458,10 @@ class Plotter:
             ValueError: If cluster_marker, label_fields, label_prefix, line_shape, line_style,
                 cluster_span, line_start, or line_end is unsupported, or if cluster_span_gap,
                 cluster_span_cap_width, cluster_span_left_pad, cluster_span_right_pad, or
-                label_left_pad is negative. Raised at render time if label-panel track
-                widths/pads exceed the available compact label-panel width.
+                label_left_pad is negative, or if connector_width is not > 0. Raised at
+                render time if label-panel track widths/pads and connector_width leave no
+                room for the floating label column, or if the span pads overrun
+                connector_width.
         """
         if cluster_marker is not None and cluster_marker not in CLUSTER_MARKERS:
             raise ValueError(f"cluster_marker must be one of {[None] + sorted(CLUSTER_MARKERS)}")
@@ -1476,6 +1491,8 @@ class Plotter:
             raise ValueError("cluster_span_right_pad must be >= 0")
         if label_left_pad is not None and label_left_pad < 0:
             raise ValueError("label_left_pad must be >= 0")
+        if connector_width is not None and connector_width <= 0:
+            raise ValueError("connector_width must be > 0")
 
         label_options: Dict[str, Any] = {"rank_by": rank_by, "label_mode": label_mode}
         if max_words is not None:
@@ -1539,6 +1556,8 @@ class Plotter:
             layer_kwargs["cluster_span_right_pad"] = cluster_span_right_pad
         if label_left_pad is not None:
             layer_kwargs["label_left_pad"] = label_left_pad
+        if connector_width is not None:
+            layer_kwargs["connector_width"] = connector_width
         if line_color is not None:
             layer_kwargs["line_color"] = line_color
         if line_lw is not None:
