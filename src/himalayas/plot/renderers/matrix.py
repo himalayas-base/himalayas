@@ -5,7 +5,7 @@ himalayas/plot/renderers/matrix
 
 from __future__ import annotations
 
-from typing import Dict, Optional, Tuple, TYPE_CHECKING
+from typing import Optional, Tuple, TYPE_CHECKING
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -144,10 +144,15 @@ def _draw_matrix(
         for spine in ax.spines.values():
             spine.set_visible(False)
     else:
+        # Composite above adjacent axes (e.g. an aligned label panel) and skip the
+        # default per-axes clip so the full border linewidth stays visible instead
+        # of being clipped at the shared boundary or painted over.
+        ax.set_zorder(1)
         for spine in ax.spines.values():
             spine.set_visible(True)
             spine.set_linewidth(outer_lw)
             spine.set_color(outer_color)
+            spine.set_clip_on(False)
     # Draw boundaries if provided.
     if isinstance(boundary_registry, BoundaryRegistry):
         boundary_registry.render(ax, -0.5, n_cols - 0.5, zorder=2)
@@ -172,8 +177,6 @@ class MatrixRenderer:
         outer_lw: float = 1.2,
         outer_color: str = "black",
         gutter_color: Optional[str] = None,
-        figsize: Optional[Tuple[float, float]] = None,
-        subplots_adjust: Optional[Dict[str, float]] = None,
     ) -> None:
         """
         Initializes the MatrixRenderer instance.
@@ -190,8 +193,6 @@ class MatrixRenderer:
             outer_lw (float): Outer border linewidth. Defaults to 1.2.
             outer_color (str): Outer border color. Defaults to "black".
             gutter_color (Optional[str]): Background gutter color. Defaults to None.
-            figsize (Optional[tuple[float, float]]): Figure size override. Defaults to None.
-            subplots_adjust (Optional[Dict[str, float]]): Subplots adjust override. Defaults to None.
         """
         self.cmap = cmap
         self.center = center
@@ -204,8 +205,6 @@ class MatrixRenderer:
         self.outer_lw = outer_lw
         self.outer_color = outer_color
         self.gutter_color = gutter_color
-        self.figsize = figsize
-        self.subplots_adjust = subplots_adjust
 
     def render(
         self,

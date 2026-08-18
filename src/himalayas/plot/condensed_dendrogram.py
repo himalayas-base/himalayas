@@ -33,6 +33,7 @@ from .renderers._label_format import (
     apply_label_text_policy,
     collect_label_stats,
     compose_label_text,
+    compute_equal_slots,
     format_label_prefix,
 )
 from .renderers.cluster_labels import _parse_label_overrides
@@ -82,6 +83,7 @@ class CondensedDendrogramSpec:
     sigbar_width: float = 0.06
     sigbar_height: float = 0.8
     sigbar_alpha: float = 1.0
+    dendrogram_width: float = 0.60
     font: str = "Helvetica"
     fontsize: float = 9
     max_words: Optional[int] = None
@@ -434,7 +436,7 @@ def _prepare_cluster_labels(
         scores.append(lab_info.score)
     # Convert ranking scores to array.
     score_arr = np.asarray(scores, float)
-    y = np.arange(len(cluster_ids)) * 10.0 + 5.0
+    y = compute_equal_slots(len(cluster_ids), pitch=10.0)
 
     return labels, score_arr, lab_map, cluster_sizes, y
 
@@ -565,6 +567,7 @@ def _compute_condensed_dendrogram(
 
 def _setup_condensed_axes(
     figsize: Sequence[float],
+    dendrogram_width: float,
     sigbar_width: float,
     label_left_pad: float,
     background_color: Optional[str] = None,
@@ -574,19 +577,37 @@ def _setup_condensed_axes(
 
     Args:
         figsize (Sequence[float]): Figure size (width, height).
+        dendrogram_width (float): Width of dendrogram panel (axes fraction).
         sigbar_width (float): Width of significance bar (axes fraction).
         label_left_pad (float): Left padding for labels (axes fraction).
         background_color (Optional[str]): Background color for figure and axes. Defaults to None.
+
+    Raises:
+        ValueError: If dendrogram_width is not positive, or if the derived layout
+            leaves no room for the label panel.
     """
+    if not np.isfinite(dendrogram_width) or dendrogram_width <= 0:
+        raise ValueError("dendrogram_width must be > 0")
+    dendrogram_width = float(dendrogram_width)
+
     # Build axes layout for dendrogram, sigbar, and labels.
+    left = 0.05
+    gap = 0.01
+    right = 0.99
+    bottom = 0.05
+    height = 0.90
+    sig_x0 = left + dendrogram_width + gap
+    txt_x0 = sig_x0 + float(sigbar_width) + float(label_left_pad)
+    txt_width = right - txt_x0
+    if txt_width <= 0:
+        raise ValueError(
+            "dendrogram_width, sigbar_width, and label_left_pad leave no room for labels"
+        )
+
     fig = plt.figure(figsize=figsize)
-    ax_den = fig.add_axes([0.05, 0.05, 0.60, 0.90], frameon=False)
-    ax_sig = fig.add_axes([0.66, 0.05, sigbar_width, 0.90], frameon=False)
-    txt_x0 = 0.66 + sigbar_width + float(label_left_pad)
-    ax_txt = fig.add_axes(
-        [txt_x0, 0.05, 0.33 - sigbar_width - float(label_left_pad), 0.90],
-        frameon=False,
-    )
+    ax_den = fig.add_axes([left, bottom, dendrogram_width, height], frameon=False)
+    ax_sig = fig.add_axes([sig_x0, bottom, sigbar_width, height], frameon=False)
+    ax_txt = fig.add_axes([txt_x0, bottom, txt_width, height], frameon=False)
     if background_color is not None:
         fig.patch.set_facecolor(background_color)
         for ax in (ax_den, ax_sig, ax_txt):
@@ -777,6 +798,7 @@ def _render_condensed(spec: CondensedDendrogramSpec) -> CondensedDendrogramPlot:
     )
     _fig, ax_den, ax_sig, ax_txt = _setup_condensed_axes(
         spec.figsize,
+        spec.dendrogram_width,
         spec.sigbar_width,
         spec.label_left_pad,
         spec.background_color,
@@ -919,6 +941,7 @@ def plot_dendrogram_condensed(
     sigbar_width: float = 0.06,
     sigbar_height: float = 0.8,
     sigbar_alpha: float = 1.0,
+    dendrogram_width: float = 0.60,
     font: str = "Helvetica",
     fontsize: float = 9,
     max_words: Optional[int] = None,
@@ -964,6 +987,7 @@ def plot_dendrogram_condensed(
         sigbar_height (float): Height of each significance bar as a fraction of row pitch.
             Defaults to 0.8.
         sigbar_alpha (float): Alpha for significance bar. Defaults to 1.0.
+        dendrogram_width (float): Width of dendrogram panel (axes fraction). Defaults to 0.60.
         font (str): Font family for labels. Defaults to "Helvetica".
         fontsize (float): Font size for labels. Defaults to 9.
         max_words (Optional[int]): Maximum words in cluster labels. Defaults to None.
@@ -1015,6 +1039,7 @@ def plot_dendrogram_condensed(
         sigbar_width=sigbar_width,
         sigbar_height=sigbar_height,
         sigbar_alpha=sigbar_alpha,
+        dendrogram_width=dendrogram_width,
         font=font,
         fontsize=fontsize,
         max_words=max_words,

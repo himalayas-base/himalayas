@@ -9,8 +9,6 @@ from typing import Any, Optional, Dict, Tuple, Sequence, TYPE_CHECKING
 
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.collections import LineCollection
-from matplotlib.colors import to_rgba
 from scipy.cluster.hierarchy import dendrogram
 
 if TYPE_CHECKING:
@@ -124,49 +122,6 @@ def _render_dendrogram_segments(
         )
 
 
-def _render_cluster_boundaries(
-    ax_dend: plt.Axes,
-    layout: ClusterLayout,
-    target_y_max: float,
-    boundary_style: Optional[Dict[str, Any]] = None,
-) -> None:
-    """
-    Renders horizontal boundary lines aligned to cluster starts.
-
-    Args:
-        ax_dend (plt.Axes): Dendrogram axis.
-        layout (ClusterLayout): Layout providing `cluster_spans`.
-        target_y_max (float): Maximum y-value in matrix coordinates.
-        boundary_style (Optional[Dict[str, Any]]): Boundary styling dict. Defaults to None.
-    """
-    # Skip if no boundary style provided.
-    if boundary_style is None:
-        return
-    # Compute y-positions for boundaries.
-    ys = [
-        s - 0.5
-        for _cid, s, _e in layout.cluster_spans
-        if (s - 0.5) > -0.5 and (s - 0.5) < target_y_max
-    ]
-    if not ys:
-        return
-    # Render horizontal lines.
-    x0, x1 = ax_dend.get_xlim()
-    segs = [((x0, y), (x1, y)) for y in ys]
-    boundary_color = to_rgba(
-        boundary_style["color"],
-        boundary_style["alpha"],
-    )
-    ax_dend.add_collection(
-        LineCollection(
-            segs,
-            linewidths=[boundary_style["lw"]] * len(segs),
-            colors=[boundary_color] * len(segs),
-            zorder=3,
-        )
-    )
-
-
 def _finalize_dendrogram_axis(
     ax_dend: plt.Axes,
     *,
@@ -262,7 +217,7 @@ class DendrogramRenderer:
             dendro["icoord"],
             matrix.df.shape[0],
         )
-        # Render dendrogram segments, cluster boundaries, and finalize axis.
+        # Render dendrogram segments and finalize axis.
         _render_dendrogram_segments(
             ax_dend,
             dendro,
@@ -270,12 +225,6 @@ class DendrogramRenderer:
             offset,
             color=cfg["color"],
             linewidth=cfg["linewidth"],
-        )
-        _render_cluster_boundaries(
-            ax_dend,
-            layout,
-            target_y_max,
-            kwargs.get("boundary_style"),
         )
         _finalize_dendrogram_axis(
             ax_dend,

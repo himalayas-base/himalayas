@@ -4,6 +4,7 @@ tests/test_plot_contracts
 """
 
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import pytest
 from matplotlib.colors import Normalize, to_rgba
@@ -14,6 +15,7 @@ from himalayas.core.clustering import cluster
 from himalayas.plot import Plotter
 from himalayas.plot.renderers._label_format import format_label_prefix
 from himalayas.plot.renderers.cluster_labels import _build_label_map, _parse_label_overrides
+from himalayas.plot.style import DEFAULT_STYLE, StyleConfig
 from himalayas.plot.track_layout import TrackLayoutManager
 
 
@@ -50,6 +52,108 @@ def test_plotter_smoke(toy_results):
         )
     finally:
         plt.show = plt_show
+
+
+@pytest.mark.api
+def test_plotter_set_background_sets_figure_facecolor(toy_results):
+    """
+    Ensures set_background() applies the requested figure facecolor when rendered.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        plotter = Plotter(toy_results).plot_matrix().set_background("red")
+        plotter.show()
+        assert plotter._fig.patch.get_facecolor() == to_rgba("red")
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+def test_plotter_set_figure_figsize_applies_without_matrix(toy_results):
+    """
+    Ensures set_figure(figsize=...) sizes a matrix-less colorbars-only figure.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        plotter = (
+            Plotter(toy_results)
+            .set_figure(figsize=(4.2, 1.0))
+            .add_colorbar(name="matrix", cmap="RdBu_r", norm=Normalize(-1, 1))
+            .plot_colorbars()
+        )
+        plotter.show()
+        assert plotter._fig.get_size_inches() == pytest.approx((4.2, 1.0))
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+def test_plotter_set_figure_figsize_applies_with_matrix(toy_results):
+    """
+    Ensures set_figure(figsize=...) sizes the figure when a matrix layer is declared.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        plotter = Plotter(toy_results).set_figure(figsize=(4.2, 1.0)).plot_matrix()
+        plotter.show()
+        assert plotter._fig.get_size_inches() == pytest.approx((4.2, 1.0))
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+def test_plotter_set_figure_subplots_adjust_applies_without_matrix(toy_results):
+    """
+    Ensures set_figure(subplots_adjust=...) applies to a matrix-less colorbars-only figure.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        plotter = (
+            Plotter(toy_results)
+            .set_figure(subplots_adjust={"left": 0.3})
+            .add_colorbar(name="matrix", cmap="RdBu_r", norm=Normalize(-1, 1))
+            .plot_colorbars()
+        )
+        plotter.show()
+        assert plotter._fig.subplotpars.left == 0.3
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+def test_plotter_set_figure_validation_errors(toy_results):
+    """
+    Ensures set_figure() rejects malformed figsize/subplots_adjust arguments.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    with pytest.raises(TypeError):
+        Plotter(toy_results).set_figure(figsize=(1, 2, 3))
+    with pytest.raises(ValueError):
+        Plotter(toy_results).set_figure(figsize=(0, 1))
+    with pytest.raises(TypeError):
+        Plotter(toy_results).set_figure(subplots_adjust="bad")
 
 
 @pytest.mark.api
@@ -96,8 +200,8 @@ def test_plotter_stacked_defaults_smoke(toy_results):
 @pytest.mark.parametrize(
     "stack",
     [
-        # Keep this matrix to valid combinations only: legend requires row_bar,
-        # and cluster_bar requires cluster_labels.
+        # Keep this matrix to valid combinations only: legend requires row_bar.
+        # Cluster bars render standalone, so they need no cluster_labels layer.
         {
             "cluster_labels": False,
             "cluster_bar": False,
@@ -243,6 +347,211 @@ def test_plotter_requires_layers(toy_results):
 
 
 @pytest.mark.api
+def test_plotter_colorbars_only_renders_without_matrix(toy_results):
+    """
+    Ensures a colorbars-only chain renders without plot_matrix() or any label layer.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        (
+            Plotter(toy_results)
+            .add_colorbar(name="matrix", cmap="RdBu_r", norm=Normalize(-1, 1))
+            .plot_colorbars()
+            .show()
+        )
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+def test_plotter_colorbars_only_save_crops_tightly(toy_results, tmp_path):
+    """
+    Ensures a colorbars-only save with bbox_inches="tight" crops around the
+    colorbar strip instead of retaining the matrix-sized placeholder bbox.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+        tmp_path (Path): Temporary output directory.
+    """
+    import matplotlib.image as mpimg
+
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        plotter = (
+            Plotter(toy_results)
+            .add_colorbar(name="matrix", cmap="RdBu_r", norm=Normalize(-1, 1))
+            .plot_colorbars()
+        )
+        out = tmp_path / "colorbars_only.png"
+        dpi = 100
+        plotter.save(out, dpi=dpi, bbox_inches="tight", pad_inches=0.02)
+        height_px = mpimg.imread(out).shape[0]
+        # Default figsize is 7in tall; a tight colorbar-only crop should be
+        # a small fraction of that, not the full matrix-sized placeholder.
+        assert height_px < 2.0 * dpi
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+def test_plotter_cluster_labels_without_matrix_hides_placeholder_chrome(toy_results):
+    """
+    Ensures a matrix-less cluster-label + colorbar chain hides the whole placeholder
+    axes instead of leaving a visible empty matrix box, and draws no matrix image.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        plotter = (
+            Plotter(toy_results)
+            .plot_cluster_labels()
+            .add_colorbar(name="matrix", cmap="RdBu_r", norm=Normalize(-1, 1))
+            .plot_colorbars()
+        )
+        plotter.show()
+        ax0 = plotter._fig.axes[0]
+        assert ax0.get_visible() is False
+        assert all(len(ax.images) == 0 for ax in plotter._fig.axes)
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+def test_plotter_compact_labels_without_matrix_hides_placeholder_chrome(toy_results):
+    """
+    Ensures a matrix-less compact-label + colorbar chain hides the whole placeholder
+    axes and draws no matrix image.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        plotter = (
+            Plotter(toy_results)
+            .plot_cluster_labels_compact()
+            .add_colorbar(name="enrichment", cmap="YlOrBr", norm=Normalize(0, 30))
+            .plot_colorbars()
+        )
+        plotter.show()
+        ax0 = plotter._fig.axes[0]
+        assert ax0.get_visible() is False
+        assert all(len(ax.images) == 0 for ax in plotter._fig.axes)
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+def test_plotter_title_without_matrix_hides_placeholder_axes(toy_results):
+    """
+    Ensures plot_title() without plot_matrix() still sets title text on the
+    placeholder axes, even though the whole axes (and thus the title) is now
+    excluded from tight-bbox cropping. Standalone title placement is out of
+    scope here; see plot_cluster_labels_without_matrix_hides_placeholder_chrome.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        plotter = Plotter(toy_results).plot_title("X").plot_cluster_labels()
+        plotter.show()
+        ax0 = plotter._fig.axes[0]
+        assert ax0.get_title() == "X"
+        assert ax0.get_visible() is False
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+def test_plotter_matrix_present_keeps_placeholder_chrome_visible(toy_results):
+    """
+    Ensures a standard plot_matrix() chain keeps the main axes patch/spines visible
+    and draws exactly one matrix image, unaffected by matrix-less handling.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        plotter = Plotter(toy_results).plot_matrix().plot_cluster_labels()
+        plotter.show()
+        ax0 = plotter._fig.axes[0]
+        assert ax0.get_visible() is True
+        assert ax0.patch.get_visible() is True
+        assert all(spine.get_visible() for spine in ax0.spines.values())
+        assert len(ax0.images) == 1
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+@pytest.mark.parametrize("outer_lw", [2.0, 10.0])
+def test_plot_cluster_labels_matrix_border_stays_solid_at_boundary(toy_results, outer_lw):
+    """
+    Ensures the matrix's right spine renders fully at the shared matrix/label-panel
+    boundary instead of being clipped or painted over by a flush label gutter.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+        outer_lw (float): Matrix border linewidth under test.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        matrix_right = 0.70
+        plotter = (
+            Plotter(toy_results)
+            .set_figure(figsize=(9, 15))
+            .plot_matrix(outer_lw=outer_lw, outer_color="black")
+            .set_label_panel(
+                axes=[matrix_right, 0.05, 0.29, 0.90],
+                gutter_color="white",
+            )
+            .plot_cluster_labels()
+        )
+        plotter.show()
+        fig = plotter._fig
+        ax_matrix = fig.axes[0]
+
+        fig.canvas.draw()
+        buf = np.asarray(fig.canvas.buffer_rgba())
+        h, w, _ = buf.shape
+        mid_row = int((1.0 - (ax_matrix.get_position().y0 + ax_matrix.get_position().y1) / 2.0) * h)
+        # The spine is centered on the matrix's right edge, so its outward half
+        # (from the boundary to half the linewidth past it) must render solid;
+        # a painted-over or clipped border shows up as a white gap in this span.
+        matrix_right_fig_x = ax_matrix.get_position().x1
+        outward_fig_x = matrix_right_fig_x + (outer_lw / 2.0) / (72.0 * fig.get_figwidth())
+        x0_px = int(matrix_right_fig_x * w)
+        x1_px = int(outward_fig_x * w)
+
+        span = buf[mid_row, x0_px:x1_px, :3]
+        assert span.size > 0
+        assert (span.max(axis=1) < 50).all()
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
 def test_plotter_requires_layout(toy_matrix):
     """
     Ensures Plotter errors when Results has no attached layout.
@@ -267,22 +576,48 @@ def test_plotter_requires_layout(toy_matrix):
 
 
 @pytest.mark.api
-def test_plot_cluster_bar_requires_cluster_labels_layer(toy_results):
+def test_plot_cluster_bar_renders_standalone(toy_results):
     """
-    Ensures cluster bars require the cluster label layer in the same plot chain.
+    Ensures plot_cluster_bar renders without plot_cluster_labels or
+    plot_cluster_labels_compact, using the tracks-only fallback.
 
     Args:
         toy_results (Results): Results fixture with clusters and layout.
-
-    Raises:
-        ValueError: If plot_cluster_bar is used without plot_cluster_labels.
     """
     plt = use_agg_backend()
     plt_show = plt.show
     plt.show = lambda *args, **kwargs: None
     try:
-        with pytest.raises(ValueError, match="plot_cluster_labels"):
-            Plotter(toy_results).plot_matrix().plot_cluster_bar(name="sig").show()
+        Plotter(toy_results).plot_cluster_bar(name="sig").plot_bar_labels().show()
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+def test_plot_cluster_bar_standalone_without_matrix_hides_placeholder_chrome(toy_results):
+    """
+    Ensures a matrix-less standalone cluster-bar + colorbar chain hides the whole
+    placeholder axes instead of leaving a visible empty matrix box, and draws no
+    matrix image.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        plotter = (
+            Plotter(toy_results)
+            .plot_cluster_bar(name="sig")
+            .plot_bar_labels()
+            .add_colorbar(name="matrix", cmap="RdBu_r", norm=Normalize(-1, 1))
+            .plot_colorbars()
+        )
+        plotter.show()
+        ax0 = plotter._fig.axes[0]
+        assert ax0.get_visible() is False
+        assert all(len(ax.images) == 0 for ax in plotter._fig.axes)
     finally:
         plt.show = plt_show
 
@@ -1156,6 +1491,141 @@ def test_plot_cluster_labels_max_words_controls_display(toy_results):
         assert not any("Alpha Beta" in t for t in texts)
     finally:
         plt.show = plt_show
+
+
+def _separator_lines(ax_lab):
+    """
+    Filters an axes' line artists down to horizontal inter-cluster separator lines.
+
+    Args:
+        ax_lab (matplotlib.axes.Axes): Label panel axes to inspect.
+
+    Returns:
+        list: Line2D artists whose endpoints share a y-value and differ in x.
+    """
+    return [
+        ln
+        for ln in ax_lab.lines
+        if ln.get_xdata()[0] != ln.get_xdata()[1] and ln.get_ydata()[0] == ln.get_ydata()[1]
+    ]
+
+
+@pytest.mark.api
+def test_plot_cluster_labels_label_sep_xmax_extends_past_one(toy_results):
+    """
+    Ensures label_sep_xmax > 1.0 is not clamped and reaches the drawn separator line.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        plotter = (
+            Plotter(toy_results)
+            .plot_matrix()
+            .plot_cluster_labels(label_sep_xmax=1.4)
+        )
+        plotter.show()
+        ax_lab = plotter._fig.axes[-1]
+        seps = _separator_lines(ax_lab)
+        assert seps, "Expected at least one separator line to be drawn."
+        assert all(max(ln.get_xdata()) == pytest.approx(1.4) for ln in seps)
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+def test_plot_cluster_labels_label_sep_lines_not_clipped(toy_results):
+    """
+    Ensures separator line artists are drawn with clip_on=False so extended spans
+    beyond the label panel remain visible.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        plotter = Plotter(toy_results).plot_matrix().plot_cluster_labels(label_sep_xmax=1.4)
+        plotter.show()
+        ax_lab = plotter._fig.axes[-1]
+        seps = _separator_lines(ax_lab)
+        assert seps, "Expected at least one separator line to be drawn."
+        assert all(ln.get_clip_on() is False for ln in seps)
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+def test_plot_cluster_labels_label_sep_xmax_default_unchanged(toy_results):
+    """
+    Ensures omitting label_sep_xmax still resolves separator lines to end at 1.0.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        plotter = Plotter(toy_results).plot_matrix().plot_cluster_labels()
+        plotter.show()
+        ax_lab = plotter._fig.axes[-1]
+        seps = _separator_lines(ax_lab)
+        assert seps, "Expected at least one separator line to be drawn."
+        assert all(max(ln.get_xdata()) == pytest.approx(1.0) for ln in seps)
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.api
+def test_plot_cluster_labels_label_sep_xmin_xmax_swap_outside_unit_range(toy_results):
+    """
+    Ensures the xmin/xmax swap safety check still applies when values fall outside
+    [0, 1], now that they are no longer clamped before comparison.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    plt = use_agg_backend()
+    plt_show = plt.show
+    plt.show = lambda *args, **kwargs: None
+    try:
+        plotter = (
+            Plotter(toy_results)
+            .plot_matrix()
+            .plot_cluster_labels(label_sep_xmin=1.5, label_sep_xmax=-0.5)
+        )
+        plotter.show()
+        ax_lab = plotter._fig.axes[-1]
+        seps = _separator_lines(ax_lab)
+        assert seps, "Expected at least one separator line to be drawn."
+        for ln in seps:
+            xdata = ln.get_xdata()
+            assert min(xdata) == pytest.approx(-0.5)
+            assert max(xdata) == pytest.approx(1.5)
+    finally:
+        plt.show = plt_show
+
+
+@pytest.mark.unit
+def test_style_config_as_dict_merges_defaults_and_overrides():
+    """
+    Ensures StyleConfig.as_dict() returns merged defaults and independent overrides.
+    """
+    style = StyleConfig()
+    style.set("boundary_color", "red")
+
+    values = style.as_dict()
+
+    assert values["boundary_color"] == "red"
+    assert values["boundary_lw"] == DEFAULT_STYLE["boundary_lw"]
+
+    values["boundary_color"] = "blue"
+    assert style["boundary_color"] == "red"
 
 
 @pytest.mark.unit

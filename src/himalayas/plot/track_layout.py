@@ -40,9 +40,9 @@ class TrackLayoutManager:
         Args:
             name (str): Track name.
             renderer (Callable[..., None]): Track renderer callable.
-            width (float): Track width in figure coordinates.
-            left_pad (float): Left padding in figure coordinates. Defaults to 0.0.
-            right_pad (float): Right padding in figure coordinates. Defaults to 0.0.
+            width (float): Track width as a label-panel axes fraction.
+            left_pad (float): Left padding as a label-panel axes fraction. Defaults to 0.0.
+            right_pad (float): Right padding as a label-panel axes fraction. Defaults to 0.0.
             enabled (bool): Whether the track is enabled. Defaults to True.
             kind (str): Track kind, either 'row' or 'cluster'. Defaults to "row".
             payload (Optional[Dict[str, Any]]): Additional track-specific data. Defaults to None.
@@ -144,8 +144,9 @@ class TrackLayoutManager:
         Computes the x0/x1 geometry for all active tracks.
 
         Args:
-            base_x (float): Starting x position in figure coordinates.
-            gutter_width (float): Gutter width before the first track.
+            base_x (float): Starting x position as a label-panel axes fraction.
+            gutter_width (float): Gutter width before the first track, as a label-panel
+                axes fraction.
 
         Returns:
             Dict[str, Tuple[float, float]]: Mapping track name → (x0, x1).
@@ -177,6 +178,7 @@ class TrackLayoutManager:
         Returns the ending x position after layout.
 
         Returns:
-            Optional[float]: Ending x position in figure coordinates, or None if layout not computed.
+            Optional[float]: Ending x position as a label-panel axes fraction, or None if
+            layout not computed.
         """
         return self._end_x

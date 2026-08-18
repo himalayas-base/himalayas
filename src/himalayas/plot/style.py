@@ -53,9 +53,6 @@ class StyleDefaults(TypedDict):
     boundary_color: str
     boundary_lw: float
     boundary_alpha: float
-    dendro_boundary_color: str
-    dendro_boundary_lw: float
-    dendro_boundary_alpha: float
     placeholder_text: str
     placeholder_color: str
     placeholder_alpha: float
@@ -71,6 +68,26 @@ class StyleDefaults(TypedDict):
     label_omit_words: Optional[Sequence[str]]
     label_fields: Tuple[str, ...]
     label_wrap_width: Optional[int]
+    compact_axes: Optional[Sequence[float]]
+    compact_marker_width: float
+    compact_bridge_width: float
+    compact_table_pad: float
+    compact_label_left_pad: float
+    compact_marker_fontsize: float
+    compact_line_color: str
+    compact_line_lw: float
+    compact_line_alpha: float
+    compact_line_shape: str
+    compact_line_style: str
+    compact_line_start: str
+    compact_line_end: str
+    cluster_span_color: Optional[str]
+    cluster_span_lw: float
+    cluster_span_alpha: float
+    cluster_span_gap: float
+    cluster_span_cap_width: float
+    cluster_span_left_pad: float
+    cluster_span_right_pad: float
 
 
 DEFAULT_STYLE: StyleDefaults = {
@@ -99,23 +116,17 @@ DEFAULT_STYLE: StyleDefaults = {
     # Row-level annotation bar (label-panel track).
     "label_bar_width": 0.012,
     "label_bar_missing_color": "#eeeeee",
-    # Bars rendered inside the label panel (to the left of text).
-    # (label_bar_default_width, label_bar_default_gap removed).
     # Default settings for cluster score bars (e.g., sigbar).
     # NOTE: scaling is controlled by an explicit `norm` passed to plot_cluster_bar.
     "sigbar_width": 0.015,
     "sigbar_cmap": "YlOrBr",
     "sigbar_alpha": 0.9,
-    # (Sigbar_gap removed)
     # Label panel bar/text spacing.
     "label_bar_pad": 0.01,
     # Cluster boundary lines.
     "boundary_color": "black",
     "boundary_lw": 0.5,
     "boundary_alpha": 0.6,
-    "dendro_boundary_color": "white",
-    "dendro_boundary_lw": 0.5,
-    "dendro_boundary_alpha": 0.3,
     # Placeholder for unlabeled clusters.
     "placeholder_text": "\u2014",
     "placeholder_color": "#b22222",
@@ -130,7 +141,8 @@ DEFAULT_STYLE: StyleDefaults = {
     "label_sep_color": "gray",
     "label_sep_lw": 0.5,
     "label_sep_alpha": 0.3,
-    # Optional override for label separator segment span (axes coords 0..1).
+    # Optional override for label separator segment span (label-axes fraction;
+    # 0..1 spans the label panel, values outside extend beyond it).
     # If None, separators start after gutter+sigbar+pad and extend to 1.0.
     "label_sep_xmin": None,
     "label_sep_xmax": None,
@@ -141,6 +153,50 @@ DEFAULT_STYLE: StyleDefaults = {
     "label_fields": ("label", "n", "p"),
     # Optional label wrapping (characters per line); None = disabled.
     "label_wrap_width": None,
+    # Compact radiating-label panel axis box [x0, y0, w, h].
+    # None: defaults to label_axes (set via set_label_panel) unless explicitly overridden.
+    "compact_axes": None,
+    # Compact horizontal allocations are label-panel axes fractions, the same currency
+    # as track widths/pads and the plot_cluster_labels() span pads. Left to right they
+    # partition the panel: track strip, marker column, connector region, table pad, table.
+    # Marker column width (label-panel axes fraction).
+    "compact_marker_width": 0.08,
+    # Connector/leader-line region width (label-panel axes fraction). Overridable per
+    # call via plot_cluster_labels_compact(connector_width=...).
+    "compact_bridge_width": 0.45,
+    # Padding between the connector region and the floating label column
+    # (label-panel axes fraction).
+    "compact_table_pad": 0.02,
+    # Space between the floating label column's left edge and the label text
+    # (label-panel axes fraction).
+    "compact_label_left_pad": 0.0,
+    "compact_marker_fontsize": 8,
+    "compact_line_color": "#c0562c",
+    "compact_line_lw": 0.9,
+    "compact_line_alpha": 0.65,
+    # One of {"straight", "curved", "elbow"}.
+    "compact_line_shape": "straight",
+    # One of {"solid", "dashed", "dotted"}.
+    "compact_line_style": "solid",
+    # Connector-start point decoration, one of {"tick", "round", "none"}, used only
+    # when cluster_span is None.
+    "compact_line_start": "tick",
+    # One of {"tick", "arrow", "round", "none"}.
+    "compact_line_end": "tick",
+    # Cluster-abreast span, opt-in via cluster_span=... on plot_cluster_labels()
+    # or plot_cluster_labels_compact(). None color inherits label_sep_color.
+    "cluster_span_color": None,
+    "cluster_span_lw": 1.0,
+    "cluster_span_alpha": 0.8,
+    "cluster_span_gap": 0.15,
+    # Optional end-cap width (label-panel axes fraction), shared by both label
+    # renderers. 0.0 draws a bare line; caps are opt-in.
+    "cluster_span_cap_width": 0.0,
+    # Horizontal padding around the span centerline (label-panel axes fraction),
+    # independent of label_bar_pad. In compact labels, cluster_span_right_pad is the
+    # gap before the leader-line start rather than before the label text.
+    "cluster_span_left_pad": 0.0,
+    "cluster_span_right_pad": 0.01,
 }
 
 
