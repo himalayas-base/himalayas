@@ -198,7 +198,10 @@ def run_cluster_hypergeom(
         annotations (Annotations): Annotations aligned to the matrix.
 
     Kwargs:
-        min_overlap (int): Minimum overlap (k) to report. Defaults to 1.
+        min_overlap (int): Minimum required overlap count (k) between a cluster and a term for
+            that pair to be tested and included in the results. Pairs with k below this
+            threshold are excluded. Defaults to 1. (Separate from `Annotations`'
+            `min_term_size`.)
         background (Optional[Matrix]): Background matrix defining enrichment universe. Defaults to None.
 
     Returns:

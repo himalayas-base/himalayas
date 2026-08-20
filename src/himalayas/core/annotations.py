@@ -35,7 +35,8 @@ class Annotations:
 
         Kwargs:
             min_term_size (int): Minimum number of matrix-overlapping labels a term must have
-                to be retained. Defaults to 2.
+                to be retained. Defaults to 2. (Separate from `Analysis.enrich`'s
+                `min_overlap`.)
             max_term_size (Optional[int]): Maximum number of matrix-overlapping labels a term
                 may have to be retained. None disables the upper bound. Defaults to None.
         """
