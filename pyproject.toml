@@ -1,13 +1,14 @@
 [build-system]
-requires = ["setuptools"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "himalayas"
 dynamic = ["version"]
-description = "Hierarchical Matrix Layout and Annotation Software"
+description = "Enrichment-based annotation and visualization of hierarchically clustered matrices"
 readme = "README.md"
-license = { file = "LICENSE" }
+license = "BSD-3-Clause"
+license-files = ["LICENSE"]
 requires-python = ">=3.8"
 
 authors = [
@@ -17,8 +18,16 @@ authors = [
 classifiers = [
     "Development Status :: 2 - Pre-Alpha",
     "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: BSD License",
     "Programming Language :: Python :: 3",
     "Operating System :: OS Independent"
+]
+
+keywords = [
+    "hierarchical clustering",
+    "matrix visualization",
+    "enrichment analysis",
+    "annotations",
 ]
 
 dependencies = [
@@ -37,6 +46,8 @@ speed = ["fastcluster"]
 [project.urls]
 Homepage = "https://github.com/himalayas-base/himalayas"
 Repository = "https://github.com/himalayas-base/himalayas"
+Documentation = "https://himalayas-base.github.io/himalayas-docs/"
+Issues = "https://github.com/himalayas-base/himalayas/issues"
 
 [tool.setuptools.dynamic]
 version = { attr = "himalayas.__version__" }
