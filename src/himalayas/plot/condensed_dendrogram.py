@@ -452,7 +452,7 @@ def _resolve_condensed_label_style(
     """
     Resolves color/alpha for condensed label text, with placeholder-specific overrides.
 
-    Args:
+    Kwargs:
         is_placeholder (bool): Whether the current cluster label is a placeholder.
         label_color (str): Base label color.
         label_alpha (float): Base label alpha.
@@ -487,7 +487,7 @@ def _compose_condensed_cluster_text(
     """
     Composes rendered text for one condensed cluster label.
 
-    Args:
+    Kwargs:
         label (str): Base text label.
         is_placeholder (bool): Whether the current cluster label is a placeholder.
         label_fields (Optional[Sequence[str]]): Fields to include in non-placeholder labels.

@@ -467,7 +467,7 @@ class Plotter:
         """
         Registers a label-panel track if enabled.
 
-        Args:
+        Kwargs:
             name (str): Track name.
             kind (str): Track kind ("cluster" or "row").
             renderer: Track renderer callable.
@@ -619,6 +619,8 @@ class Plotter:
         Args:
             fig: Matplotlib figure.
             layout: Cluster layout object.
+
+        Kwargs:
             bar_kwargs (Optional[Dict[str, Any]]): Bar-label renderer kwargs.
             cluster_kwargs (Optional[Dict[str, Any]]): Cluster-label layer kwargs.
                 If None, renders tracks only without cluster text.
