@@ -99,7 +99,7 @@ Submitted to _Bioinformatics Advances_.
 
 HiMaLAYAS software for the _bioRxiv_ preprint.
 <br>
-Zenodo. [https://doi.org/10.5281/zenodo.19338505](https://doi.org/10.5281/zenodo.19338505)
+Zenodo. [https://doi.org/10.5281/zenodo.18610373](https://doi.org/10.5281/zenodo.18610373)
 
 ## Contributing
 
