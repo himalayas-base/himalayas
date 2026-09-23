@@ -6,16 +6,17 @@
 ![Tests](https://github.com/himalayas-base/himalayas/actions/workflows/ci.yml/badge.svg)
 
 **Hierarchical Matrix Layout and Annotation Software** (**HiMaLAYAS**) is a
-framework for post hoc enrichment-based annotation of hierarchically clustered
-matrices. HiMaLAYAS treats dendrogram-defined clusters as statistical units,
-evaluates annotation enrichment, and renders significant annotations alongside
-the matrix. HiMaLAYAS supports both biological and non-biological domains.
+framework for post hoc enrichment-based annotation and visualization of
+hierarchically clustered matrices. HiMaLAYAS treats dendrogram-defined clusters
+as statistical units, tests categorical annotations for enrichment, controls
+multiple testing, and renders significant annotations alongside clusters.
+HiMaLAYAS supports both biological and non-biological domains.
 
 For a full description of HiMaLAYAS and its applications, see:
 <br>
 Horecka, I., and Röst, H. (2026)
 <br>
-_HiMaLAYAS: enrichment-based annotation of hierarchically clustered matrices_
+_HiMaLAYAS: enrichment-based annotation and visualization of hierarchically clustered matrices_
 <br>
 _bioRxiv_. [https://www.biorxiv.org/content/10.64898/2026.02.11.705303v2](https://www.biorxiv.org/content/10.64898/2026.02.11.705303v2)
 <br>
@@ -48,14 +49,22 @@ Detailed installation options and fallback behavior are documented at
 
 - **Real-Valued Matrix Input**: Operates on real-valued matrices encoding
   relationships among observations.
-- **Depth-Aware Cluster Definition**: Cuts the dendrogram at a user-defined
-  depth to define dendrogram-defined clusters for downstream analysis.
+- **Dendrogram-Defined Clusters**: Cuts the dendrogram at a user-defined
+  threshold to define dendrogram-defined clusters for downstream analysis.
 - **Overrepresentation Testing**: Uses a one-sided hypergeometric test to
-  evaluate term enrichment in each cluster against the matrix background.
+  evaluate term enrichment in each cluster against the matrix background;
+  genes with multiple term annotations are tested independently for each
+  term, with no gene-level exclusivity.
 - **Multiple-Testing Control**: Supports Benjamini-Hochberg false discovery
-  rate (FDR) correction for cluster-term tests.
+  rate (FDR) correction for cluster-term tests, applied globally by default
+  (`fdr_scope="global"`).
 - **Annotation Mapping and Rendering**: Maps significant annotations onto the
   clustered matrix and supports publication-ready matrix visualizations.
+- **No Redundancy Filtering**: Does not perform Gene Ontology graph-aware
+  redundancy filtering, such as collapsing parent-child terms or grouping
+  terms by semantic similarity; all annotation terms passing the
+  minimum-size and minimum-overlap thresholds are tested and reported
+  independently.
 
 ## Example Usage
 
@@ -63,15 +72,16 @@ We applied HiMaLAYAS to a hierarchically clustered
 _Saccharomyces cerevisiae_ genetic interaction profile similarity matrix
 (Costanzo _et al_., 2016), focusing on genes with high profile variance.
 Dendrogram-defined clusters were tested for Gene Ontology Biological Process
-(GO BP; Ashburner _et al_., 2000) enrichment, revealing hierarchical
-organization of biological processes.
+(GO BP; Ashburner _et al_., 2000) enrichment, with significant annotations
+rendered alongside clusters.
 
 ![Figure 1](assets/figure_1.png)
 **HiMaLAYAS workflow and application to a hierarchically clustered yeast
 genetic interaction profile similarity matrix (Costanzo _et al_., 2016)**.
-A real-valued matrix and categorical annotations serve as inputs. The matrix is
-cut at a user-defined depth, and each dendrogram-defined cluster is evaluated
-for GO BP enrichment.
+A real-valued matrix and categorical annotations serve as inputs. HiMaLAYAS
+cuts the dendrogram at a user-defined threshold, tests categorical annotations
+for enrichment, controls multiple testing, and renders significant annotations
+alongside clusters.
 
 ## Citation
 
@@ -79,7 +89,7 @@ for GO BP enrichment.
 
 Horecka, I., and Röst, H. (2026)
 <br>
-_HiMaLAYAS: enrichment-based annotation of hierarchically clustered matrices_
+_HiMaLAYAS: enrichment-based annotation and visualization of hierarchically clustered matrices_
 <br>
 _bioRxiv_. [https://www.biorxiv.org/content/10.64898/2026.02.11.705303v2](https://www.biorxiv.org/content/10.64898/2026.02.11.705303v2)
 <br>

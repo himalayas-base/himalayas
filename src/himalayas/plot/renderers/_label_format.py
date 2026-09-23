@@ -6,7 +6,28 @@ himalayas/plot/renderers/_label_format
 from __future__ import annotations
 
 import textwrap
-from typing import List, Optional, Sequence, Tuple
+from typing import Dict, List, NamedTuple, Optional, Sequence, Tuple
+
+import numpy as np
+import pandas as pd
+
+from ._cluster_label_types import ClusterLabelStats
+
+
+def compute_equal_slots(n: int, *, pitch: float = 1.0) -> np.ndarray:
+    """
+    Computes equal-pitch slot centers for `n` items, independent of any other sizing.
+
+    Args:
+        n (int): Number of slots.
+
+    Kwargs:
+        pitch (float): Spacing between adjacent slot centers. Defaults to 1.0.
+
+    Returns:
+        np.ndarray: Slot center positions, i.e. `[pitch/2, 3*pitch/2, ...]`.
+    """
+    return np.arange(int(n)) * float(pitch) + float(pitch) / 2.0
 
 
 def collect_label_stats(
@@ -173,3 +194,98 @@ def compose_label_text(
         return stat_tail
 
     return f"{label} {stat_tail}".strip()
+
+
+class ResolvedClusterLabel(NamedTuple):
+    """
+    Resolved display text for one cluster, plus whether it fell back to a placeholder.
+    """
+
+    text: str
+    is_placeholder: bool
+
+
+def resolve_cluster_label_content(
+    cluster_id: int,
+    label_map: Dict[int, ClusterLabelStats],
+    n_members: Optional[int],
+    *,
+    label_fields: Optional[Sequence[str]],
+    label_prefix: Optional[str],
+    is_override: bool,
+    placeholder_text: str,
+    max_words: Optional[int] = None,
+    omit_words: Optional[Sequence[str]] = None,
+    wrap_text: bool = True,
+    wrap_width: Optional[int] = None,
+    overflow: str = "wrap",
+) -> ResolvedClusterLabel:
+    """
+    Resolves the display text for one cluster: placeholder vs. real label, field
+    selection, prefix, and p/q/fe/n stat formatting. Shared by every renderer that
+    shows per-cluster label text so label_fields/label_prefix behave identically
+    everywhere.
+
+    Args:
+        cluster_id (int): Cluster id.
+        label_map (Dict[int, ClusterLabelStats]): Mapping cluster_id -> (label, pval,
+            qval, score, fe), as built by _build_label_map.
+        n_members (Optional[int]): Cluster size for the "n" field.
+
+    Kwargs:
+        label_fields (Optional[Sequence[str]]): Fields to display, e.g.
+            ("label", "n", "p"). If None, suppresses base label/stat text.
+        label_prefix (Optional[str]): Prefix mode, one of {None, "cid", "alpha"}.
+        is_override (bool): Whether this cluster's label came from an explicit override.
+        placeholder_text (str): Text to use when the cluster has no label.
+        max_words (Optional[int]): Maximum words to keep. Defaults to None.
+        omit_words (Optional[Sequence[str]]): Words to omit (case-insensitive). Defaults to None.
+        wrap_text (bool): Whether to wrap label text. Defaults to True.
+        wrap_width (Optional[int]): Characters per wrapped line. Defaults to None.
+        overflow (str): Truncation mode, one of {"wrap", "ellipsis"}. Defaults to "wrap".
+
+    Returns:
+        ResolvedClusterLabel: Final display text and whether it is a placeholder.
+    """
+    if cluster_id not in label_map:
+        return ResolvedClusterLabel(placeholder_text, True)
+
+    label, pval, qval, _score, fe = label_map[cluster_id]
+    prefix_active = label_prefix in {"cid", "alpha"} and not is_override
+    force_label = prefix_active or is_override
+    if (label_fields is None or "label" not in label_fields) and not is_override:
+        label = ""
+    if prefix_active:
+        prefix = format_label_prefix(label_prefix, cluster_id)
+        label = f"{prefix} {label}" if label else prefix
+
+    pval_value = pval if pval is not None and not pd.isna(pval) else None
+    qval_value = qval if qval is not None and not pd.isna(qval) else None
+    fe_value = fe if fe is not None and not pd.isna(fe) else None
+    has_label, stats = collect_label_stats(
+        label_fields,
+        n_members=n_members,
+        pval=pval_value,
+        qval=qval_value,
+        fe=fe_value,
+        force_label=force_label,
+    )
+
+    label_text = apply_label_text_policy(
+        label,
+        omit_words=omit_words,
+        max_words=max_words,
+        overflow=overflow,
+        wrap_text=wrap_text,
+        wrap_width=wrap_width,
+    )
+    if not has_label and not stats:
+        return ResolvedClusterLabel(label_text, False)
+    text = compose_label_text(
+        label_text,
+        has_label=has_label,
+        stats=stats,
+        wrap_text=wrap_text,
+        wrap_width=wrap_width,
+    )
+    return ResolvedClusterLabel(text, False)

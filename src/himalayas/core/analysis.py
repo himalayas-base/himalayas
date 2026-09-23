@@ -5,10 +5,10 @@ himalayas/core/analysis
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Optional, Union
 
 from .annotations import Annotations
-from .clustering import cut_linkage, compute_linkage
+from .clustering import cut_linkage, compute_linkage, _resolve_auto_threshold
 from .enrichment import run_cluster_hypergeom
 from .layout import compute_col_order
 from .matrix import Matrix
@@ -43,10 +43,11 @@ class Analysis:
         self,
         linkage_method: str = "ward",
         linkage_metric: str = "euclidean",
-        linkage_threshold: float = 0.7,
+        linkage_threshold: Union[float, str] = 0.7,
         *,
         optimal_ordering: bool = False,
         min_cluster_size: int = 1,
+        merge_small_clusters: bool = True,
     ) -> Analysis:
         """
         Performs clustering on the analysis matrix.
@@ -54,17 +55,43 @@ class Analysis:
         Args:
             linkage_method (str): Linkage method for hierarchical clustering. Defaults to "ward".
             linkage_metric (str): Distance metric for hierarchical clustering. Defaults to "euclidean".
-            linkage_threshold (float): Distance threshold for cutting the dendrogram. Defaults to 0.7.
+            linkage_threshold (Union[float, str]): Distance threshold for cutting the dendrogram,
+                or "auto" to automatically select a threshold over raw dendrogram cuts that
+                balances silhouette quality with cluster diversity (linkage method and metric
+                are not optimized). If `min_cluster_size` > 1 and `merge_small_clusters` is
+                False and the selected cut would leave fewer than 2 reportable clusters, falls
+                back to the cut maximizing reportable coverage and diversity instead. Defaults
+                to 0.7.
 
         Kwargs:
             optimal_ordering (bool): Whether to optimize leaf ordering in the linkage output.
                 Defaults to False.
-            min_cluster_size (int): Enforces a minimum cluster size by merging smaller clusters
-                upward along the dendrogram. Values <= 1 disable enforcement. Defaults to 1.
+            min_cluster_size (int): Minimum cluster size floor. By default, clusters below
+                this size are merged upward along the dendrogram. Values <= 1 disable the
+                floor. See `merge_small_clusters` to preserve small clusters structurally
+                while applying the floor at enrichment reporting. Defaults to 1.
+            merge_small_clusters (bool): If True (default), merges undersized clusters upward
+                along the dendrogram, preserving historical behavior. If False, preserves small
+                dendrogram-cut clusters structurally; `min_cluster_size` is still applied, but
+                by excluding clusters below it from enrichment reporting rather than merging
+                them away. Defaults to True.
 
         Returns:
             Analysis: The Analysis instance (for method chaining).
+
+        Raises:
+            ValueError: If linkage_threshold is a bool, or a string other than "auto". If
+                linkage_threshold="auto", also raised when no candidate threshold yields a
+                scoreable partition, or when the reportability fallback applies but no
+                candidate has at least 2 reportable clusters.
         """
+        if isinstance(linkage_threshold, bool) or (
+            isinstance(linkage_threshold, str) and linkage_threshold != "auto"
+        ):
+            raise ValueError(
+                f"linkage_threshold must be a float or 'auto'. Received: {linkage_threshold!r}"
+            )
+
         self.results = None
         self.layout = None
         self._cluster_linkage_method = linkage_method
@@ -84,11 +111,20 @@ class Analysis:
                 optimal_ordering=self._cluster_optimal_ordering,
             )
             self._row_linkage_cache[row_cache_key] = linkage_matrix
+        if linkage_threshold == "auto":
+            linkage_threshold = _resolve_auto_threshold(
+                linkage_matrix,
+                self.matrix,
+                self._cluster_linkage_metric,
+                min_cluster_size=min_cluster_size,
+                merge_small_clusters=merge_small_clusters,
+            )
         self.clusters = cut_linkage(
             linkage_matrix,
             self.matrix.labels,
             linkage_threshold=linkage_threshold,
             min_cluster_size=min_cluster_size,
+            merge_small_clusters=merge_small_clusters,
         )
         return self
 
@@ -102,7 +138,10 @@ class Analysis:
         Performs enrichment analysis on the clustered matrix.
 
         Kwargs:
-            min_overlap (int): Minimum overlap (k) to report. Defaults to 1.
+            min_overlap (int): Minimum required overlap count (k) between a cluster and a term
+                for that pair to be tested and included in the results. Pairs with k below this
+                threshold are excluded. Defaults to 1. (Separate from `Annotations`'
+                `min_term_size`.)
             background (Optional[Matrix]): Background matrix defining enrichment universe.
                 Defaults to None, which uses the current matrix as the universe.
 

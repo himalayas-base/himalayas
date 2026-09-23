@@ -5,29 +5,11 @@ himalayas/plot/renderers/base
 
 from __future__ import annotations
 
-from typing import Dict, Protocol
+from typing import Dict
 
 import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
 from matplotlib.colors import to_rgba
-
-
-class Renderer(Protocol):
-    """
-    Protocol for plot renderers with intentionally loose call shape.
-    Concrete renderer classes in this package use different render signatures.
-    """
-
-    def render(
-        self,
-        *args: object,
-        **kwargs: object,
-    ) -> None:
-        """
-        Executes renderer-specific drawing logic.
-        """
-        # Protocol stub; no runtime implementation.
-        ...
 
 
 class BoundaryRegistry:

@@ -114,6 +114,114 @@ def test_min_cluster_size_merges_singleton():
 
 
 @pytest.mark.api
+def test_merge_small_clusters_defaults_to_true_and_matches_legacy_behavior():
+    """
+    Ensures merge_small_clusters defaults to True, so existing callers that omit it get
+    identical results to explicitly passing merge_small_clusters=True.
+    """
+    import pandas as pd
+    from himalayas import Matrix
+
+    df = pd.DataFrame(
+        [[0.0], [0.1], [5.0], [5.1], [10.0]],
+        index=["a", "b", "c", "d", "e"],
+        columns=["x"],
+    )
+    matrix = Matrix(df)
+    default_clusters = cluster(matrix, linkage_threshold=0.5, min_cluster_size=2)
+    explicit_clusters = cluster(
+        matrix, linkage_threshold=0.5, min_cluster_size=2, merge_small_clusters=True
+    )
+
+    assert default_clusters.merge_small_clusters is True
+    assert np.array_equal(default_clusters.cluster_ids, explicit_clusters.cluster_ids)
+    assert all(sz >= 2 for sz in default_clusters.cluster_sizes.values())
+
+
+@pytest.mark.api
+def test_merge_small_clusters_false_preserves_small_dendrogram_cut_clusters():
+    """
+    Ensures merge_small_clusters=False preserves a singleton dendrogram-cut cluster
+    structurally instead of merging it upward, even though it is smaller than
+    min_cluster_size.
+    """
+    import pandas as pd
+    from himalayas import Matrix
+
+    df = pd.DataFrame(
+        [[0.0], [0.1], [5.0], [5.1], [10.0]],
+        index=["a", "b", "c", "d", "e"],
+        columns=["x"],
+    )
+    matrix = Matrix(df)
+    clusters = cluster(
+        matrix,
+        linkage_threshold=0.5,
+        min_cluster_size=2,
+        merge_small_clusters=False,
+    )
+
+    assert clusters.min_cluster_size == 2
+    assert clusters.merge_small_clusters is False
+    # The singleton "e" cluster is preserved rather than merged upward.
+    assert any(sz < 2 for sz in clusters.cluster_sizes.values())
+    assert clusters.cluster_to_labels[clusters.label_to_cluster["e"]] == {"e"}
+
+    # Layout must still surface the small cluster as its own contiguous span.
+    layout = clusters.layout()
+    small_cid = clusters.label_to_cluster["e"]
+    assert any(cid == small_cid for cid, _, _ in layout.cluster_spans)
+    assert layout.cluster_sizes[small_cid] == 1
+
+
+@pytest.mark.api
+def test_merge_small_clusters_coerced_to_bool(toy_matrix):
+    """
+    Ensures merge_small_clusters is coerced to bool, consistent with how other boolean
+    kwargs (e.g. optimal_ordering) are handled in this module.
+
+    Args:
+        toy_matrix (Matrix): Toy matrix fixture.
+    """
+    clusters = cluster(
+        toy_matrix,
+        linkage_threshold=1.0,
+        min_cluster_size=1,
+        merge_small_clusters=0,
+    )
+    assert clusters.merge_small_clusters is False
+
+
+@pytest.mark.api
+def test_merge_small_clusters_truthy_int_behaves_like_true():
+    """
+    Ensures a truthy non-bool value (e.g. 1) for merge_small_clusters is stored as True
+    and actually triggers merge behavior, not just the stored attribute. Guards against
+    the merge condition checking argument identity (`merge_small_clusters is True`)
+    instead of the coerced `self.merge_small_clusters` attribute.
+    """
+    import pandas as pd
+    from himalayas import Matrix
+
+    df = pd.DataFrame(
+        [[0.0], [0.1], [5.0], [5.1], [10.0]],
+        index=["a", "b", "c", "d", "e"],
+        columns=["x"],
+    )
+    matrix = Matrix(df)
+    clusters = cluster(
+        matrix,
+        linkage_threshold=0.5,
+        min_cluster_size=2,
+        merge_small_clusters=1,
+    )
+
+    assert clusters.merge_small_clusters is True
+    # Behavior must match merge_small_clusters=True: no cluster smaller than min_cluster_size.
+    assert all(sz >= 2 for sz in clusters.cluster_sizes.values())
+
+
+@pytest.mark.api
 def test_compute_and_cut_linkage_matches_cluster(toy_matrix):
     """
     Ensures compute_linkage()+cut_linkage() matches cluster() semantics.
@@ -131,6 +239,29 @@ def test_compute_and_cut_linkage_matches_cluster(toy_matrix):
 
     assert np.array_equal(direct.cluster_ids, split.cluster_ids)
     assert np.array_equal(direct.leaf_order, split.leaf_order)
+
+
+@pytest.mark.api
+def test_cut_linkage_propagates_merge_small_clusters(toy_matrix):
+    """
+    Ensures cluster(), compute_linkage()+cut_linkage() agree on merge_small_clusters=False,
+    confirming the flag is propagated consistently across the low-level API.
+
+    Args:
+        toy_matrix (Matrix): Toy matrix fixture.
+    """
+    direct = cluster(toy_matrix, linkage_threshold=1.0, merge_small_clusters=False)
+    linkage_matrix = compute_linkage(toy_matrix)
+    split = cut_linkage(
+        linkage_matrix,
+        toy_matrix.labels,
+        linkage_threshold=1.0,
+        merge_small_clusters=False,
+    )
+
+    assert direct.merge_small_clusters is False
+    assert split.merge_small_clusters is False
+    assert np.array_equal(direct.cluster_ids, split.cluster_ids)
 
 
 @pytest.mark.api
@@ -233,3 +364,369 @@ def test_compute_linkage_uses_scipy_when_optimal_ordering_enabled(monkeypatch, t
 
     assert seen["kwargs"] is not None
     assert seen["kwargs"]["optimal_ordering"] is True
+
+
+@pytest.mark.api
+def test_compute_linkage_correlation_raises_early_on_zero_variance_row():
+    """
+    Regression: sparse binary matrix with an all-zero row must raise a HiMaLAYAS-owned
+    ValueError before scipy/fastcluster is invoked, not the opaque downstream error
+    "The condensed distance matrix must contain only finite values."
+    """
+    import pandas as pd
+    from himalayas import Matrix
+
+    df = pd.DataFrame(
+        [[1.0, 0.0, 1.0], [0.0, 0.0, 0.0], [0.0, 1.0, 1.0]],
+        index=["row_a", "row_b", "row_c"],
+        columns=["c1", "c2", "c3"],
+    )
+    matrix = Matrix(df)
+    with pytest.raises(ValueError, match="Correlation distance is undefined for constant rows") as excinfo:
+        compute_linkage(matrix, linkage_method="average", linkage_metric="correlation")
+
+    assert "row_b" in str(excinfo.value)
+
+
+@pytest.mark.api
+def test_compute_linkage_cosine_raises_early_on_zero_norm_row():
+    """
+    Regression: matrix with an all-zero row must raise a HiMaLAYAS-owned ValueError for
+    linkage_metric='cosine' before scipy/fastcluster is invoked, not the opaque downstream
+    error "The condensed distance matrix must contain only finite values."
+    """
+    import pandas as pd
+    from himalayas import Matrix
+
+    df = pd.DataFrame(
+        [[1.0, 0.0, 1.0], [0.0, 0.0, 0.0], [0.0, 1.0, 1.0]],
+        index=["row_a", "row_b", "row_c"],
+        columns=["c1", "c2", "c3"],
+    )
+    matrix = Matrix(df)
+    with pytest.raises(ValueError, match="Cosine distance is undefined for zero vectors") as excinfo:
+        compute_linkage(matrix, linkage_method="average", linkage_metric="cosine")
+
+    assert "row_b" in str(excinfo.value)
+
+
+@pytest.mark.api
+def test_cluster_auto_threshold_is_finite_numeric(toy_matrix):
+    """
+    Ensures linkage_threshold="auto" resolves to a finite numeric Clusters.threshold.
+
+    Args:
+        toy_matrix (Matrix): Toy matrix fixture.
+    """
+    clusters = cluster(toy_matrix, linkage_threshold="auto")
+
+    assert isinstance(clusters.threshold, float)
+    assert np.isfinite(clusters.threshold)
+
+
+@pytest.mark.api
+def test_cluster_auto_threshold_matches_independent_silhouette_diversity_argmax():
+    """
+    Critical correctness check: independently enumerates candidate thresholds from the
+    linkage matrix and computes silhouette-times-diversity scores by hand, then asserts
+    "auto" returns the threshold with the highest score. Uses a fixture with both negative
+    and positive matrix values whose highest raw silhouette belongs to a coarse 2-cluster
+    cut, while the finer, more balanced 3-cluster cut wins once weighted by diversity,
+    demonstrating the combined objective favors it over pure silhouette maximization.
+    """
+    import pandas as pd
+    from scipy.cluster.hierarchy import fcluster as scipy_fcluster
+    from scipy.spatial.distance import pdist, squareform
+    from sklearn.metrics import silhouette_score
+    from himalayas import Matrix
+
+    df = pd.DataFrame(
+        [
+            [-8.0, -8.0],
+            [-7.8, -8.0],
+            [-0.3, 0.0],
+            [-0.2, 0.9],
+            [-0.4, -0.1],
+            [2.5, 1.7],
+            [2.3, 1.2],
+            [2.9, 2.5],
+        ],
+        index=["a", "b", "c", "d", "e", "f", "g", "h"],
+        columns=["x", "y"],
+    )
+    matrix = Matrix(df)
+    linkage_matrix = compute_linkage(matrix, linkage_method="ward", linkage_metric="euclidean")
+
+    distance_matrix = squareform(pdist(matrix.values, metric="euclidean"))
+    n = matrix.values.shape[0]
+    expected_threshold = None
+    expected_score = -np.inf
+    for threshold in np.unique(linkage_matrix[:, 2]):
+        labels = scipy_fcluster(linkage_matrix, threshold, criterion="distance")
+        n_clusters = len(np.unique(labels))
+        if n_clusters < 2 or n_clusters >= n:
+            continue
+        silhouette = silhouette_score(distance_matrix, labels, metric="precomputed")
+        score = silhouette
+        if silhouette > 0:
+            _, counts = np.unique(labels, return_counts=True)
+            proportions = counts / counts.sum()
+            diversity = 1.0 - np.sum(proportions**2)
+            score *= diversity
+        if score > expected_score:
+            expected_score = score
+            expected_threshold = float(threshold)
+
+    clusters = cluster(matrix, linkage_threshold="auto", linkage_method="ward", linkage_metric="euclidean")
+
+    assert clusters.threshold == pytest.approx(expected_threshold)
+
+
+@pytest.mark.api
+def test_cluster_auto_threshold_independent_of_merge_small_clusters_when_already_reportable():
+    """
+    Ensures the resolved "auto" threshold is identical regardless of merge_small_clusters when
+    the committed silhouette-diversity winner already has at least 2 raw clusters meeting
+    min_cluster_size: the reportability rescue must not perturb an already-reportable winner.
+    """
+    import pandas as pd
+    from himalayas import Matrix
+
+    df = pd.DataFrame(
+        [[0.0], [0.2], [5.0], [5.2], [10.0], [10.2]],
+        index=["a", "b", "c", "d", "e", "f"],
+        columns=["x"],
+    )
+    matrix = Matrix(df)
+    result_merged = cluster(
+        matrix, linkage_threshold="auto", min_cluster_size=2, merge_small_clusters=True
+    )
+    result_raw = cluster(
+        matrix, linkage_threshold="auto", min_cluster_size=2, merge_small_clusters=False
+    )
+
+    assert result_merged.threshold == result_raw.threshold
+
+
+@pytest.mark.api
+def test_resolve_auto_threshold_breaks_ties_with_smallest_threshold(monkeypatch):
+    """
+    Ensures _resolve_auto_threshold breaks exact ties in the combined silhouette-times-
+    diversity objective by choosing the smallest candidate threshold (the finer partition),
+    as documented in its docstring. For the k=3 and k=2 candidates, silhouette_score is
+    monkeypatched to return 0.25 divided by that candidate's own Gini-Simpson diversity, so
+    the production multiplication (`silhouette * diversity`) reconstructs 0.25 for both,
+    producing a genuine floating-point tie rather than a near-tie. k=4 is given a clearly
+    lower objective so it cannot win outright.
+
+    Args:
+        monkeypatch (pytest.MonkeyPatch): Fixture for replacing module call targets.
+    """
+    import pandas as pd
+    from himalayas import Matrix
+
+    df = pd.DataFrame(
+        [[-10.0], [-9.9], [-0.1], [0.1], [9.9], [10.0]],
+        index=["a", "b", "c", "d", "e", "f"],
+        columns=["x"],
+    )
+    matrix = Matrix(df)
+    linkage_matrix = compute_linkage(matrix, linkage_method="ward", linkage_metric="euclidean")
+
+    def fake_silhouette(distance_matrix, labels, metric="precomputed"):
+        _, counts = np.unique(labels, return_counts=True)
+        n_clusters = int(counts.shape[0])
+        if n_clusters in {2, 3}:
+            proportions = counts / counts.sum()
+            diversity = 1.0 - np.sum(proportions**2)
+            return 0.25 / diversity
+        return 0.1
+
+    monkeypatch.setattr(clustering_module, "silhouette_score", fake_silhouette)
+
+    resolved = clustering_module._resolve_auto_threshold(linkage_matrix, matrix, "euclidean")
+
+    candidates = sorted(np.unique(linkage_matrix[:, 2]).tolist())
+    tied_candidates = candidates[1:3]  # the k=3 and k=2 thresholds, excluding k=4 and k=1
+    assert resolved == pytest.approx(min(tied_candidates))
+
+
+@pytest.mark.api
+def test_resolve_auto_threshold_falls_back_to_raw_silhouette_when_non_positive(monkeypatch):
+    """
+    Ensures that when every candidate's silhouette score is zero or negative, selection
+    falls back to the greatest raw silhouette rather than an ordering distorted by
+    multiplying with diversity. The k=3 candidate is given the greatest (least negative)
+    silhouette despite not having the highest diversity among the candidates (k=4 does),
+    proving diversity is not applied in the non-positive branch.
+
+    Args:
+        monkeypatch (pytest.MonkeyPatch): Fixture for replacing module call targets.
+    """
+    import pandas as pd
+    from himalayas import Matrix
+
+    df = pd.DataFrame(
+        [[-10.0], [-9.9], [-0.1], [0.1], [9.9], [10.0]],
+        index=["a", "b", "c", "d", "e", "f"],
+        columns=["x"],
+    )
+    matrix = Matrix(df)
+    linkage_matrix = compute_linkage(matrix, linkage_method="ward", linkage_metric="euclidean")
+
+    def fake_silhouette(distance_matrix, labels, metric="precomputed"):
+        n_clusters = len(np.unique(labels))
+        return {2: -0.5, 3: -0.1, 4: -0.3}.get(n_clusters, -1.0)
+
+    monkeypatch.setattr(clustering_module, "silhouette_score", fake_silhouette)
+
+    resolved = clustering_module._resolve_auto_threshold(linkage_matrix, matrix, "euclidean")
+
+    candidates = sorted(np.unique(linkage_matrix[:, 2]).tolist())
+    assert resolved == pytest.approx(candidates[1])
+
+
+@pytest.mark.api
+def test_cluster_auto_threshold_rescues_underreportable_committed_winner():
+    """
+    Ensures the reportability rescue selects the candidate maximizing coverage times
+    reportable Gini-Simpson diversity, not merely the first eligible candidate. The test
+    independently recomputes every eligible candidate's score from raw cluster sizes and
+    asserts "auto" resolves to the candidate with the greatest score, using a fixture with at
+    least 2 eligible candidates carrying distinct scores.
+    """
+    import pandas as pd
+    from scipy.cluster.hierarchy import fcluster as scipy_fcluster
+    from himalayas import Matrix
+
+    df = pd.DataFrame(
+        [[-31.5], [41.5], [-15.0], [8.5], [-29.5], [-30.5], [-28.5]],
+        index=["a", "b", "c", "d", "e", "f", "g"],
+        columns=["x"],
+    )
+    matrix = Matrix(df)
+    linkage_matrix = compute_linkage(matrix, linkage_method="ward", linkage_metric="euclidean")
+    n = matrix.values.shape[0]
+
+    committed = cluster(matrix, linkage_threshold="auto")
+    _, committed_counts = np.unique(committed.cluster_ids, return_counts=True)
+    assert int((committed_counts >= 2).sum()) < 2
+
+    expected_threshold, expected_score = None, -np.inf
+    eligible_scores = set()
+    for threshold in np.unique(linkage_matrix[:, 2]):
+        labels = scipy_fcluster(linkage_matrix, threshold, criterion="distance")
+        _, counts = np.unique(labels, return_counts=True)
+        reportable = counts[counts >= 2]
+        if reportable.shape[0] < 2:
+            continue
+        coverage = reportable.sum() / n
+        proportions = reportable / reportable.sum()
+        diversity = 1.0 - np.sum(proportions**2)
+        score = coverage * diversity
+        eligible_scores.add(score)
+        if score > expected_score:
+            expected_score = score
+            expected_threshold = float(threshold)
+
+    assert len(eligible_scores) >= 2
+
+    rescued = cluster(
+        matrix, linkage_threshold="auto", min_cluster_size=2, merge_small_clusters=False
+    )
+
+    assert rescued.threshold == pytest.approx(expected_threshold)
+    assert rescued.threshold != committed.threshold
+
+
+@pytest.mark.api
+def test_cluster_auto_threshold_merge_small_clusters_true_ignores_rescue():
+    """
+    Ensures merge_small_clusters=True retains the committed threshold exactly, even for a
+    fixture whose committed winner is under-reportable and would trigger the rescue under
+    merge_small_clusters=False. The rescue is scoped to preserved-small-cluster mode only.
+    """
+    import pandas as pd
+    from himalayas import Matrix
+
+    df = pd.DataFrame(
+        [[-8.5], [23.0], [21.0], [43.0], [-38.0], [23.0]],
+        index=["a", "b", "c", "d", "e", "f"],
+        columns=["x"],
+    )
+    matrix = Matrix(df)
+
+    committed = cluster(matrix, linkage_threshold="auto")
+    merged = cluster(
+        matrix, linkage_threshold="auto", min_cluster_size=2, merge_small_clusters=True
+    )
+
+    assert merged.threshold == committed.threshold
+
+
+@pytest.mark.api
+def test_cluster_auto_threshold_rescue_infeasible_raises():
+    """
+    Ensures a ValueError is raised when min_cluster_size > 1, merge_small_clusters=False, and
+    no candidate cut has at least 2 clusters meeting min_cluster_size.
+    """
+    import pandas as pd
+    from himalayas import Matrix
+
+    df = pd.DataFrame(
+        [[0.0], [0.1], [0.2], [20.0], [-20.0]],
+        index=["a", "b", "c", "d", "e"],
+        columns=["x"],
+    )
+    matrix = Matrix(df)
+
+    with pytest.raises(ValueError, match="min_cluster_size"):
+        cluster(matrix, linkage_threshold="auto", min_cluster_size=4, merge_small_clusters=False)
+
+
+@pytest.mark.api
+def test_cluster_auto_threshold_no_valid_candidate_raises():
+    """
+    Ensures linkage_threshold="auto" raises ValueError when no candidate threshold yields
+    a scoreable (2 to N-1 cluster) partition, rather than silently falling back to a default.
+    """
+    import pandas as pd
+    from himalayas import Matrix
+
+    df = pd.DataFrame(
+        [[0.0], [10.0]],
+        index=["a", "b"],
+        columns=["x"],
+    )
+    matrix = Matrix(df)
+    with pytest.raises(ValueError, match="auto"):
+        cluster(matrix, linkage_threshold="auto")
+
+
+@pytest.mark.api
+@pytest.mark.parametrize("bad_threshold", ["bad", "AUTO", ""])
+def test_cluster_invalid_threshold_string_raises(toy_matrix, bad_threshold):
+    """
+    Ensures a string linkage_threshold other than exactly "auto" raises ValueError.
+
+    Args:
+        toy_matrix (Matrix): Toy matrix fixture.
+        bad_threshold (str): Invalid string threshold value.
+    """
+    with pytest.raises(ValueError):
+        cluster(toy_matrix, linkage_threshold=bad_threshold)
+
+
+@pytest.mark.api
+@pytest.mark.parametrize("bad_threshold", [True, False])
+def test_cluster_boolean_threshold_raises(toy_matrix, bad_threshold):
+    """
+    Ensures a boolean linkage_threshold raises ValueError instead of being silently
+    coerced through bool's int subclassing.
+
+    Args:
+        toy_matrix (Matrix): Toy matrix fixture.
+        bad_threshold (bool): Invalid boolean threshold value.
+    """
+    with pytest.raises(ValueError):
+        cluster(toy_matrix, linkage_threshold=bad_threshold)

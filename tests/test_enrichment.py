@@ -39,6 +39,58 @@ def test_run_cluster_hypergeom_basic():
 
 
 @pytest.mark.api
+def test_merge_small_clusters_false_skips_underpowered_clusters():
+    """
+    Ensures merge_small_clusters=False excludes clusters smaller than min_cluster_size from
+    enrichment reporting, while larger clusters still produce enrichment rows normally.
+    """
+    df = pd.DataFrame(
+        [[0.0], [0.1], [5.0], [5.1], [10.0]],
+        index=["a", "b", "c", "d", "e"],
+        columns=["x"],
+    )
+    matrix = Matrix(df)
+    clusters = cluster(
+        matrix,
+        linkage_threshold=0.5,
+        min_cluster_size=2,
+        merge_small_clusters=False,
+    )
+    singleton_cid = clusters.label_to_cluster["e"]
+    assert clusters.cluster_sizes[singleton_cid] == 1
+
+    annotations = Annotations({"t1": ["a", "b"], "t2": ["c", "d"], "t3": ["e"]}, matrix)
+    results = run_cluster_hypergeom(matrix, clusters, annotations)
+
+    # The singleton cluster is excluded entirely; larger clusters still report normally.
+    assert singleton_cid not in set(results.df["cluster"].tolist())
+    assert set(results.df["term"].tolist()) == {"t1", "t2"}
+    assert len(results.df) == 2
+
+
+@pytest.mark.api
+def test_merge_small_clusters_true_keeps_default_enrichment_behavior():
+    """
+    Ensures the default merge_small_clusters=True does not change enrichment behavior:
+    small clusters are merged upward before enrichment ever sees them.
+    """
+    df = pd.DataFrame(
+        [[0.0], [0.1], [5.0], [5.1], [10.0]],
+        index=["a", "b", "c", "d", "e"],
+        columns=["x"],
+    )
+    matrix = Matrix(df)
+    clusters = cluster(matrix, linkage_threshold=0.5, min_cluster_size=2)
+    assert all(sz >= 2 for sz in clusters.cluster_sizes.values())
+
+    annotations = Annotations({"t1": ["a", "b"], "t2": ["c", "d"], "t3": ["e"]}, matrix)
+    results = run_cluster_hypergeom(matrix, clusters, annotations)
+
+    # No cluster is small enough to be treated as underpowered; "e" is merged upward.
+    assert set(results.df["cluster"].tolist()).issubset(set(clusters.unique_clusters.tolist()))
+
+
+@pytest.mark.api
 def test_run_cluster_hypergeom_empty_rows_schema(toy_matrix):
     """
     Ensures empty enrichments return the expected schema.
