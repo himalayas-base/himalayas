@@ -22,7 +22,7 @@ _bioRxiv_. [https://www.biorxiv.org/content/10.64898/2026.02.11.705303v2](https:
 <br>
 Submitted to _Bioinformatics Advances_.
 
-## Documentation and Tutorial
+## Documentation and Tutorials
 
 - **Full Documentation**: [himalayas-base.github.io/himalayas-docs](https://himalayas-base.github.io/himalayas-docs)
 - **Figure Gallery**: [himalayas-base.github.io/himalayas-docs/11_figure_gallery](https://himalayas-base.github.io/himalayas-docs/11_figure_gallery/)
@@ -47,41 +47,37 @@ Detailed installation options and fallback behavior are documented at
 
 ## Key Features of HiMaLAYAS
 
-- **Real-Valued Matrix Input**: Operates on real-valued matrices encoding
+- **Matrix-Based Input**: Works with real-valued matrices representing
   relationships among observations.
-- **Dendrogram-Defined Clusters**: Cuts the dendrogram at a user-defined
-  threshold to define dendrogram-defined clusters for downstream analysis.
-- **Overrepresentation Testing**: Uses a one-sided hypergeometric test to
-  evaluate term enrichment in each cluster against the matrix background;
-  genes with multiple term annotations are tested independently for each
-  term, with no gene-level exclusivity.
-- **Multiple-Testing Control**: Supports Benjamini-Hochberg false discovery
-  rate (FDR) correction for cluster-term tests, applied globally by default
-  (`fdr_scope="global"`).
-- **Annotation Mapping and Rendering**: Maps significant annotations onto the
-  clustered matrix and supports publication-ready matrix visualizations.
-- **No Redundancy Filtering**: Does not perform Gene Ontology graph-aware
-  redundancy filtering, such as collapsing parent-child terms or grouping
-  terms by semantic similarity; all annotation terms passing the
-  minimum-size and minimum-overlap thresholds are tested and reported
-  independently.
+- **Configurable Clustering**: Supports linkage method, distance metric,
+  dendrogram distance threshold, and minimum cluster size settings.
+- **Cluster-Level Enrichment Testing**: Treats dendrogram-defined clusters as
+  statistical units and tests categorical annotations for enrichment.
+- **Multiple-Testing Control**: Controls false discovery rate across
+  cluster-term tests.
+- **Annotation-Aware Visualization**: Renders significant annotations alongside
+  clustered matrices.
+- **Zoomed and Condensed Views**: Supports zoomed cluster reanalysis,
+  condensed hierarchy views, and post hoc row data tracks.
+- **Publication-Ready Output**: Exports configurable figures in raster or
+  vector formats.
 
 ## Example Usage
 
 We applied HiMaLAYAS to a hierarchically clustered
 _Saccharomyces cerevisiae_ genetic interaction profile similarity matrix
-(Costanzo _et al_., 2016), focusing on genes with high profile variance.
+(Costanzo _et al_., 2016), focusing on 1,053 genes with high profile variance.
 Dendrogram-defined clusters were tested for Gene Ontology Biological Process
-(GO BP; Ashburner _et al_., 2000) enrichment, with significant annotations
-rendered alongside clusters.
+(GO BP; Ashburner _et al_., 2000) enrichment, with top-ranked significant
+annotations rendered alongside clusters.
 
 ![Figure 1](assets/figure_1.png)
 **HiMaLAYAS workflow and application to a hierarchically clustered yeast
 genetic interaction profile similarity matrix (Costanzo _et al_., 2016)**.
 A real-valued matrix and categorical annotations serve as inputs. HiMaLAYAS
-cuts the dendrogram at a user-defined threshold, tests categorical annotations
-for enrichment, controls multiple testing, and renders significant annotations
-alongside clusters.
+hierarchically clusters the matrix, cuts the dendrogram at a user-defined
+distance threshold, tests categorical annotations for enrichment, controls
+multiple testing, and renders significant annotations alongside clusters.
 
 ## Citation
 
@@ -97,7 +93,7 @@ Submitted to _Bioinformatics Advances_.
 
 ### Software archive
 
-HiMaLAYAS software for the _bioRxiv_ preprint.
+HiMaLAYAS software archive.
 <br>
 Zenodo. [https://doi.org/10.5281/zenodo.18610373](https://doi.org/10.5281/zenodo.18610373)
 
