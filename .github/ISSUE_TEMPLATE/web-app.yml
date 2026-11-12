@@ -1,0 +1,21 @@
+name: HiMaLAYAS Web
+description: Report a problem with the web app
+labels: [web]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: App version
+      description: Shown in the About window.
+    validations:
+      required: true
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and version
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
