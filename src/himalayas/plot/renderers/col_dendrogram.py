@@ -5,10 +5,12 @@ himalayas/plot/renderers/col_dendrogram
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional, Sequence, TYPE_CHECKING
+from typing import Optional, Sequence, TYPE_CHECKING
 
 import matplotlib.pyplot as plt
 from scipy.cluster.hierarchy import dendrogram
+
+from .dendrogram import _resolve_dendrogram_config
 
 if TYPE_CHECKING:
     from ..style import StyleConfig
@@ -19,35 +21,6 @@ if TYPE_CHECKING:
 # SciPy places leaf i of a dendrogram at 5 + 10 * i along the leaf axis.
 _LEAF_START = 5.0
 _LEAF_SPACING = 10.0
-
-
-def _resolve_col_dendrogram_config(
-    renderer: "ColDendrogramRenderer",
-    ax_matrix: plt.Axes,
-    style: StyleConfig,
-    y_offset: float,
-) -> Dict[str, Any]:
-    """
-    Resolves column dendrogram rendering configuration. The default axes box spans the matrix
-    columns and sits directly above the matrix, shifted up by `y_offset`.
-
-    Args:
-        renderer (ColDendrogramRenderer): Renderer instance holding optional overrides.
-        ax_matrix (plt.Axes): Matrix axis providing the default horizontal extent and base.
-        style (StyleConfig): Style configuration.
-        y_offset (float): Figure-fraction shift applied to the default axes box only.
-
-    Returns:
-        Dict[str, Any]: Normalized configuration values.
-    """
-    box = ax_matrix.get_position()
-    default_axes = [box.x0, box.y1 + y_offset, box.width, style["col_dendro_height"]]
-    return {
-        "axes": renderer.axes if renderer.axes is not None else default_axes,
-        "color": renderer.color if renderer.color is not None else style["dendro_color"],
-        "linewidth": renderer.linewidth if renderer.linewidth is not None else style["dendro_lw"],
-        "data_pad": renderer.data_pad,
-    }
 
 
 class ColDendrogramRenderer:
@@ -62,6 +35,7 @@ class ColDendrogramRenderer:
         color: Optional[str] = None,
         linewidth: Optional[float] = None,
         data_pad: float = 0.25,
+        height: Optional[float] = None,
     ) -> None:
         """
         Initializes the ColDendrogramRenderer instance.
@@ -71,11 +45,14 @@ class ColDendrogramRenderer:
             color (Optional[str]): Dendrogram line color. Defaults to None.
             linewidth (Optional[float]): Dendrogram line width. Defaults to None.
             data_pad (float): Padding around data in the x-direction. Defaults to 0.25.
+            height (Optional[float]): Height of the default axes box in figure fraction. Ignored
+                when `axes` is set. Defaults to None.
         """
         self.axes = axes
         self.color = color
         self.linewidth = linewidth
         self.data_pad = data_pad
+        self.height = height
 
     def render(
         self,
@@ -112,8 +89,8 @@ class ColDendrogramRenderer:
             raise ValueError("Column dendrogram rendering requires a column linkage.")
 
         # Resolve configuration and create dendrogram axis.
-        cfg = _resolve_col_dendrogram_config(self, ax_matrix, style, y_offset)
-        ax_dend = fig.add_axes(cfg["axes"], frameon=False)
+        cfg = _resolve_dendrogram_config(self, style)
+        ax_dend = fig.add_axes(self._resolve_axes(ax_matrix, style, y_offset), frameon=False)
         dendro = dendrogram(
             layout.col_linkage,
             orientation="top",
@@ -137,3 +114,27 @@ class ColDendrogramRenderer:
         for spine in ax_dend.spines.values():
             spine.set_visible(False)
         return ax_dend
+
+    def _resolve_axes(
+        self,
+        ax_matrix: plt.Axes,
+        style: StyleConfig,
+        y_offset: float,
+    ) -> Sequence[float]:
+        """
+        Resolves the axes box. The default spans the matrix columns and sits directly above the
+        matrix, shifted up by `y_offset`.
+
+        Args:
+            ax_matrix (plt.Axes): Matrix axis providing the default horizontal extent and base.
+            style (StyleConfig): Style configuration.
+            y_offset (float): Figure-fraction shift applied to the default axes box only.
+
+        Returns:
+            Sequence[float]: Axes position [x0, y0, width, height] in figure fraction.
+        """
+        if self.axes is not None:
+            return self.axes
+        box = ax_matrix.get_position()
+        height = self.height if self.height is not None else style["col_dendro_height"]
+        return [box.x0, box.y1 + y_offset, box.width, height]

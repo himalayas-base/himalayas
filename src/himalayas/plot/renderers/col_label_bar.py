@@ -9,6 +9,7 @@ from typing import Any, Dict, Optional, TYPE_CHECKING
 
 import matplotlib.pyplot as plt
 
+from ._text_style import apply_text_style
 from .label_bar import _resolve_label_bar_colors
 
 if TYPE_CHECKING:
@@ -17,8 +18,8 @@ if TYPE_CHECKING:
     from ...core.matrix import Matrix
 
 
-# Title anchor on the strip by side: x in strip axes fraction, and horizontal alignment.
-_TITLE_ANCHORS = {"left": (-0.005, "right"), "right": (1.005, "left")}
+# Title anchor by side: x in strip axes fraction, offset direction, and horizontal alignment.
+_TITLE_ANCHORS = {"left": (0.0, -1, "right"), "right": (1.0, 1, "left")}
 
 
 class ColLabelBarRenderer:
@@ -78,6 +79,7 @@ class ColLabelBarRenderer:
         style: StyleConfig,
         *,
         y_offset: float = 0.0,
+        bar_labels_kwargs: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Renders the strip directly above the matrix axis, aligned with its columns.
@@ -92,6 +94,8 @@ class ColLabelBarRenderer:
         Kwargs:
             y_offset (float): Figure-fraction gap between the matrix and the strip, used to
                 stack several strips. Defaults to 0.0.
+            bar_labels_kwargs (Optional[Dict[str, Any]]): Bar title rendering options from
+                `Plotter.plot_bar_labels`. Titles are drawn only when provided. Defaults to None.
 
         Raises:
             TypeError: If categorical mode has no `colors` dict.
@@ -127,15 +131,40 @@ class ColLabelBarRenderer:
         ax_bar.set_ylim(0.0, 1.0)
         ax_bar.set_xticks([])
         ax_bar.set_yticks([])
-        if self.title:
-            x, ha = _TITLE_ANCHORS[self.title_position]
-            ax_bar.text(
-                x,
-                0.5,
-                self.title,
-                ha=ha,
-                va="center",
-                transform=ax_bar.transAxes,
-                fontsize=style["label_fontsize"],
-                color=style["text_color"],
-            )
+        if self.title and bar_labels_kwargs is not None:
+            self._draw_title(ax_bar, style, bar_labels_kwargs)
+
+    def _draw_title(
+        self,
+        ax_bar: plt.Axes,
+        style: StyleConfig,
+        bar_labels_kwargs: Dict[str, Any],
+    ) -> None:
+        """
+        Draws the strip title beside the strip, styled like the row bar titles.
+
+        Args:
+            ax_bar (plt.Axes): Strip axis.
+            style (StyleConfig): Style configuration.
+            bar_labels_kwargs (Dict[str, Any]): Bar title rendering options.
+        """
+        x, direction, ha = _TITLE_ANCHORS[self.title_position]
+        pad_pts = bar_labels_kwargs.get("pad", 2)
+        txt = ax_bar.annotate(
+            self.title,
+            xy=(x, 0.5),
+            xycoords=ax_bar.transAxes,
+            xytext=(direction * pad_pts, 0),
+            textcoords="offset points",
+            ha=ha,
+            va="center",
+            rotation=bar_labels_kwargs.get("rotation", 0),
+            clip_on=False,
+        )
+        apply_text_style(
+            txt,
+            font=bar_labels_kwargs.get("font", "Helvetica"),
+            fontsize=bar_labels_kwargs.get("fontsize", 10),
+            color=bar_labels_kwargs.get("color", style.get("text_color", "black")),
+            alpha=bar_labels_kwargs.get("alpha", 1.0),
+        )

@@ -1836,6 +1836,14 @@ def test_plot_col_dendrogram_honors_style_options_and_defaults():
     assert custom_ax.lines[0].get_linewidth() == 2.5
     assert list(custom_ax.get_position().bounds) == pytest.approx([0.2, 0.9, 0.4, 0.08])
 
+    taller = Plotter(results).plot_col_dendrogram(height=0.07).plot_matrix()
+    taller._render()
+    taller_ax = next(ax for ax in taller._fig.axes if ax.lines)
+    assert taller_ax.get_position().height == pytest.approx(0.07)
+    assert taller_ax.get_position().y0 == pytest.approx(default_ax.get_position().y0)
+    with pytest.raises(ValueError):
+        Plotter(results).plot_col_dendrogram(height=0)
+
 
 @pytest.mark.api
 def test_plot_col_dendrogram_default_boxes_align_with_matrix():
@@ -1997,6 +2005,7 @@ def test_plot_col_label_bars_stack_above_matrix_below_the_column_dendrogram():
         .plot_col_dendrogram()
         .plot_col_label_bar(values, name="first", colors=colors, height=0.02, title="Group")
         .plot_col_label_bar(values, name="second", colors=colors, height=0.03)
+        .plot_bar_labels()
         .plot_matrix()
     )
     plotter._render()
@@ -2015,21 +2024,22 @@ def test_plot_col_label_bars_stack_above_matrix_below_the_column_dendrogram():
 
 @pytest.mark.api
 @pytest.mark.parametrize(
-    "kwargs, x, alignment",
+    "kwargs, x, direction, alignment",
     [
-        ({}, 1.005, "left"),
-        ({"title_position": "right"}, 1.005, "left"),
-        ({"title_position": "left"}, -0.005, "right"),
+        ({}, 1.0, 1, "left"),
+        ({"title_position": "right"}, 1.0, 1, "left"),
+        ({"title_position": "left"}, 0.0, -1, "right"),
     ],
 )
-def test_plot_col_label_bar_title_sits_on_the_requested_side(kwargs, x, alignment):
+def test_plot_col_label_bar_title_sits_on_the_requested_side(kwargs, x, direction, alignment):
     """
-    Ensures the strip title is drawn to the right of the strip by default, and to the left on
-    request, aligned away from the strip.
+    Ensures the strip title is anchored at the right edge of the strip by default and at the left
+    edge on request, offset and aligned away from the strip.
 
     Args:
         kwargs (dict): Title position keyword arguments.
-        x (float): Expected title x-position in strip axes fraction.
+        x (float): Expected anchor x-position in strip axes fraction.
+        direction (int): Expected sign of the horizontal offset (points).
         alignment (str): Expected horizontal alignment of the title.
     """
     use_agg_backend()
@@ -2038,6 +2048,7 @@ def test_plot_col_label_bar_title_sits_on_the_requested_side(kwargs, x, alignmen
     plotter = (
         Plotter(results)
         .plot_col_label_bar(values, colors={"a": "red"}, title="Group", **kwargs)
+        .plot_bar_labels()
         .plot_matrix()
     )
     plotter._render()
@@ -2045,8 +2056,56 @@ def test_plot_col_label_bar_title_sits_on_the_requested_side(kwargs, x, alignmen
     (bar,) = _col_bar_axes(plotter, 6)
     (title,) = bar.texts
     assert title.get_text() == "Group"
-    assert title.get_position() == (x, 0.5)
+    assert title.xy == (x, 0.5)
+    assert title.xyann[0] * direction > 0
     assert title.get_horizontalalignment() == alignment
+
+
+@pytest.mark.api
+def test_plot_col_label_bar_titles_follow_plot_bar_labels():
+    """
+    Ensures column bar titles appear only when plot_bar_labels() is declared (as for row bars),
+    and take its font size, color, and offset.
+    """
+    use_agg_backend()
+    results = _col_tree_results(n_cols=6)
+    values = {label: "a" for label in results.matrix.df.columns}
+
+    def render(*layers):
+        plotter = Plotter(results).plot_col_label_bar(values, colors={"a": "red"}, title="Group")
+        for layer in layers:
+            layer(plotter)
+        plotter.plot_matrix()._render()
+        (bar,) = _col_bar_axes(plotter, 6)
+        return list(bar.texts)
+
+    assert render() == []
+    (title,) = render(lambda p: p.plot_bar_labels(fontsize=13, color="green", pad=5))
+    assert (title.get_fontsize(), title.get_color(), title.xyann[0]) == (13, "green", 5)
+
+
+@pytest.mark.api
+def test_plot_col_label_bar_disabled_draws_nothing_and_does_not_reserve_space():
+    """
+    Ensures a disabled column bar is not drawn, takes no space, and does not clash by name.
+    """
+    use_agg_backend()
+    results = _col_tree_results(n_cols=6)
+    values = {label: "a" for label in results.matrix.df.columns}
+    plotter = (
+        Plotter(results)
+        .plot_col_label_bar(values, name="x", colors={"a": "red"}, enabled=False)
+        .plot_col_label_bar(values, name="x", colors={"a": "red"})
+        .plot_col_dendrogram()
+        .plot_matrix()
+    )
+    plotter._render()
+
+    matrix = plotter._fig.axes[0].get_position()
+    (bar,) = _col_bar_axes(plotter, 6)
+    tree = next(ax for ax in plotter._fig.axes if ax.lines).get_position()
+    assert bar.get_position().y0 == pytest.approx(matrix.y1)
+    assert tree.y0 == pytest.approx(bar.get_position().y1)
 
 
 @pytest.mark.api

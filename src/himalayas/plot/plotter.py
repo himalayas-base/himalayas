@@ -40,6 +40,28 @@ from .track_layout import TrackLayoutManager
 from ..core.results import Results
 
 
+def _coerce_label_values(values: Mapping[Hashable, Any], caller: str) -> Dict[Hashable, Any]:
+    """
+    Converts label-bar values to a dict.
+
+    Args:
+        values (Mapping[Hashable, Any]): Mapping from axis label to category or numeric value.
+        caller (str): Public method name, used in the error message.
+
+    Returns:
+        Dict[Hashable, Any]: The values as a dict.
+
+    Raises:
+        TypeError: If values cannot be converted to a dict.
+    """
+    if isinstance(values, dict):
+        return values
+    try:
+        return dict(values)
+    except Exception as exc:
+        raise TypeError(f"{caller} expects values convertible to dict") from exc
+
+
 class Plotter:
     """
     Class for building layered, matrix-first plots from analysis results.
@@ -945,15 +967,16 @@ class Plotter:
         rotation: float = 0,
     ) -> Plotter:
         """
-        Declares titles for bar tracks (shown below bars in label panel).
+        Declares titles for bar tracks (shown below row bars in the label panel, and beside
+        column bars).
 
         Kwargs:
             fontsize (Optional[float]): Title font size (points). Defaults to 10.
             font (Optional[str]): Font family for title text. Defaults to "Helvetica".
             color (Optional[str]): Title text color. Defaults to style text_color.
             alpha (float): Title text opacity. Defaults to 1.0.
-            pad (Optional[float]): Vertical offset from track to title text (points).
-                Defaults to 2.
+            pad (Optional[float]): Offset from the bar to its title text (points); vertical for
+                row bars, horizontal for column bars. Defaults to 2.
             rotation (float): Title text rotation in degrees. Defaults to 0.
 
         Returns:
@@ -1012,6 +1035,7 @@ class Plotter:
         color: Optional[str] = None,
         linewidth: Optional[float] = None,
         data_pad: float = 0.25,
+        height: Optional[float] = None,
     ) -> Plotter:
         """
         Declares a dendrogram layer aligned to the matrix columns, with the root at the top.
@@ -1025,12 +1049,14 @@ class Plotter:
             linewidth (Optional[float]): Dendrogram line width. Defaults to style dendro_lw.
             data_pad (float): Data-space padding to prevent edge clipping in the dendrogram panel.
                 Defaults to 0.25.
+            height (Optional[float]): Height of the default axes box in figure fraction. Ignored
+                when `axes` is set. Defaults to style col_dendro_height.
 
         Returns:
             Plotter: Self for chaining.
 
         Raises:
-            ValueError: If the results carry no column linkage.
+            ValueError: If the results carry no column linkage, or if `height` is not positive.
         """
         # Validation
         if self.results.cluster_layout().col_linkage is None:
@@ -1038,6 +1064,8 @@ class Plotter:
                 "plot_col_dendrogram() requires Analysis.finalize(col_cluster=True, "
                 "col_dendrogram=True)."
             )
+        if height is not None and height <= 0:
+            raise ValueError("plot_col_dendrogram height must be > 0")
         layer_kwargs: Dict[str, Any] = {"data_pad": data_pad}
         if axes is not None:
             layer_kwargs["axes"] = axes
@@ -1045,6 +1073,8 @@ class Plotter:
             layer_kwargs["color"] = color
         if linewidth is not None:
             layer_kwargs["linewidth"] = linewidth
+        if height is not None:
+            layer_kwargs["height"] = height
         self._layers.append(("col_dendrogram", layer_kwargs))
         return self
 
@@ -1062,6 +1092,7 @@ class Plotter:
         height: Optional[float] = None,
         title: Optional[str] = None,
         title_position: str = "right",
+        enabled: bool = True,
     ) -> Plotter:
         """
         Declares a single column-level annotation bar as a strip above the matrix. Preserves
@@ -1085,8 +1116,10 @@ class Plotter:
             missing_color (Optional[str]): Color for missing values. Defaults to None.
             height (Optional[float]): Bar height in figure fraction. Defaults to style
                 col_label_bar_height.
-            title (Optional[str]): Optional bar title shown beside the bar. Defaults to None.
+            title (Optional[str]): Optional bar title shown beside the bar when
+                `plot_bar_labels()` is declared. Defaults to None.
             title_position (str): Title side, one of {"left", "right"}. Defaults to "right".
+            enabled (bool): Whether to register the bar. Defaults to True.
 
         Returns:
             Plotter: Self for chaining.
@@ -1097,11 +1130,9 @@ class Plotter:
                 not positive, or if `title_position` is not "left" or "right".
         """
         # Validation
-        if not isinstance(values, dict):
-            try:
-                values = dict(values)
-            except Exception as exc:
-                raise TypeError("plot_col_label_bar expects values convertible to dict") from exc
+        values = _coerce_label_values(values, "plot_col_label_bar")
+        if not enabled:
+            return self
         if any(layer == "col_label_bar" and kw["name"] == name for layer, kw in self._layers):
             raise ValueError(f"column label bar already declared for name {name!r}")
         if height is not None and height <= 0:
@@ -1232,11 +1263,7 @@ class Plotter:
         Raises:
             TypeError: If values cannot be converted to a dict.
         """
-        if not isinstance(values, dict):
-            try:
-                values = dict(values)
-            except Exception as exc:
-                raise TypeError("plot_label_bar expects values convertible to dict") from exc
+        values = _coerce_label_values(values, "plot_label_bar")
         self._register_label_track(
             name=name,
             kind="row",
@@ -1924,7 +1951,13 @@ class Plotter:
             elif layer == "col_label_bar":
                 renderer = ColLabelBarRenderer(**kwargs)
                 renderer.render(
-                    fig, ax, self.matrix, layout, self._style, y_offset=next(col_bar_offsets)
+                    fig,
+                    ax,
+                    self.matrix,
+                    layout,
+                    self._style,
+                    y_offset=next(col_bar_offsets),
+                    bar_labels_kwargs=bar_kwargs,
                 )
             elif layer == "cut_line":
                 renderer = CutLineRenderer(**kwargs)
