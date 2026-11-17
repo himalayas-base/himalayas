@@ -182,7 +182,15 @@ class Annotations:
 
         Args:
             path (Union[str, PathLike]): Path of the GMT file to write.
+
+        Raises:
+            ValueError: If a term or label contains a tab or line break, which GMT cannot hold.
         """
+        # Validation
+        for term, labels in self.term_to_labels.items():
+            for text in (term, *labels):
+                if any(char in str(text) for char in "\t\r\n"):
+                    raise ValueError(f"GMT cannot hold a tab or line break in {text!r}")
         # One tab-separated line per term: name, description, labels.
         with open(path, "w", encoding="utf-8", newline="\n") as fh:
             for term, labels in self.term_to_labels.items():

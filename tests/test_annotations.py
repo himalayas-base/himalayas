@@ -161,3 +161,20 @@ def test_annotations_from_gmt_rejects_malformed_files(toy_matrix, tmp_path, text
     path.write_text(text, encoding="utf-8")
     with pytest.raises(ValueError):
         Annotations.from_gmt(path, toy_matrix)
+
+
+@pytest.mark.api
+def test_annotations_to_gmt_rejects_tabs_and_line_breaks(tmp_path):
+    """
+    Ensures to_gmt() refuses terms or labels that would corrupt the file.
+
+    Args:
+        tmp_path (Path): Temporary directory fixture.
+
+    Raises:
+        ValueError: If a label contains a tab.
+    """
+    matrix = Matrix(pd.DataFrame(np.eye(2), index=["a\tb", "c"], columns=["x", "y"]))
+    annotations = Annotations({"t1": ["a\tb", "c"]}, matrix)
+    with pytest.raises(ValueError):
+        annotations.to_gmt(tmp_path / "bad.gmt")
