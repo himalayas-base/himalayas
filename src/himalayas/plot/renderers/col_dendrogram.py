@@ -41,7 +41,8 @@ class ColDendrogramRenderer:
         Initializes the ColDendrogramRenderer instance.
 
         Kwargs:
-            axes (Optional[Sequence[float]]): Axes position [x0, y0, width, height]. Defaults to None.
+            axes (Optional[Sequence[float]]): Axes position [x0, y0, width, height]. Defaults to
+                None.
             color (Optional[str]): Dendrogram line color. Defaults to None.
             linewidth (Optional[float]): Dendrogram line width. Defaults to None.
             data_pad (float): Padding around data in the x-direction. Defaults to 0.25.

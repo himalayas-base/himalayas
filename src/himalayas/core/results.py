@@ -195,7 +195,8 @@ def _select_distinct_rows(
 ) -> Set[Hashable]:
     """
     Selects the rows to keep, walking from most to least significant. A row is dropped when a row
-    already kept in its cluster has a Jaccard index with it that is above zero and at least `jaccard`.
+    already kept in its cluster has a Jaccard index with it that is above zero and at least
+    `jaccard`.
 
     Args:
         ranked (pd.DataFrame): Results rows ordered from most to least significant.

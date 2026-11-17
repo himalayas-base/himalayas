@@ -90,7 +90,8 @@ def col_order_from_linkage(col_linkage: Optional[np.ndarray], n_cols: int) -> np
     Resolves the dendrogram leaf order of columns from a column linkage matrix.
 
     Args:
-        col_linkage (Optional[np.ndarray]): Column linkage matrix, or None for fewer than two columns.
+        col_linkage (Optional[np.ndarray]): Column linkage matrix, or None for fewer than two
+            columns.
         n_cols (int): Number of matrix columns.
 
     Returns:
