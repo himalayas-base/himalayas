@@ -186,7 +186,7 @@ class DendrogramRenderer:
         layout: ClusterLayout,
         style: StyleConfig,
         **kwargs: Any,
-    ) -> None:
+    ) -> plt.Axes:
         """
         Renders a dendrogram aligned to matrix rows.
 
@@ -198,6 +198,9 @@ class DendrogramRenderer:
 
         Kwargs:
             **kwargs (Any): Renderer keyword arguments. Defaults to {}.
+
+        Returns:
+            plt.Axes: Dendrogram axis.
         """
         # Resolve configuration and create dendrogram axis.
         cfg = _resolve_dendrogram_config(self, style)
@@ -232,3 +235,4 @@ class DendrogramRenderer:
             target_y_max=target_y_max,
             data_pad=cfg["data_pad"],
         )
+        return ax_dend

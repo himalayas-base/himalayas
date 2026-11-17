@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 import pytest
 from matplotlib.colors import Normalize, to_rgba
+from matplotlib.offsetbox import AnnotationBbox
 
 from conftest import extract_figure_text, use_agg_backend
 from himalayas import Results
@@ -1658,3 +1659,108 @@ def test_track_layout_unknown_order_raises():
 
     with pytest.raises(ValueError):
         manager.compute_layout(base_x=0.0, gutter_width=0.0)
+
+
+def _cut_line_artists(plotter):
+    """
+    Returns the cut line and scissors artists from a rendered Plotter.
+
+    Args:
+        plotter (Plotter): Plotter whose figure has been rendered.
+
+    Returns:
+        tuple[list, list]: Vertical dashed Line2D artists and AnnotationBbox artists.
+    """
+    lines, icons = [], []
+    for ax in plotter._fig.axes:
+        lines += [ln for ln in ax.lines if ln.get_linestyle() == "--"]
+        icons += [a for a in ax.artists if isinstance(a, AnnotationBbox)]
+    return lines, icons
+
+
+@pytest.mark.api
+def test_plot_cut_line_defaults_to_cluster_threshold(toy_results):
+    """
+    Ensures the cut line sits at the clustering threshold and draws scissors by default.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    use_agg_backend()
+    plotter = Plotter(toy_results).plot_dendrogram().plot_cut_line().plot_matrix()
+    plotter._render()
+    lines, icons = _cut_line_artists(plotter)
+    assert len(lines) == 1
+    assert list(lines[0].get_xdata()) == [toy_results.clusters.threshold] * 2
+    assert len(icons) == 1
+
+
+@pytest.mark.api
+def test_plot_cut_line_honors_style_options(toy_results):
+    """
+    Ensures threshold, color, linestyle, linewidth, and scissors options are applied.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    use_agg_backend()
+    plotter = (
+        Plotter(toy_results)
+        .plot_dendrogram()
+        .plot_cut_line(threshold=1.5, color="blue", linestyle="--", linewidth=2.0, scissors=False)
+        .plot_matrix()
+    )
+    plotter._render()
+    lines, icons = _cut_line_artists(plotter)
+    assert list(lines[0].get_xdata()) == [1.5, 1.5]
+    assert lines[0].get_color() == "blue"
+    assert lines[0].get_linewidth() == 2.0
+    assert icons == []
+
+
+@pytest.mark.api
+def test_plot_cut_line_scissors_follow_color_and_size(toy_results):
+    """
+    Ensures the scissors use the line color and scale with `scissors_size`.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+    """
+    use_agg_backend()
+    widths = {}
+    for size in (8.0, 24.0):
+        plotter = (
+            Plotter(toy_results)
+            .plot_dendrogram()
+            .plot_cut_line(color="blue", scissors_size=size)
+            .plot_matrix()
+        )
+        plotter._render()
+        plotter._fig.canvas.draw()
+        _lines, icons = _cut_line_artists(plotter)
+        widths[size] = (
+            icons[0].offsetbox.get_window_extent(plotter._fig.canvas.get_renderer()).width
+        )
+        assert {c.get_edgecolor()[:3] for c in icons[0].offsetbox.get_children()[:2]} == {
+            (0.0, 0.0, 1.0)
+        }
+    assert widths[24.0] > 2.5 * widths[8.0]
+
+
+@pytest.mark.api
+def test_plot_cut_line_requires_dendrogram_first(toy_results):
+    """
+    Ensures plot_cut_line() raises unless plot_dendrogram() was declared before it.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+
+    Raises:
+        ValueError: If no dendrogram layer precedes the cut line.
+    """
+    with pytest.raises(ValueError):
+        Plotter(toy_results).plot_cut_line()
+    with pytest.raises(ValueError):
+        Plotter(toy_results).plot_cut_line().plot_dendrogram()
+    with pytest.raises(ValueError):
+        Plotter(toy_results).plot_dendrogram().plot_cut_line(scissors_size=0)

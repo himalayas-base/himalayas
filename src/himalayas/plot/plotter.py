@@ -20,6 +20,7 @@ from .renderers import (
     CompactLabelsRenderer,
     LabelLegendRenderer,
     DendrogramRenderer,
+    render_cut_line,
     MatrixRenderer,
     render_cluster_bar_track,
 )
@@ -998,6 +999,61 @@ class Plotter:
         self._layers.append(("dendrogram", layer_kwargs))
         return self
 
+    def plot_cut_line(
+        self,
+        *,
+        threshold: Optional[float] = None,
+        color: str = "#c0392b",
+        linestyle: str = "--",
+        linewidth: float = 1.0,
+        scissors: bool = True,
+        scissors_size: float = 12.0,
+    ) -> Plotter:
+        """
+        Declares a vertical cut line on the dendrogram, with optional scissors at its foot.
+        Must be declared after `plot_dendrogram()`.
+
+        Kwargs:
+            threshold (Optional[float]): Dendrogram height at which to draw the line. Defaults to
+                the threshold used to cut the clusters.
+            color (str): Line and scissors color. Defaults to "#c0392b".
+            linestyle (str): Matplotlib line style. Defaults to "--".
+            linewidth (float): Line width. Defaults to 1.0.
+            scissors (bool): Whether to draw scissors at the foot of the line, in the line color.
+                Defaults to True.
+            scissors_size (float): Scissors size in points. Defaults to 12.0.
+
+        Returns:
+            Plotter: Self for chaining.
+
+        Raises:
+            ValueError: If `plot_dendrogram()` has not been declared first, if `threshold` is
+                None and the results carry no clusters, or if `scissors_size` is not positive.
+        """
+        # Validation
+        if not any(layer == "dendrogram" for layer, _ in self._layers):
+            raise ValueError("plot_cut_line() must be declared after plot_dendrogram().")
+        if scissors_size <= 0:
+            raise ValueError("scissors_size must be positive.")
+        if threshold is None:
+            if self.results.clusters is None:
+                raise ValueError("plot_cut_line() needs `threshold` when results have no clusters.")
+            threshold = self.results.clusters.threshold
+        self._layers.append(
+            (
+                "cut_line",
+                {
+                    "threshold": float(threshold),
+                    "color": color,
+                    "linestyle": linestyle,
+                    "linewidth": linewidth,
+                    "scissors": scissors,
+                    "scissors_size": float(scissors_size),
+                },
+            )
+        )
+        return self
+
     def plot_label_bar(
         self,
         values: Mapping[Hashable, Any],
@@ -1717,13 +1773,15 @@ class Plotter:
                 renderer.render(fig, ax, self.matrix, layout, self._style)
             elif layer == "dendrogram":
                 renderer = DendrogramRenderer(**kwargs)
-                renderer.render(
+                dendrogram_ax = renderer.render(
                     fig,
                     self.matrix,
                     layout,
                     self._style,
                     results=self.results,
                 )
+            elif layer == "cut_line":
+                render_cut_line(dendrogram_ax, **kwargs)
             elif layer == "title":
                 renderer = AxesRenderer("title", **kwargs)
                 renderer.render(fig, ax, self.matrix, layout, self._style)
