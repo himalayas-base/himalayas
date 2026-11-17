@@ -1061,6 +1061,7 @@ class Plotter:
         missing_color: Optional[str] = None,
         height: Optional[float] = None,
         title: Optional[str] = None,
+        title_position: str = "right",
     ) -> Plotter:
         """
         Declares a single column-level annotation bar as a strip above the matrix. Preserves
@@ -1084,16 +1085,16 @@ class Plotter:
             missing_color (Optional[str]): Color for missing values. Defaults to None.
             height (Optional[float]): Bar height in figure fraction. Defaults to style
                 col_label_bar_height.
-            title (Optional[str]): Optional bar title shown to the left of the bar. Defaults
-                to None.
+            title (Optional[str]): Optional bar title shown beside the bar. Defaults to None.
+            title_position (str): Title side, one of {"left", "right"}. Defaults to "right".
 
         Returns:
             Plotter: Self for chaining.
 
         Raises:
             TypeError: If values cannot be converted to a dict.
-            ValueError: If a column bar with this name is already declared, or if `height` is
-                not positive.
+            ValueError: If a column bar with this name is already declared, if `height` is
+                not positive, or if `title_position` is not "left" or "right".
         """
         # Validation
         if not isinstance(values, dict):
@@ -1105,6 +1106,8 @@ class Plotter:
             raise ValueError(f"column label bar already declared for name {name!r}")
         if height is not None and height <= 0:
             raise ValueError("plot_col_label_bar height must be > 0")
+        if title_position not in {"left", "right"}:
+            raise ValueError("title_position must be 'left' or 'right'")
         self._layers.append(
             (
                 "col_label_bar",
@@ -1119,6 +1122,7 @@ class Plotter:
                     "missing_color": missing_color,
                     "height": height,
                     "title": title,
+                    "title_position": title_position,
                 },
             )
         )

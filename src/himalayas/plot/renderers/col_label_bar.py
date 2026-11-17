@@ -17,6 +17,10 @@ if TYPE_CHECKING:
     from ...core.matrix import Matrix
 
 
+# Title anchor on the strip by side: x in strip axes fraction, and horizontal alignment.
+_TITLE_ANCHORS = {"left": (-0.005, "right"), "right": (1.005, "left")}
+
+
 class ColLabelBarRenderer:
     """
     Class for rendering a column-level annotation bar as a strip above the matrix.
@@ -35,6 +39,7 @@ class ColLabelBarRenderer:
         missing_color: Optional[str] = None,
         height: Optional[float] = None,
         title: Optional[str] = None,
+        title_position: str = "right",
     ) -> None:
         """
         Initializes the ColLabelBarRenderer instance.
@@ -49,7 +54,8 @@ class ColLabelBarRenderer:
             vmax (Optional[float]): Maximum value for normalization. Defaults to None.
             missing_color (Optional[str]): Color for missing values. Defaults to None.
             height (Optional[float]): Strip height in figure fraction. Defaults to None.
-            title (Optional[str]): Title drawn to the left of the strip. Defaults to None.
+            title (Optional[str]): Title drawn beside the strip. Defaults to None.
+            title_position (str): Title side, one of {"left", "right"}. Defaults to "right".
         """
         self.name = name
         self.values = values
@@ -61,6 +67,7 @@ class ColLabelBarRenderer:
         self.missing_color = missing_color
         self.height = height
         self.title = title
+        self.title_position = title_position
 
     def render(
         self,
@@ -121,11 +128,12 @@ class ColLabelBarRenderer:
         ax_bar.set_xticks([])
         ax_bar.set_yticks([])
         if self.title:
+            x, ha = _TITLE_ANCHORS[self.title_position]
             ax_bar.text(
-                -0.005,
+                x,
                 0.5,
                 self.title,
-                ha="right",
+                ha=ha,
                 va="center",
                 transform=ax_bar.transAxes,
                 fontsize=style["label_fontsize"],

@@ -2014,6 +2014,42 @@ def test_plot_col_label_bars_stack_above_matrix_below_the_column_dendrogram():
 
 
 @pytest.mark.api
+@pytest.mark.parametrize(
+    "kwargs, x, alignment",
+    [
+        ({}, 1.005, "left"),
+        ({"title_position": "right"}, 1.005, "left"),
+        ({"title_position": "left"}, -0.005, "right"),
+    ],
+)
+def test_plot_col_label_bar_title_sits_on_the_requested_side(kwargs, x, alignment):
+    """
+    Ensures the strip title is drawn to the right of the strip by default, and to the left on
+    request, aligned away from the strip.
+
+    Args:
+        kwargs (dict): Title position keyword arguments.
+        x (float): Expected title x-position in strip axes fraction.
+        alignment (str): Expected horizontal alignment of the title.
+    """
+    use_agg_backend()
+    results = _col_tree_results(n_cols=6)
+    values = {label: "a" for label in results.matrix.df.columns}
+    plotter = (
+        Plotter(results)
+        .plot_col_label_bar(values, colors={"a": "red"}, title="Group", **kwargs)
+        .plot_matrix()
+    )
+    plotter._render()
+
+    (bar,) = _col_bar_axes(plotter, 6)
+    (title,) = bar.texts
+    assert title.get_text() == "Group"
+    assert title.get_position() == (x, 0.5)
+    assert title.get_horizontalalignment() == alignment
+
+
+@pytest.mark.api
 def test_add_label_legend_supports_column_label_bars():
     """
     Ensures a legend can explain a column label bar, and that a name shared with a row bar is
@@ -2072,6 +2108,8 @@ def test_plot_col_label_bar_rejects_invalid_arguments(toy_results):
         )
     with pytest.raises(ValueError):
         Plotter(toy_results).plot_col_label_bar({}, colors=colors, height=0)
+    with pytest.raises(ValueError):
+        Plotter(toy_results).plot_col_label_bar({}, colors=colors, title_position="above")
     with pytest.raises(TypeError):
         Plotter(toy_results).plot_col_label_bar(123)
     with pytest.raises(TypeError):
