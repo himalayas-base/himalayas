@@ -1995,7 +1995,7 @@ def test_plot_col_label_bars_stack_above_matrix_below_the_column_dendrogram():
     plotter = (
         Plotter(results)
         .plot_col_dendrogram()
-        .plot_col_label_bar(values, name="first", colors=colors, height=0.02)
+        .plot_col_label_bar(values, name="first", colors=colors, height=0.02, title="Group")
         .plot_col_label_bar(values, name="second", colors=colors, height=0.03)
         .plot_matrix()
     )
@@ -2010,6 +2010,7 @@ def test_plot_col_label_bars_stack_above_matrix_below_the_column_dendrogram():
     assert (first.height, second.height) == pytest.approx((0.02, 0.03))
     assert second.y0 == pytest.approx(first.y1)
     assert tree.y0 == pytest.approx(second.y1)
+    assert "Group" in extract_figure_text(plotter._fig)
 
 
 @pytest.mark.api
