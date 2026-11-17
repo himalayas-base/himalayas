@@ -105,3 +105,59 @@ def test_annotations_empty_input_raises(toy_matrix):
     """
     with pytest.raises(ValueError):
         Annotations({}, toy_matrix)
+
+
+@pytest.mark.api
+def test_annotations_gmt_round_trip(toy_matrix, tmp_path):
+    """
+    Ensures to_gmt() output is read back unchanged by from_gmt().
+
+    Args:
+        toy_matrix (Matrix): Toy matrix fixture.
+        tmp_path (Path): Temporary directory fixture.
+    """
+    original = Annotations({"t1": ["a", "b"], "t2": ["c", "d", "a"]}, toy_matrix)
+    path = tmp_path / "terms.gmt"
+    original.to_gmt(path)
+    loaded = Annotations.from_gmt(path, toy_matrix)
+    assert loaded.term_to_labels == original.term_to_labels
+    assert path.read_text(encoding="utf-8").splitlines()[0] == "t1\t-\ta\tb"
+
+
+@pytest.mark.api
+def test_annotations_from_gmt_ignores_description_and_blank_lines(toy_matrix, tmp_path):
+    """
+    Ensures from_gmt() ignores the description field and blank lines, and applies size filters.
+
+    Args:
+        toy_matrix (Matrix): Toy matrix fixture.
+        tmp_path (Path): Temporary directory fixture.
+    """
+    path = tmp_path / "terms.gmt"
+    path.write_text("t1\tsome text\ta\tb\tz\n\nt2\tx\tc\td\n", encoding="utf-8")
+    annotations = Annotations.from_gmt(path, toy_matrix)
+    assert annotations.term_to_labels == {"t1": {"a", "b"}, "t2": {"c", "d"}}
+    assert annotations.labels_for_universe(["z"]) == {"t1": {"z"}}
+
+
+@pytest.mark.api
+@pytest.mark.parametrize(
+    "text",
+    ["t1\ta\tb\n", "t1\tdesc\n", "t1\tx\ta\tb\nt1\ty\tc\td\n", "\n"],
+)
+def test_annotations_from_gmt_rejects_malformed_files(toy_matrix, tmp_path, text):
+    """
+    Ensures from_gmt() rejects a missing description, no labels, a repeated term, and no terms.
+
+    Args:
+        toy_matrix (Matrix): Toy matrix fixture.
+        tmp_path (Path): Temporary directory fixture.
+        text (str): GMT file content.
+
+    Raises:
+        ValueError: If the file is malformed.
+    """
+    path = tmp_path / "bad.gmt"
+    path.write_text(text, encoding="utf-8")
+    with pytest.raises(ValueError):
+        Annotations.from_gmt(path, toy_matrix)

@@ -6,10 +6,48 @@ himalayas/core/annotations
 from __future__ import annotations
 
 from collections.abc import Iterable as IterableABC
-from typing import Dict, Iterable, List, Mapping, Optional, Set
+from os import PathLike
+from typing import Dict, Iterable, List, Mapping, Optional, Set, Union
 
 from .matrix import Matrix
 from ..util.warnings import warn
+
+
+def _read_gmt(path: Union[str, PathLike]) -> Dict[str, List[str]]:
+    """
+    Reads a GMT gene-set file: one term per line, tab-separated as name, description, then labels.
+    The description is ignored and blank lines are skipped.
+
+    Args:
+        path (Union[str, PathLike]): Path to the GMT file.
+
+    Returns:
+        Dict[str, List[str]]: Mapping of term names to label lists, in file order.
+
+    Raises:
+        ValueError: If a line has no name, no description field, or no labels, if a term name
+            repeats, or if the file holds no terms.
+    """
+    term_to_labels: Dict[str, List[str]] = {}
+    with open(path, "r", encoding="utf-8-sig") as fh:
+        for line_number, line in enumerate(fh, start=1):
+            line = line.rstrip("\r\n")
+            if not line.strip():
+                continue
+            # Validation
+            fields = line.split("\t")
+            term = fields[0].strip()
+            labels = [label.strip() for label in fields[2:] if label.strip()]
+            if not term or len(fields) < 3 or not labels:
+                raise ValueError(
+                    f"Line {line_number}: a GMT line needs a name, a description, and labels"
+                )
+            if term in term_to_labels:
+                raise ValueError(f"Line {line_number}: duplicate term {term!r}")
+            term_to_labels[term] = labels
+    if not term_to_labels:
+        raise ValueError("The GMT file contains no terms")
+    return term_to_labels
 
 
 class Annotations:
@@ -99,6 +137,56 @@ class Annotations:
                 f"Dropped {dropped}/{total} annotations after matrix filtering (size or overlap constraints)",
                 RuntimeWarning,
             )
+
+    @classmethod
+    def from_gmt(
+        cls,
+        path: Union[str, PathLike],
+        matrix: Matrix,
+        *,
+        min_term_size: int = 2,
+        max_term_size: Optional[int] = None,
+    ) -> Annotations:
+        """
+        Builds an Annotations instance from a GMT gene-set file. Each line holds a term name,
+        a description (ignored), and the term's labels, separated by tabs.
+
+        Args:
+            path (Union[str, PathLike]): Path to the GMT file.
+            matrix (Matrix): Matrix providing the label universe.
+
+        Kwargs:
+            min_term_size (int): Minimum number of matrix-overlapping labels a term must have
+                to be retained. Defaults to 2.
+            max_term_size (Optional[int]): Maximum number of matrix-overlapping labels a term
+                may have to be retained. None disables the upper bound. Defaults to None.
+
+        Returns:
+            Annotations: Annotations aligned to `matrix`.
+
+        Raises:
+            ValueError: If the file is malformed, repeats a term name, or holds no terms, or if
+                no term overlaps the matrix labels.
+        """
+        return cls(
+            _read_gmt(path),
+            matrix,
+            min_term_size=min_term_size,
+            max_term_size=max_term_size,
+        )
+
+    def to_gmt(self, path: Union[str, PathLike]) -> None:
+        """
+        Writes the retained terms to a GMT file, with "-" as each description. Only labels
+        present in the matrix are written, in sorted order.
+
+        Args:
+            path (Union[str, PathLike]): Path of the GMT file to write.
+        """
+        # One tab-separated line per term: name, description, labels.
+        with open(path, "w", encoding="utf-8", newline="\n") as fh:
+            for term, labels in self.term_to_labels.items():
+                fh.write("\t".join([term, "-", *sorted(labels)]) + "\n")
 
     @property
     def terms(self) -> List[str]:
