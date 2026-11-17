@@ -560,3 +560,40 @@ def test_analysis_cluster_invalid_threshold_raises(toy_matrix, toy_annotations, 
     """
     with pytest.raises(ValueError):
         Analysis(toy_matrix, toy_annotations).cluster(linkage_threshold=bad_threshold)
+
+
+@pytest.mark.api
+def test_finalize_col_dendrogram_keeps_linkage_and_same_col_order(toy_matrix, toy_annotations):
+    """
+    Ensures finalize(col_dendrogram=True) attaches the column linkage without changing the column
+    order produced by finalize(col_cluster=True).
+
+    Args:
+        toy_matrix (Matrix): Toy matrix fixture.
+        toy_annotations (Annotations): Toy annotations fixture.
+    """
+    analysis = Analysis(toy_matrix, toy_annotations).cluster(linkage_threshold=1.0).enrich()
+    plain = analysis.finalize(col_cluster=True).layout
+    with_tree = analysis.finalize(col_cluster=True, col_dendrogram=True).layout
+
+    assert plain.col_linkage is None
+    assert with_tree.col_linkage.shape == (toy_matrix.df.shape[1] - 1, 4)
+    assert with_tree.col_order.tolist() == plain.col_order.tolist()
+    assert with_tree.leaf_order.tolist() == plain.leaf_order.tolist()
+
+
+@pytest.mark.api
+def test_finalize_col_dendrogram_requires_col_cluster(toy_matrix, toy_annotations):
+    """
+    Ensures finalize(col_dendrogram=True) raises without col_cluster=True.
+
+    Args:
+        toy_matrix (Matrix): Toy matrix fixture.
+        toy_annotations (Annotations): Toy annotations fixture.
+
+    Raises:
+        ValueError: If col_cluster is False.
+    """
+    analysis = Analysis(toy_matrix, toy_annotations).cluster(linkage_threshold=1.0).enrich()
+    with pytest.raises(ValueError):
+        analysis.finalize(col_cluster=False, col_dendrogram=True)

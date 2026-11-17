@@ -5,12 +5,15 @@ himalayas/core/analysis
 
 from __future__ import annotations
 
-from typing import Optional, Union
+from dataclasses import replace
+from typing import Optional, Tuple, Union
+
+import numpy as np
 
 from .annotations import Annotations
 from .clustering import cut_linkage, compute_linkage, _resolve_auto_threshold
 from .enrichment import run_cluster_hypergeom
-from .layout import compute_col_order
+from .layout import col_order_from_linkage, compute_col_linkage, compute_col_order
 from .matrix import Matrix
 from .results import Results
 
@@ -37,6 +40,7 @@ class Analysis:
         self._cluster_linkage_metric = "euclidean"
         self._cluster_optimal_ordering = False
         self._col_order_cache = {}
+        self._col_linkage_cache = {}
         self._row_linkage_cache = {}
 
     def cluster(
@@ -167,6 +171,7 @@ class Analysis:
         self,
         *,
         col_cluster: bool = False,
+        col_dendrogram: bool = False,
         fdr_scope: str = "global",
     ) -> Analysis:
         """
@@ -177,6 +182,8 @@ class Analysis:
 
         Kwargs:
             col_cluster (bool): Whether to compute column order by clustering. Defaults to False.
+            col_dendrogram (bool): Whether to also keep the column linkage on the layout, for
+                `Plotter.plot_col_dendrogram`. Requires `col_cluster=True`. Defaults to False.
             fdr_scope (str): BH-FDR correction scope, one of {"global", "per_cluster"};
                 "per_cluster" does not control FDR across the full result set. Defaults to "global".
 
@@ -185,30 +192,22 @@ class Analysis:
 
         Raises:
             RuntimeError: If cluster() or enrich() has not been called.
+            ValueError: If `col_dendrogram` is True and `col_cluster` is False.
         """
         # Validation
         if self.clusters is None or self.results is None:
             raise RuntimeError("cluster() and enrich() must be called before finalize()")
+        if col_dendrogram and not col_cluster:
+            raise ValueError("col_dendrogram=True requires col_cluster=True")
 
-        # Resolve column order, then construct finalized Results.
-        col_order = None
-        if col_cluster:
-            cache_key = (
-                self._cluster_linkage_method,
-                self._cluster_linkage_metric,
-                self._cluster_optimal_ordering,
-            )
-            cached = self._col_order_cache.get(cache_key)
-            if cached is None:
-                cached = compute_col_order(
-                    self.matrix,
-                    linkage_method=self._cluster_linkage_method,
-                    linkage_metric=self._cluster_linkage_metric,
-                    optimal_ordering=self._cluster_optimal_ordering,
-                )
-                self._col_order_cache[cache_key] = cached
-            col_order = cached
+        # Resolve column order (and optionally its linkage), then construct finalized Results.
+        col_order, col_linkage = self._resolve_col_layout(
+            col_cluster=col_cluster,
+            col_dendrogram=col_dendrogram,
+        )
         self.layout = self.clusters.layout(col_order=col_order)
+        if col_linkage is not None:
+            self.layout = replace(self.layout, col_linkage=col_linkage)
         self.results = Results(
             self.results.df,
             matrix=self.matrix,
@@ -219,3 +218,51 @@ class Analysis:
         self.results = self.results.with_effect_sizes().with_qvalues(method=fdr_scope)
 
         return self
+
+    def _resolve_col_layout(
+        self,
+        *,
+        col_cluster: bool,
+        col_dendrogram: bool,
+    ) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
+        """
+        Resolves the column order, and optionally the column linkage, for the current linkage
+        settings. Results are cached per linkage settings.
+
+        Kwargs:
+            col_cluster (bool): Whether to cluster columns.
+            col_dendrogram (bool): Whether to also return the column linkage.
+
+        Returns:
+            Tuple[Optional[np.ndarray], Optional[np.ndarray]]: (column order, column linkage).
+                Each is None when not requested; the linkage is also None for fewer than two
+                columns.
+        """
+        if not col_cluster:
+            return None, None
+        cache_key = (
+            self._cluster_linkage_method,
+            self._cluster_linkage_metric,
+            self._cluster_optimal_ordering,
+        )
+        if col_dendrogram:
+            col_linkage = self._col_linkage_cache.get(cache_key)
+            if col_linkage is None:
+                col_linkage = compute_col_linkage(
+                    self.matrix,
+                    linkage_method=self._cluster_linkage_method,
+                    linkage_metric=self._cluster_linkage_metric,
+                    optimal_ordering=self._cluster_optimal_ordering,
+                )
+                self._col_linkage_cache[cache_key] = col_linkage
+            return col_order_from_linkage(col_linkage, int(self.matrix.df.shape[1])), col_linkage
+        cached = self._col_order_cache.get(cache_key)
+        if cached is None:
+            cached = compute_col_order(
+                self.matrix,
+                linkage_method=self._cluster_linkage_method,
+                linkage_metric=self._cluster_linkage_metric,
+                optimal_ordering=self._cluster_optimal_ordering,
+            )
+            self._col_order_cache[cache_key] = cached
+        return cached, None

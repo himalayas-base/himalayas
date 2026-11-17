@@ -3,13 +3,14 @@ tests/test_layout_utils
 ~~~~~~~~~~~~~~~~~~~~~~~
 """
 
+import numpy as np
 import pandas as pd
 import pytest
-from scipy.cluster.hierarchy import linkage as scipy_linkage
+from scipy.cluster.hierarchy import leaves_list, linkage as scipy_linkage
 
 from himalayas import Matrix
 from himalayas.core import layout as layout_module
-from himalayas.core.layout import compute_col_order
+from himalayas.core.layout import compute_col_linkage, compute_col_order
 
 
 @pytest.mark.api
@@ -107,3 +108,46 @@ def test_compute_col_order_uses_scipy_when_optimal_ordering_enabled(monkeypatch)
     assert seen["kwargs"]["method"] == "average"
     assert seen["kwargs"]["metric"] == "cosine"
     assert seen["kwargs"]["optimal_ordering"] is True
+
+
+@pytest.mark.api
+@pytest.mark.parametrize(
+    "method, metric, optimal_ordering",
+    [("ward", "euclidean", False), ("average", "cosine", False), ("complete", "cityblock", True)],
+)
+def test_compute_col_linkage_matches_scipy_and_defines_col_order(method, metric, optimal_ordering):
+    """
+    Ensures the column linkage equals SciPy's linkage of the transposed values, and that
+    compute_col_order() returns the leaf order of that linkage.
+
+    Args:
+        method (str): Linkage method.
+        metric (str): Distance metric.
+        optimal_ordering (bool): Whether leaf ordering is optimized.
+    """
+    rng = np.random.default_rng(7)
+    matrix = Matrix(pd.DataFrame(rng.normal(size=(12, 9)), index=list("abcdefghijkl")))
+    kwargs = {
+        "linkage_method": method,
+        "linkage_metric": metric,
+        "optimal_ordering": optimal_ordering,
+    }
+
+    col_linkage = compute_col_linkage(matrix, **kwargs)
+    expected = scipy_linkage(
+        matrix.values.T, method=method, metric=metric, optimal_ordering=optimal_ordering
+    )
+
+    assert col_linkage.shape == (8, 4)
+    assert col_linkage == pytest.approx(expected)
+    assert compute_col_order(matrix, **kwargs).tolist() == leaves_list(expected).tolist()
+
+
+@pytest.mark.api
+def test_compute_col_linkage_single_column_returns_none():
+    """
+    Ensures a single-column matrix has no column linkage.
+    """
+    matrix = Matrix(pd.DataFrame([[1.0], [2.0]], index=["a", "b"], columns=["x"]))
+
+    assert compute_col_linkage(matrix) is None
