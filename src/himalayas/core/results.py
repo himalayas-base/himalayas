@@ -8,7 +8,7 @@ from __future__ import annotations
 import re
 from collections import Counter
 from collections.abc import Hashable
-from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
+from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Set, Tuple
 
 import numpy as np
 import pandas as pd
@@ -16,6 +16,9 @@ import pandas as pd
 from .clustering import Clusters
 from .layout import ClusterLayout
 from .matrix import Matrix
+
+if TYPE_CHECKING:
+    from .annotations import Annotations
 
 _TERM_FIELD = "term"
 _CLUSTER_FIELD = "cluster"
@@ -169,6 +172,55 @@ def _resolve_rank_spec(
     return "pval" if rank_by == "p" else "qval"
 
 
+def _jaccard(a: Set[Any], b: Set[Any]) -> float:
+    """
+    Computes the Jaccard index of two sets.
+
+    Args:
+        a (Set[Any]): First set.
+        b (Set[Any]): Second set.
+
+    Returns:
+        float: Size of the intersection over the size of the union (0.0 when both are empty).
+    """
+    union = len(a | b)
+    return len(a & b) / union if union else 0.0
+
+
+def _select_distinct_rows(
+    ranked: pd.DataFrame,
+    members: Dict[str, Set[Any]],
+    *,
+    jaccard: float,
+) -> Set[Hashable]:
+    """
+    Selects the rows to keep, walking from most to least significant. A row is dropped when a row
+    already kept in its cluster has a Jaccard index with it that is above zero and at least `jaccard`.
+
+    Args:
+        ranked (pd.DataFrame): Results rows ordered from most to least significant.
+        members (Dict[str, Set[Any]]): Term to member labels.
+
+    Kwargs:
+        jaccard (float): Jaccard index from which a term counts as a repeat.
+
+    Returns:
+        Set[Hashable]: Index labels of the rows to keep.
+    """
+    kept: Set[Hashable] = set()
+    kept_terms: Dict[Any, List[str]] = {}
+    for idx, cid, term in zip(ranked.index, ranked[_CLUSTER_FIELD], ranked[_TERM_FIELD]):
+        # Compare against the terms already kept in the same cluster.
+        repeats = any(
+            0.0 < _jaccard(members[term], members[other]) >= jaccard
+            for other in kept_terms.get(cid, [])
+        )
+        if not repeats:
+            kept.add(idx)
+            kept_terms.setdefault(cid, []).append(term)
+    return kept
+
+
 def _select_best_term_index(
     sub: pd.DataFrame,
     *,
@@ -255,6 +307,65 @@ class Results:
         filtered_df = self.df.query(expr, **kwargs)
         return Results(
             filtered_df,
+            matrix=self.matrix,
+            clusters=self.clusters,
+            layout=self._layout,
+            parent=self,
+        )
+
+    def drop_redundant(
+        self,
+        annotations: Annotations,
+        *,
+        jaccard: float = 0.5,
+        rank_by: str = "p",
+    ) -> Results:
+        """
+        Returns a Results object without near-duplicate terms. Within each cluster, rows are
+        walked from most to least significant, and a term is dropped when a term already kept in
+        that cluster shares at least `jaccard` of its labels (Jaccard index over the terms' labels
+        in the matrix). Enrichment statistics are not recomputed.
+
+        Args:
+            annotations (Annotations): Annotations that define each term's labels.
+
+        Kwargs:
+            jaccard (float): Jaccard index, between 0 and 1, from which a term counts as a repeat
+                of a more significant one. Defaults to 0.5.
+            rank_by (str): Statistic that orders terms, one of {"p", "q"}. Ties break by p-value,
+                then term. Defaults to "p".
+
+        Returns:
+            Results: New Results object with the distinct rows, in their original order.
+
+        Raises:
+            KeyError: If required columns are missing.
+            ValueError: If jaccard is outside [0, 1], if the matrix is not attached, or if a
+                term is not in `annotations`.
+        """
+        # Validation
+        if not 0.0 <= jaccard <= 1.0:
+            raise ValueError("jaccard must be between 0 and 1")
+        if self.matrix is None:
+            raise ValueError("Results must have matrix to drop redundant terms")
+        for column in (_CLUSTER_FIELD, _TERM_FIELD):
+            if column not in self.df.columns:
+                raise KeyError(f"Missing column: {column}")
+        score_col = _resolve_rank_spec(rank_by=rank_by)
+        if score_col not in self.df.columns:
+            raise KeyError(f"Missing column required for rank_by={rank_by!r}: {score_col}")
+        members = annotations.labels_for_universe(self.matrix.labels)
+        unknown = set(self.df[_TERM_FIELD]) - set(members)
+        if unknown:
+            raise ValueError(f"Terms not found in annotations: {sorted(unknown)[:5]}")
+
+        # Order by significance, then keep the distinct rows in the original order.
+        sort_cols = [score_col]
+        sort_cols += [c for c in ("pval", _TERM_FIELD) if c in self.df.columns and c != score_col]
+        ranked = self.df.sort_values(sort_cols, kind="mergesort")
+        kept = _select_distinct_rows(ranked, members, jaccard=jaccard)
+        return Results(
+            self.df[self.df.index.isin(kept)],
             matrix=self.matrix,
             clusters=self.clusters,
             layout=self._layout,

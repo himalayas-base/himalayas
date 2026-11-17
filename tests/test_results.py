@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from himalayas import Matrix, Results
+from himalayas import Annotations, Matrix, Results
 from himalayas.core.clustering import cluster
 from himalayas.core.results import _resolve_rank_spec
 
@@ -383,3 +383,138 @@ def test_results_cluster_labels_rejects_unknown_kwargs():
     res = Results(df)
     with pytest.raises(TypeError, match="unknown_kwarg"):
         res.cluster_labels(unknown_kwarg=True)
+
+
+def _redundancy_fixture():
+    """
+    Builds a Results table and Annotations with overlapping terms in two clusters.
+
+    Returns:
+        tuple[Results, Annotations]: Results with a matrix attached, and matching annotations.
+    """
+    labels = list("abcdefghij")
+    matrix = Matrix(pd.DataFrame(np.eye(10), index=labels, columns=labels))
+    terms = {
+        "big": list("abcd"),
+        "big_copy": list("abcd"),
+        "big_part": list("abc"),
+        "other": list("ef"),
+        "far": list("ghij"),
+    }
+    annotations = Annotations(terms, matrix)
+    rows = [
+        (1, "big", 1e-9),
+        (1, "big_copy", 1e-8),
+        (1, "big_part", 1e-7),
+        (1, "other", 1e-3),
+        (2, "big_copy", 1e-6),
+        (2, "far", 1e-5),
+        (2, "big", 1e-4),
+    ]
+    df = pd.DataFrame(rows, columns=["cluster", "term", "pval"])
+    return Results(df, matrix=matrix), annotations
+
+
+def _brute_force_distinct(df, terms, threshold):
+    """
+    Computes the distinct (cluster, term) pairs by comparing every pair of rows directly.
+
+    Args:
+        df (pd.DataFrame): Results rows.
+        terms (dict[str, set]): Term to member labels.
+        threshold (float): Jaccard index from which a term repeats a more significant one.
+
+    Returns:
+        set[tuple[int, str]]: Kept (cluster, term) pairs.
+    """
+    kept = set()
+    for cid, term, _p in sorted(df.itertuples(index=False), key=lambda r: (r.pval, r.term)):
+        repeats = False
+        for kept_cid, kept_term in kept:
+            if kept_cid != cid:
+                continue
+            shared = len(terms[term] & terms[kept_term])
+            union = len(terms[term] | terms[kept_term])
+            if shared > 0 and shared / union >= threshold:
+                repeats = True
+        if not repeats:
+            kept.add((cid, term))
+    return kept
+
+
+@pytest.mark.api
+@pytest.mark.parametrize("threshold", [0.5, 0.75, 1.0])
+def test_results_drop_redundant_matches_brute_force(threshold):
+    """
+    Ensures drop_redundant() keeps the same rows as a direct pairwise comparison, per cluster.
+
+    Args:
+        threshold (float): Jaccard threshold under test.
+    """
+    results, annotations = _redundancy_fixture()
+    out = results.drop_redundant(annotations, jaccard=threshold)
+
+    expected = _brute_force_distinct(results.df, annotations.term_to_labels, threshold)
+    assert set(zip(out.df["cluster"], out.df["term"])) == expected
+    assert out.parent is results
+    assert out.matrix is results.matrix
+    assert list(out.df.index) == sorted(out.df.index)
+
+
+@pytest.mark.api
+def test_results_drop_redundant_keeps_most_significant_of_a_pair():
+    """
+    Ensures the more significant term of two near-duplicates survives, and that a term that
+    repeats one in another cluster is kept there.
+    """
+    results, annotations = _redundancy_fixture()
+    out = results.drop_redundant(annotations, jaccard=0.75)
+
+    assert set(zip(out.df["cluster"], out.df["term"])) == {
+        (1, "big"),
+        (1, "other"),
+        (2, "big_copy"),
+        (2, "far"),
+    }
+
+
+@pytest.mark.api
+@pytest.mark.parametrize(
+    "kwargs, error",
+    [
+        ({"jaccard": 1.5}, ValueError),
+        ({"jaccard": -0.1}, ValueError),
+        ({"rank_by": "q"}, KeyError),
+        ({"rank_by": "x"}, ValueError),
+    ],
+)
+def test_results_drop_redundant_rejects_invalid_arguments(kwargs, error):
+    """
+    Ensures drop_redundant() rejects an out-of-range jaccard, an unknown rank, and a missing qval.
+
+    Args:
+        kwargs (dict): Keyword arguments for drop_redundant().
+        error (type): Expected exception type.
+    """
+    results, annotations = _redundancy_fixture()
+    with pytest.raises(error):
+        results.drop_redundant(annotations, **kwargs)
+
+
+@pytest.mark.api
+def test_results_drop_redundant_requires_matrix_and_known_terms():
+    """
+    Ensures drop_redundant() raises without a matrix, and for a term missing from annotations.
+
+    Raises:
+        ValueError: If the matrix is not attached or a term is unknown.
+    """
+    results, annotations = _redundancy_fixture()
+    with pytest.raises(ValueError):
+        Results(results.df).drop_redundant(annotations)
+    unknown = Results(
+        pd.DataFrame({"cluster": [1], "term": ["missing"], "pval": [0.1]}),
+        matrix=results.matrix,
+    )
+    with pytest.raises(ValueError):
+        unknown.drop_redundant(annotations)
