@@ -1871,3 +1871,54 @@ def test_plot_col_dendrogram_requires_column_linkage(toy_results):
     """
     with pytest.raises(ValueError):
         Plotter(toy_results).plot_col_dendrogram()
+
+
+@pytest.mark.api
+@pytest.mark.parametrize("extension", ["png", "svg", "pdf"])
+def test_plot_cut_line_and_col_dendrogram_save_to_common_formats(tmp_path, extension):
+    """
+    Ensures a figure with the cut line, scissors, and column dendrogram saves to raster and
+    vector formats.
+
+    Args:
+        tmp_path (Path): Temporary directory fixture.
+        extension (str): Output file extension.
+    """
+    use_agg_backend()
+    path = tmp_path / f"figure.{extension}"
+    (
+        Plotter(_col_tree_results())
+        .plot_dendrogram()
+        .plot_cut_line()
+        .plot_col_dendrogram()
+        .plot_matrix()
+        .save(path)
+    )
+    assert path.stat().st_size > 0
+
+
+@pytest.mark.api
+def test_plot_col_dendrogram_single_column_has_no_linkage():
+    """
+    Ensures a single-column matrix finalizes without a column linkage, and that plotting its
+    column dendrogram raises.
+
+    Raises:
+        ValueError: If the layout has no column linkage.
+    """
+    labels = list("abcdef")
+    matrix = Matrix(pd.DataFrame({"x": np.arange(6.0)}, index=labels))
+    annotations = Annotations({"t1": labels[:3], "t2": labels[3:]}, matrix)
+    results = (
+        Analysis(matrix, annotations)
+        .cluster(linkage_threshold=0.5)
+        .enrich()
+        .finalize(col_cluster=True, col_dendrogram=True)
+        .results
+    )
+
+    layout = results.cluster_layout()
+    assert layout.col_linkage is None
+    assert layout.col_order.tolist() == [0]
+    with pytest.raises(ValueError):
+        Plotter(results).plot_col_dendrogram()

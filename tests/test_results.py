@@ -518,3 +518,31 @@ def test_results_drop_redundant_requires_matrix_and_known_terms():
     )
     with pytest.raises(ValueError):
         unknown.drop_redundant(annotations)
+
+
+@pytest.mark.api
+def test_results_drop_redundant_handles_terms_dropped_from_annotations():
+    """
+    Ensures drop_redundant() compares terms by their labels in the matrix even when a term was
+    dropped from the annotations' retained terms (as in zoomed analyses with a background).
+    """
+    results, _ = _redundancy_fixture()
+    matrix = results.matrix
+    # "outside" has one label in the matrix, so Annotations drops it, but keeps its source labels.
+    terms = {"big": list("abcd"), "other": list("ef"), "outside": ["a", "x1", "x2"]}
+    with pytest.warns(RuntimeWarning):
+        annotations = Annotations(terms, matrix, min_term_size=2)
+    assert "outside" not in annotations.term_to_labels
+
+    df = pd.DataFrame(
+        {"cluster": [1, 1, 1], "term": ["outside", "big", "other"], "pval": [1e-9, 1e-5, 1e-3]}
+    )
+    zoom = Results(df, matrix=matrix)
+
+    # Jaccard(outside, big) = 1/4: kept at 0.5, dropped at 0.2.
+    assert set(zoom.drop_redundant(annotations, jaccard=0.5).df["term"]) == {
+        "outside",
+        "big",
+        "other",
+    }
+    assert set(zoom.drop_redundant(annotations, jaccard=0.2).df["term"]) == {"outside", "other"}
