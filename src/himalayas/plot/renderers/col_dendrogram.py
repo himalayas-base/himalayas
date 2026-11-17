@@ -23,20 +23,27 @@ _LEAF_SPACING = 10.0
 
 def _resolve_col_dendrogram_config(
     renderer: "ColDendrogramRenderer",
+    ax_matrix: plt.Axes,
     style: StyleConfig,
+    y_offset: float,
 ) -> Dict[str, Any]:
     """
-    Resolves column dendrogram rendering configuration.
+    Resolves column dendrogram rendering configuration. The default axes box spans the matrix
+    columns and sits directly above the matrix, shifted up by `y_offset`.
 
     Args:
         renderer (ColDendrogramRenderer): Renderer instance holding optional overrides.
+        ax_matrix (plt.Axes): Matrix axis providing the default horizontal extent and base.
         style (StyleConfig): Style configuration.
+        y_offset (float): Figure-fraction shift applied to the default axes box only.
 
     Returns:
         Dict[str, Any]: Normalized configuration values.
     """
+    box = ax_matrix.get_position()
+    default_axes = [box.x0, box.y1 + y_offset, box.width, style["col_dendro_height"]]
     return {
-        "axes": renderer.axes if renderer.axes is not None else style["col_dendro_axes"],
+        "axes": renderer.axes if renderer.axes is not None else default_axes,
         "color": renderer.color if renderer.color is not None else style["dendro_color"],
         "linewidth": renderer.linewidth if renderer.linewidth is not None else style["dendro_lw"],
         "data_pad": renderer.data_pad,
@@ -73,18 +80,26 @@ class ColDendrogramRenderer:
     def render(
         self,
         fig: plt.Figure,
+        ax_matrix: plt.Axes,
         matrix: Matrix,
         layout: ClusterLayout,
         style: StyleConfig,
+        *,
+        y_offset: float = 0.0,
     ) -> plt.Axes:
         """
         Renders a dendrogram aligned to matrix columns, with the root at the top.
 
         Args:
             fig (plt.Figure): Target figure.
+            ax_matrix (plt.Axes): Matrix axis the default axes box is aligned to.
             matrix (Matrix): Matrix object providing the column count.
             layout (ClusterLayout): Cluster layout providing `col_linkage`.
             style (StyleConfig): Style configuration.
+
+        Kwargs:
+            y_offset (float): Figure-fraction shift of the default axes box, used to sit above
+                column label bars. Ignored when `axes` is set. Defaults to 0.0.
 
         Returns:
             plt.Axes: Column dendrogram axis.
@@ -97,7 +112,7 @@ class ColDendrogramRenderer:
             raise ValueError("Column dendrogram rendering requires a column linkage.")
 
         # Resolve configuration and create dendrogram axis.
-        cfg = _resolve_col_dendrogram_config(self, style)
+        cfg = _resolve_col_dendrogram_config(self, ax_matrix, style, y_offset)
         ax_dend = fig.add_axes(cfg["axes"], frameon=False)
         dendro = dendrogram(
             layout.col_linkage,

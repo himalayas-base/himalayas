@@ -1820,7 +1820,10 @@ def test_plot_col_dendrogram_honors_style_options_and_defaults():
     default_ax = next(ax for ax in default._fig.axes if ax.lines)
     assert default_ax.lines[0].get_color() == DEFAULT_STYLE["dendro_color"]
     assert default_ax.lines[0].get_linewidth() == DEFAULT_STYLE["dendro_lw"]
-    assert list(default_ax.get_position().bounds) == pytest.approx(DEFAULT_STYLE["col_dendro_axes"])
+    matrix = default._fig.axes[0].get_position()
+    assert list(default_ax.get_position().bounds) == pytest.approx(
+        [matrix.x0, matrix.y1, matrix.width, DEFAULT_STYLE["col_dendro_height"]]
+    )
 
     custom = (
         Plotter(results)
@@ -1922,3 +1925,154 @@ def test_plot_col_dendrogram_single_column_has_no_linkage():
     assert layout.col_order.tolist() == [0]
     with pytest.raises(ValueError):
         Plotter(results).plot_col_dendrogram()
+
+
+def _col_bar_axes(plotter, n_cols):
+    """
+    Returns the column label bar axes of a rendered Plotter, lowest first.
+
+    Args:
+        plotter (Plotter): Plotter whose figure has been rendered.
+        n_cols (int): Number of matrix columns (one patch per column in a bar).
+
+    Returns:
+        list[plt.Axes]: Axes holding one rectangle per column, ordered bottom to top.
+    """
+    bars = [ax for ax in plotter._fig.axes if len(ax.patches) == n_cols]
+    return sorted(bars, key=lambda ax: ax.get_position().y0)
+
+
+@pytest.mark.api
+@pytest.mark.parametrize("mode", ["categorical", "continuous"])
+def test_plot_col_label_bar_colors_follow_displayed_column_order(mode):
+    """
+    Ensures each column's cell has the color of its own value in the displayed (clustered)
+    column order, with missing values in the missing color.
+
+    Args:
+        mode (str): Bar mode under test.
+    """
+    use_agg_backend()
+    results = _col_tree_results(n_cols=6)
+    col_order = results.cluster_layout().col_order
+    labels = list(results.matrix.df.columns)
+    missing = labels[2]
+    if mode == "categorical":
+        values = {label: ("hi" if i % 2 else "lo") for i, label in enumerate(labels)}
+        kwargs = {"colors": {"hi": "#ff0000", "lo": "#0000ff"}}
+        expected = {
+            label: to_rgba({"hi": "#ff0000", "lo": "#0000ff"}[values[label]]) for label in values
+        }
+    else:
+        values = {label: float(i) for i, label in enumerate(labels)}
+        kwargs = {"mode": "continuous", "cmap": "viridis", "vmin": 0.0, "vmax": 5.0}
+        cmap = plt.get_cmap("viridis")
+        expected = {label: cmap(values[label] / 5.0) for label in values}
+    del values[missing]
+    expected[missing] = to_rgba("#eeeeee")
+
+    plotter = Plotter(results).plot_col_label_bar(values, **kwargs).plot_matrix()
+    plotter._render()
+
+    (bar,) = _col_bar_axes(plotter, 6)
+    cells = sorted(bar.patches, key=lambda patch: patch.get_x())
+    assert [patch.get_facecolor() for patch in cells] == [
+        pytest.approx(expected[labels[i]]) for i in col_order
+    ]
+
+
+@pytest.mark.api
+def test_plot_col_label_bars_stack_above_matrix_below_the_column_dendrogram():
+    """
+    Ensures column bars span the matrix columns, stack upward in declaration order starting at the
+    matrix top, and that the column dendrogram sits above them.
+    """
+    use_agg_backend()
+    results = _col_tree_results(n_cols=6)
+    labels = list(results.matrix.df.columns)
+    colors = {"a": "red", "b": "blue"}
+    values = {label: "a" for label in labels}
+    plotter = (
+        Plotter(results)
+        .plot_col_dendrogram()
+        .plot_col_label_bar(values, name="first", colors=colors, height=0.02)
+        .plot_col_label_bar(values, name="second", colors=colors, height=0.03)
+        .plot_matrix()
+    )
+    plotter._render()
+
+    matrix = plotter._fig.axes[0].get_position()
+    first, second = (ax.get_position() for ax in _col_bar_axes(plotter, 6))
+    tree = next(ax for ax in plotter._fig.axes if ax.lines).get_position()
+    for box in (first, second, tree):
+        assert (box.x0, box.width) == pytest.approx((matrix.x0, matrix.width))
+    assert first.y0 == pytest.approx(matrix.y1)
+    assert (first.height, second.height) == pytest.approx((0.02, 0.03))
+    assert second.y0 == pytest.approx(first.y1)
+    assert tree.y0 == pytest.approx(second.y1)
+
+
+@pytest.mark.api
+def test_add_label_legend_supports_column_label_bars():
+    """
+    Ensures a legend can explain a column label bar, and that a name shared with a row bar is
+    rejected as ambiguous.
+
+    Raises:
+        ValueError: If a legend name matches both a row and a column bar.
+    """
+    use_agg_backend()
+    results = _col_tree_results(n_cols=6)
+    labels = list(results.matrix.df.columns)
+    values = {label: ("hi" if i % 2 else "lo") for i, label in enumerate(labels)}
+    colors = {"hi": "#ff0000", "lo": "#0000ff"}
+
+    plotter = (
+        Plotter(results)
+        .plot_col_label_bar(values, name="level", colors=colors)
+        .add_label_legend(name="level", title="Level")
+        .plot_label_legends()
+        .plot_matrix()
+    )
+    plotter._render()
+    assert {"Level", "hi", "lo"} <= set(extract_figure_text(plotter._fig, strip=True))
+
+    row_values = {label: "hi" for label in results.matrix.df.index}
+    clash = (
+        Plotter(results)
+        .plot_col_label_bar(values, name="level", colors=colors)
+        .plot_label_bar(row_values, name="level", colors=colors)
+        .add_label_legend(name="level")
+        .plot_label_legends()
+        .plot_matrix()
+    )
+    with pytest.raises(ValueError):
+        clash._render()
+
+
+@pytest.mark.api
+def test_plot_col_label_bar_rejects_invalid_arguments(toy_results):
+    """
+    Ensures plot_col_label_bar() rejects a repeated name, a non-positive height, non-dict values,
+    and (when rendered) categorical mode without colors.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+
+    Raises:
+        ValueError: If the name repeats or the height is not positive.
+        TypeError: If values are not a mapping, or categorical mode has no colors.
+    """
+    use_agg_backend()
+    colors = {"a": "red"}
+    with pytest.raises(ValueError):
+        Plotter(toy_results).plot_col_label_bar({}, colors=colors).plot_col_label_bar(
+            {}, colors=colors
+        )
+    with pytest.raises(ValueError):
+        Plotter(toy_results).plot_col_label_bar({}, colors=colors, height=0)
+    with pytest.raises(TypeError):
+        Plotter(toy_results).plot_col_label_bar(123)
+    with pytest.raises(TypeError):
+        plotter = Plotter(toy_results).plot_col_label_bar({"f1": "a"}).plot_matrix()
+        plotter._render()

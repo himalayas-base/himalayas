@@ -17,6 +17,7 @@ from .renderers import (
     BoundaryRegistry,
     ClusterLabelsRenderer,
     ColDendrogramRenderer,
+    ColLabelBarRenderer,
     ColorbarRenderer,
     CompactLabelsRenderer,
     CutLineRenderer,
@@ -223,8 +224,9 @@ class Plotter:
         show_only_present: bool = True,
     ) -> Plotter:
         """
-        Declares a categorical legend block for a row-level label bar.
-        The referenced bar must be declared with plot_label_bar(name=..., mode="categorical", ...).
+        Declares a categorical legend block for a row- or column-level label bar.
+        The referenced bar must be declared with plot_label_bar(name=..., mode="categorical", ...)
+        or plot_col_label_bar(name=..., mode="categorical", ...).
 
         Kwargs:
             name (str): Label-bar name to explain.
@@ -531,7 +533,7 @@ class Plotter:
 
     def _resolve_label_legend_specs(self) -> List[Dict[str, Any]]:
         """
-        Resolves categorical label-legend specs against declared row-level label tracks.
+        Resolves categorical label-legend specs against declared row- and column-level label bars.
 
         Returns:
             list[Dict[str, Any]]: Normalized label-legend specs.
@@ -546,21 +548,25 @@ class Plotter:
         enabled_tracks = [t for t in self._track_layout.tracks if t.get("enabled", True)]
         track_by_name = {track["name"]: track for track in enabled_tracks}
         row_track_names = [t["name"] for t in enabled_tracks if t.get("kind") == "row"]
-        available_row_tracks = sorted(row_track_names)
+        col_bars = {kw["name"]: kw for layer, kw in self._layers if layer == "col_label_bar"}
+        available_bars = sorted(row_track_names + list(col_bars))
         resolved = []
         for spec in self._label_legends:
             name = spec["name"]
             track = track_by_name.get(name, None)
+            col_bar = col_bars.get(name, None)
             # Validation
-            if track is None:
+            if track is None and col_bar is None:
                 raise ValueError(
-                    "Unknown label-legend name "
-                    f"{name!r}. Available row label bars: {available_row_tracks}"
+                    "Unknown label-legend name " f"{name!r}. Available label bars: {available_bars}"
                 )
-            if track.get("kind") != "row":
+            if track is not None and col_bar is not None:
+                raise ValueError(f"label legend {name!r} matches both a row and a column label bar")
+            if track is not None and track.get("kind") != "row":
                 raise ValueError(f"label legend {name!r} must reference a row-level label bar")
 
-            payload = track.get("payload", {})
+            payload = col_bar if track is None else track.get("payload", {})
+            axis_ids = self.matrix.df.columns if track is None else self.matrix.df.index
             mode = payload.get("mode", "categorical")
             # Validation
             if mode != "categorical":
@@ -575,8 +581,7 @@ class Plotter:
 
             # Resolve visible categories and legend title from bar payload plus legend overrides.
             values = payload.get("values", {})
-            row_ids = list(self.matrix.df.index)
-            present_categories = {values.get(row_id, None) for row_id in row_ids}
+            present_categories = {values.get(axis_id, None) for axis_id in axis_ids}
             show_only_present = bool(spec.get("show_only_present", True))
             title = spec.get("title", None)
             if title is None or str(title) == "":
@@ -1014,7 +1019,8 @@ class Plotter:
 
         Kwargs:
             axes (Optional[Sequence[float]]): Axes position [x0, y0, width, height] in figure
-                fraction. Defaults to style col_dendro_axes.
+                fraction. Defaults to a box spanning the matrix columns, directly above the
+                matrix and any column label bars, with height style col_dendro_height.
             color (Optional[str]): Dendrogram line color. Defaults to style dendro_color.
             linewidth (Optional[float]): Dendrogram line width. Defaults to style dendro_lw.
             data_pad (float): Data-space padding to prevent edge clipping in the dendrogram panel.
@@ -1040,6 +1046,82 @@ class Plotter:
         if linewidth is not None:
             layer_kwargs["linewidth"] = linewidth
         self._layers.append(("col_dendrogram", layer_kwargs))
+        return self
+
+    def plot_col_label_bar(
+        self,
+        values: Mapping[Hashable, Any],
+        *,
+        name: str = "col_label_bar",
+        mode: str = "categorical",
+        colors: Optional[Dict] = None,
+        cmap: str = "viridis",
+        vmin: Optional[float] = None,
+        vmax: Optional[float] = None,
+        missing_color: Optional[str] = None,
+        height: Optional[float] = None,
+        title: Optional[str] = None,
+    ) -> Plotter:
+        """
+        Declares a single column-level annotation bar as a strip above the matrix. Preserves
+        clustering and ordering because it is purely visual. Several bars stack upward in
+        declaration order, and a column dendrogram sits above them.
+
+        Args:
+            values (Mapping): Mapping from column identifier (matrix column label) to either:
+                - categorical value (mode="categorical")
+                - numeric value (mode="continuous")
+
+        Kwargs:
+            name (str): Bar name, also used by `add_label_legend`. Defaults to "col_label_bar".
+            mode ({"categorical", "continuous"}): Rendering mode; drives color mapping.
+                Defaults to "categorical".
+            colors (Optional[Dict]): Category -> color mapping (categorical mode, required).
+                Defaults to None.
+            cmap (str): Matplotlib colormap name (continuous mode). Defaults to "viridis".
+            vmin (Optional[float]): Color scale minimum (continuous mode). Defaults to None.
+            vmax (Optional[float]): Color scale maximum (continuous mode). Defaults to None.
+            missing_color (Optional[str]): Color for missing values. Defaults to None.
+            height (Optional[float]): Bar height in figure fraction. Defaults to style
+                col_label_bar_height.
+            title (Optional[str]): Optional bar title shown to the left of the bar. Defaults
+                to None.
+
+        Returns:
+            Plotter: Self for chaining.
+
+        Raises:
+            TypeError: If values cannot be converted to a dict.
+            ValueError: If a column bar with this name is already declared, or if `height` is
+                not positive.
+        """
+        # Validation
+        if not isinstance(values, dict):
+            try:
+                values = dict(values)
+            except Exception as exc:
+                raise TypeError("plot_col_label_bar expects values convertible to dict") from exc
+        if any(layer == "col_label_bar" and kw["name"] == name for layer, kw in self._layers):
+            raise ValueError(f"column label bar already declared for name {name!r}")
+        if height is not None and height <= 0:
+            raise ValueError("plot_col_label_bar height must be > 0")
+        self._layers.append(
+            (
+                "col_label_bar",
+                {
+                    "name": name,
+                    "values": values,
+                    "mode": mode,
+                    "colors": colors,
+                    "cmap": cmap,
+                    "vmin": vmin,
+                    "vmax": vmax,
+                    "missing_color": missing_color,
+                    "height": height,
+                    "title": title,
+                },
+            )
+        )
         return self
 
     def plot_cut_line(
@@ -1791,6 +1873,15 @@ class Plotter:
                     continue
                 boundary_registry.register(b, lw=lw, color=color, alpha=alpha)
 
+        # Column bars stack upward from the matrix; a column dendrogram sits above all of them.
+        col_bar_heights = [
+            kw["height"] if kw["height"] is not None else self._style["col_label_bar_height"]
+            for layer, kw in self._layers
+            if layer == "col_label_bar"
+        ]
+        col_bar_total = sum(col_bar_heights)
+        col_bar_offsets = iter([sum(col_bar_heights[:i]) for i in range(len(col_bar_heights))])
+
         # Render declared layers in order.
         for layer, kwargs in self._layers:
             if layer == "matrix":
@@ -1825,7 +1916,12 @@ class Plotter:
                 )
             elif layer == "col_dendrogram":
                 renderer = ColDendrogramRenderer(**kwargs)
-                renderer.render(fig, self.matrix, layout, self._style)
+                renderer.render(fig, ax, self.matrix, layout, self._style, y_offset=col_bar_total)
+            elif layer == "col_label_bar":
+                renderer = ColLabelBarRenderer(**kwargs)
+                renderer.render(
+                    fig, ax, self.matrix, layout, self._style, y_offset=next(col_bar_offsets)
+                )
             elif layer == "cut_line":
                 renderer = CutLineRenderer(**kwargs)
                 renderer.render(dendrogram_ax)

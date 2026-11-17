@@ -36,7 +36,7 @@ class StyleDefaults(TypedDict):
     figsize: Tuple[float, float]
     subplots_adjust: Dict[str, float]
     dendro_axes: Sequence[float]
-    col_dendro_axes: Sequence[float]
+    col_dendro_height: float
     dendro_color: str
     dendro_lw: float
     label_axes: Sequence[float]
@@ -46,6 +46,7 @@ class StyleDefaults(TypedDict):
     ylabel_pad: float
     matrix_gutter_color: Optional[str]
     label_bar_width: float
+    col_label_bar_height: float
     label_bar_missing_color: str
     sigbar_width: float
     sigbar_cmap: Union[str, Colormap]
@@ -102,8 +103,8 @@ DEFAULT_STYLE: StyleDefaults = {
     },
     # Dendrogram axis box [x0, y0, w, h].
     "dendro_axes": [0.06, 0.05, 0.09, 0.90],
-    # Column dendrogram axis box [x0, y0, w, h], above the matrix.
-    "col_dendro_axes": [0.15, 0.95, 0.55, 0.045],
+    # Column dendrogram height (figure fraction); it sits above the matrix, spanning its columns.
+    "col_dendro_height": 0.03,
     "dendro_color": "#888888",
     "dendro_lw": 1.0,
     # Label panel axis box [x0, y0, w, h].
@@ -118,6 +119,8 @@ DEFAULT_STYLE: StyleDefaults = {
     "matrix_gutter_color": None,
     # Row-level annotation bar (label-panel track).
     "label_bar_width": 0.012,
+    # Column-level annotation bar (strip above the matrix, figure fraction).
+    "col_label_bar_height": 0.016,
     "label_bar_missing_color": "#eeeeee",
     # Default settings for cluster score bars (e.g., sigbar).
     # NOTE: scaling is controlled by an explicit `norm` passed to plot_cluster_bar.
