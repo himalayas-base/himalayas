@@ -64,54 +64,71 @@ def _build_scissors(
     return box
 
 
-def render_cut_line(
-    ax_dend: plt.Axes,
-    threshold: float,
-    *,
-    color: str,
-    linestyle: str,
-    linewidth: float,
-    scissors: bool,
-    scissors_size: float,
-) -> None:
+class CutLineRenderer:
     """
-    Renders a vertical cut line at a dendrogram height, with optional scissors at its foot.
-
-    Args:
-        ax_dend (plt.Axes): Dendrogram axis.
-        threshold (float): Dendrogram height at which to draw the line.
-
-    Kwargs:
-        color (str): Line and scissors color.
-        linestyle (str): Matplotlib line style of the cut line.
-        linewidth (float): Cut line width.
-        scissors (bool): Whether to draw the scissors icon at the foot of the line.
-        scissors_size (float): Scissors size in points.
+    Class for rendering a vertical cut line on a dendrogram axis, with optional scissors.
     """
-    # Span the full panel height: x in data units, y in axes fraction.
-    transform = ax_dend.get_xaxis_transform()
-    ax_dend.add_line(
-        Line2D(
-            [threshold, threshold],
-            [0.0, 1.0],
-            transform=transform,
-            color=color,
-            linestyle=linestyle,
-            linewidth=linewidth,
-            clip_on=False,
+
+    def __init__(
+        self,
+        *,
+        threshold: float,
+        color: str,
+        linestyle: str,
+        linewidth: float,
+        scissors: bool,
+        scissors_size: float,
+    ) -> None:
+        """
+        Initializes the CutLineRenderer instance.
+
+        Kwargs:
+            threshold (float): Dendrogram height at which to draw the line.
+            color (str): Line and scissors color.
+            linestyle (str): Matplotlib line style of the cut line.
+            linewidth (float): Cut line width.
+            scissors (bool): Whether to draw the scissors icon at the foot of the line.
+            scissors_size (float): Scissors size in points.
+        """
+        self.threshold = threshold
+        self.color = color
+        self.linestyle = linestyle
+        self.linewidth = linewidth
+        self.scissors = scissors
+        self.scissors_size = scissors_size
+
+    def render(self, ax_dend: plt.Axes) -> None:
+        """
+        Renders the cut line, and the scissors at its foot when enabled.
+
+        Args:
+            ax_dend (plt.Axes): Dendrogram axis.
+        """
+        # Span the full panel height: x in data units, y in axes fraction.
+        transform = ax_dend.get_xaxis_transform()
+        ax_dend.add_line(
+            Line2D(
+                [self.threshold, self.threshold],
+                [0.0, 1.0],
+                transform=transform,
+                color=self.color,
+                linestyle=self.linestyle,
+                linewidth=self.linewidth,
+                clip_on=False,
+            )
         )
-    )
-    if not scissors:
-        return
-    # Hang the scissors just below the foot of the line.
-    ax_dend.add_artist(
-        AnnotationBbox(
-            _build_scissors(ax_dend.figure, color=color, size=scissors_size),
-            (threshold, 0.0),
-            xycoords=transform,
-            box_alignment=(0.5, 1.0),
-            frameon=False,
-            annotation_clip=False,
-            pad=0.0,
+        if not self.scissors:
+            return
+        # Hang the scissors just below the foot of the line.
+        scissors = _build_scissors(ax_dend.figure, color=self.color, size=self.scissors_size)
+        ax_dend.add_artist(
+            AnnotationBbox(
+                scissors,
+                (self.threshold, 0.0),
+                xycoords=transform,
+                box_alignment=(0.5, 1.0),
+                frameon=False,
+                annotation_clip=False,
+                pad=0.0,
+            )
         )
-    )

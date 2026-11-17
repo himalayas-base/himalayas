@@ -18,9 +18,9 @@ from .renderers import (
     ClusterLabelsRenderer,
     ColorbarRenderer,
     CompactLabelsRenderer,
+    CutLineRenderer,
     LabelLegendRenderer,
     DendrogramRenderer,
-    render_cut_line,
     MatrixRenderer,
     render_cluster_bar_track,
 )
@@ -1781,7 +1781,8 @@ class Plotter:
                     results=self.results,
                 )
             elif layer == "cut_line":
-                render_cut_line(dendrogram_ax, **kwargs)
+                renderer = CutLineRenderer(**kwargs)
+                renderer.render(dendrogram_ax)
             elif layer == "title":
                 renderer = AxesRenderer("title", **kwargs)
                 renderer.render(fig, ax, self.matrix, layout, self._style)
