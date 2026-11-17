@@ -16,6 +16,7 @@ from .renderers import (
     AxesRenderer,
     BoundaryRegistry,
     ClusterLabelsRenderer,
+    ColDendrogramRenderer,
     ColorbarRenderer,
     CompactLabelsRenderer,
     CutLineRenderer,
@@ -999,6 +1000,48 @@ class Plotter:
         self._layers.append(("dendrogram", layer_kwargs))
         return self
 
+    def plot_col_dendrogram(
+        self,
+        *,
+        axes: Optional[Sequence[float]] = None,
+        color: Optional[str] = None,
+        linewidth: Optional[float] = None,
+        data_pad: float = 0.25,
+    ) -> Plotter:
+        """
+        Declares a dendrogram layer aligned to the matrix columns, with the root at the top.
+        Requires results from `Analysis.finalize(col_cluster=True, col_dendrogram=True)`.
+
+        Kwargs:
+            axes (Optional[Sequence[float]]): Axes position [x0, y0, width, height] in figure
+                fraction. Defaults to style col_dendro_axes.
+            color (Optional[str]): Dendrogram line color. Defaults to style dendro_color.
+            linewidth (Optional[float]): Dendrogram line width. Defaults to style dendro_lw.
+            data_pad (float): Data-space padding to prevent edge clipping in the dendrogram panel.
+                Defaults to 0.25.
+
+        Returns:
+            Plotter: Self for chaining.
+
+        Raises:
+            ValueError: If the results carry no column linkage.
+        """
+        # Validation
+        if self.results.cluster_layout().col_linkage is None:
+            raise ValueError(
+                "plot_col_dendrogram() requires Analysis.finalize(col_cluster=True, "
+                "col_dendrogram=True)."
+            )
+        layer_kwargs: Dict[str, Any] = {"data_pad": data_pad}
+        if axes is not None:
+            layer_kwargs["axes"] = axes
+        if color is not None:
+            layer_kwargs["color"] = color
+        if linewidth is not None:
+            layer_kwargs["linewidth"] = linewidth
+        self._layers.append(("col_dendrogram", layer_kwargs))
+        return self
+
     def plot_cut_line(
         self,
         *,
@@ -1780,6 +1823,9 @@ class Plotter:
                     self._style,
                     results=self.results,
                 )
+            elif layer == "col_dendrogram":
+                renderer = ColDendrogramRenderer(**kwargs)
+                renderer.render(fig, self.matrix, layout, self._style)
             elif layer == "cut_line":
                 renderer = CutLineRenderer(**kwargs)
                 renderer.render(dendrogram_ax)

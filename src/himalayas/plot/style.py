@@ -36,6 +36,7 @@ class StyleDefaults(TypedDict):
     figsize: Tuple[float, float]
     subplots_adjust: Dict[str, float]
     dendro_axes: Sequence[float]
+    col_dendro_axes: Sequence[float]
     dendro_color: str
     dendro_lw: float
     label_axes: Sequence[float]
@@ -101,6 +102,8 @@ DEFAULT_STYLE: StyleDefaults = {
     },
     # Dendrogram axis box [x0, y0, w, h].
     "dendro_axes": [0.06, 0.05, 0.09, 0.90],
+    # Column dendrogram axis box [x0, y0, w, h], above the matrix.
+    "col_dendro_axes": [0.15, 0.95, 0.55, 0.04],
     "dendro_color": "#888888",
     "dendro_lw": 1.0,
     # Label panel axis box [x0, y0, w, h].

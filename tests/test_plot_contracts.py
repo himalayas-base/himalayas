@@ -9,9 +9,10 @@ import pandas as pd
 import pytest
 from matplotlib.colors import Normalize, to_rgba
 from matplotlib.offsetbox import AnnotationBbox
+from scipy.cluster.hierarchy import dendrogram
 
 from conftest import extract_figure_text, use_agg_backend
-from himalayas import Results
+from himalayas import Analysis, Annotations, Matrix, Results
 from himalayas.core.clustering import cluster
 from himalayas.plot import Plotter
 from himalayas.plot.renderers._label_format import format_label_prefix
@@ -1764,3 +1765,85 @@ def test_plot_cut_line_requires_dendrogram_first(toy_results):
         Plotter(toy_results).plot_cut_line().plot_dendrogram()
     with pytest.raises(ValueError):
         Plotter(toy_results).plot_dendrogram().plot_cut_line(scissors_size=0)
+
+
+def _col_tree_results(n_cols=6):
+    """
+    Builds finalized Results whose layout carries a column linkage.
+
+    Args:
+        n_cols (int): Number of matrix columns. Defaults to 6.
+
+    Returns:
+        Results: Results from finalize(col_cluster=True, col_dendrogram=True).
+    """
+    rng = np.random.default_rng(3)
+    labels = list("abcdefghij")
+    matrix = Matrix(pd.DataFrame(rng.normal(size=(10, n_cols)), index=labels))
+    annotations = Annotations({"t1": labels[:5], "t2": labels[5:]}, matrix)
+    analysis = Analysis(matrix, annotations).cluster(linkage_threshold=3.0).enrich()
+    return analysis.finalize(col_cluster=True, col_dendrogram=True).results
+
+
+@pytest.mark.api
+def test_plot_col_dendrogram_aligns_leaves_with_matrix_columns():
+    """
+    Ensures the column dendrogram draws one branch per merge, with its leaves centered over the
+    matrix columns and the tree's leaf order equal to the layout's column order.
+    """
+    use_agg_backend()
+    results = _col_tree_results(n_cols=6)
+    layout = results.cluster_layout()
+    plotter = Plotter(results).plot_col_dendrogram().plot_matrix()
+    plotter._render()
+
+    tree_ax = next(ax for ax in plotter._fig.axes if ax.lines)
+    assert len(tree_ax.lines) == 5
+    leaf_x = sorted(
+        x for line in tree_ax.lines for x, y in zip(line.get_xdata(), line.get_ydata()) if y == 0
+    )
+    assert leaf_x == pytest.approx(list(range(6)))
+    leaves = dendrogram(layout.col_linkage, no_plot=True)["leaves"]
+    assert leaves == layout.col_order.tolist()
+
+
+@pytest.mark.api
+def test_plot_col_dendrogram_honors_style_options_and_defaults():
+    """
+    Ensures color, linewidth, and axes position override the style defaults, which otherwise
+    match the row dendrogram color and width.
+    """
+    use_agg_backend()
+    results = _col_tree_results()
+    default = Plotter(results).plot_col_dendrogram().plot_matrix()
+    default._render()
+    default_ax = next(ax for ax in default._fig.axes if ax.lines)
+    assert default_ax.lines[0].get_color() == DEFAULT_STYLE["dendro_color"]
+    assert default_ax.lines[0].get_linewidth() == DEFAULT_STYLE["dendro_lw"]
+    assert list(default_ax.get_position().bounds) == pytest.approx(DEFAULT_STYLE["col_dendro_axes"])
+
+    custom = (
+        Plotter(results)
+        .plot_col_dendrogram(axes=[0.2, 0.9, 0.4, 0.08], color="red", linewidth=2.5)
+        .plot_matrix()
+    )
+    custom._render()
+    custom_ax = next(ax for ax in custom._fig.axes if ax.lines)
+    assert custom_ax.lines[0].get_color() == "red"
+    assert custom_ax.lines[0].get_linewidth() == 2.5
+    assert list(custom_ax.get_position().bounds) == pytest.approx([0.2, 0.9, 0.4, 0.08])
+
+
+@pytest.mark.api
+def test_plot_col_dendrogram_requires_column_linkage(toy_results):
+    """
+    Ensures plot_col_dendrogram() raises when results were not finalized with col_dendrogram=True.
+
+    Args:
+        toy_results (Results): Results fixture without a column linkage.
+
+    Raises:
+        ValueError: If the layout has no column linkage.
+    """
+    with pytest.raises(ValueError):
+        Plotter(toy_results).plot_col_dendrogram()

@@ -9,6 +9,7 @@ from .cluster_bar import render_cluster_bar_track
 from .cluster_labels import ClusterLabelsRenderer
 from .colorbar import ColorbarRenderer
 from .compact_labels import CompactLabelsRenderer
+from .col_dendrogram import ColDendrogramRenderer
 from .cut_line import CutLineRenderer
 from .dendrogram import DendrogramRenderer
 from .label_legend import LabelLegendRenderer
@@ -19,6 +20,7 @@ __all__ = [
     "BoundaryRegistry",
     "render_cluster_bar_track",
     "ClusterLabelsRenderer",
+    "ColDendrogramRenderer",
     "ColorbarRenderer",
     "CompactLabelsRenderer",
     "CutLineRenderer",
