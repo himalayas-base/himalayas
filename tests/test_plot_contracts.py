@@ -1835,6 +1835,30 @@ def test_plot_col_dendrogram_honors_style_options_and_defaults():
 
 
 @pytest.mark.api
+def test_plot_col_dendrogram_default_boxes_align_with_matrix():
+    """
+    Ensures the default column dendrogram spans the matrix width above it, and that the row
+    dendrogram keeps spanning exactly the matrix height.
+    """
+    use_agg_backend()
+    plotter = Plotter(_col_tree_results()).plot_dendrogram().plot_col_dendrogram().plot_matrix()
+    plotter._render()
+
+    matrix_ax = plotter._fig.axes[0]
+    row_tree, col_tree = sorted(
+        (ax for ax in plotter._fig.axes if ax.lines), key=lambda ax: ax.get_position().x0
+    )
+    matrix = matrix_ax.get_position()
+    assert (col_tree.get_position().x0, col_tree.get_position().width) == pytest.approx(
+        (matrix.x0, matrix.width)
+    )
+    assert col_tree.get_position().y0 >= matrix.y1 - 1e-9
+    assert (row_tree.get_position().y0, row_tree.get_position().height) == pytest.approx(
+        (matrix.y0, matrix.height)
+    )
+
+
+@pytest.mark.api
 def test_plot_col_dendrogram_requires_column_linkage(toy_results):
     """
     Ensures plot_col_dendrogram() raises when results were not finalized with col_dendrogram=True.
