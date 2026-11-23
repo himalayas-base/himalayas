@@ -77,6 +77,9 @@ class Annotations:
                 `min_overlap`.)
             max_term_size (Optional[int]): Maximum number of matrix-overlapping labels a term
                 may have to be retained. None disables the upper bound. Defaults to None.
+
+        Explicit enrichment backgrounds reapply these limits to source memberships in the
+        background universe, rather than to the visible matrix-overlapping memberships.
         """
         self.matrix_labels = set(matrix.labels)
         self.term_to_labels: Dict[str, Set[str]] = {}
@@ -220,19 +223,34 @@ class Annotations:
             Annotations: A new Annotations object aligned to `matrix`.
         """
         # Rebind from currently visible terms to preserve explicit stepwise subsetting semantics.
-        return Annotations(
+        rebound = Annotations(
             self.term_to_labels,
             matrix,
             min_term_size=self._min_term_size,
             max_term_size=self._max_term_size,
         )
+        # Keep source memberships separate from the newly filtered visible mapping.
+        # Only currently visible terms are candidates for this rebind.
+        rebound._source_term_to_labels = {
+            term: self._source_term_to_labels[term].copy() for term in self.term_to_labels
+        }
+        return rebound
 
-    def labels_for_universe(self, universe_labels: Iterable[str]) -> Dict[str, Set[str]]:
+    def labels_for_universe(
+        self, universe_labels: Iterable[str], *, filter_sizes: bool = False
+    ) -> Dict[str, Set[str]]:
         """
-        Resolves term labels intersected with an explicit enrichment universe.
+        Resolves source term labels in an explicit universe. Rebinding restricts candidates
+        to terms visible immediately before that rebind. Enrichment requests size filtering
+        in the selected universe; membership comparisons can retain all overlapping terms.
 
         Args:
             universe_labels (Iterable[str]): Labels defining the target universe.
+
+        Kwargs:
+            filter_sizes (bool): Apply configured minimum and maximum term sizes in this
+                universe. Terms filtered locally may qualify in a larger background.
+                Defaults to False.
 
         Returns:
             Dict[str, Set[str]]: Per-term labels intersected to the requested universe.
@@ -241,6 +259,12 @@ class Annotations:
         out: Dict[str, Set[str]] = {}
         for term, labels in self._source_term_to_labels.items():
             overlap = labels & universe
-            if overlap:
-                out[term] = overlap
+            if not overlap:
+                continue
+            if filter_sizes:
+                if len(overlap) < self._min_term_size:
+                    continue
+                if self._max_term_size is not None and len(overlap) > self._max_term_size:
+                    continue
+            out[term] = overlap
         return out

@@ -202,7 +202,10 @@ def run_cluster_hypergeom(
             that pair to be tested and included in the results. Pairs with k below this
             threshold are excluded. Defaults to 1. (Separate from `Annotations`'
             `min_term_size`.)
-        background (Optional[Matrix]): Background matrix defining enrichment universe. Defaults to None.
+        background (Optional[Matrix]): Background matrix defining enrichment universe. Annotation
+            size limits are applied to source term memberships in this universe; terms excluded
+            locally may qualify globally. Supplying the analysis matrix preserves its size
+            filtering. Defaults to None.
 
     Returns:
         Results: Enrichment results with the following columns: cluster, term, k, K, n, N, pval
@@ -217,7 +220,7 @@ def run_cluster_hypergeom(
     term_to_labels = (
         annotations.term_to_labels
         if background is None
-        else annotations.labels_for_universe(bg_labels.tolist())
+        else annotations.labels_for_universe(bg_labels.tolist(), filter_sizes=True)
     )
     term_items = _encode_terms(term_to_labels, label_to_idx, min_overlap=min_overlap)
     # Early exit if no terms pass filtering.

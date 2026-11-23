@@ -258,6 +258,79 @@ def test_background_matrix_expands_N_and_K():
 
 
 @pytest.mark.api
+def test_repeated_rebind_preserves_source_counts_and_visible_terms():
+    """
+    Ensures repeated zooms preserve global memberships without reviving hidden terms.
+    """
+    full = Matrix(pd.DataFrame({"x": range(8)}, index=list("abcdefgh")))
+    matrix = Matrix(full.df.loc[list("abcd")])
+    annotations = Annotations(
+        {"target": list("abef"), "dropped": list("cdgh")}, matrix
+    )
+    for labels in ["abc", "ab"]:
+        matrix = Matrix(matrix.df.loc[list(labels)])
+        annotations = annotations.rebind(matrix)
+        assert annotations.term_to_labels == {"target": {"a", "b"}}
+        clusters = cluster(matrix, linkage_threshold=100.0)
+        for background, N, K in [(full, 8, 4), (None, len(labels), 2)]:
+            results = run_cluster_hypergeom(
+                matrix, clusters, annotations, background=background
+            )
+            expected_terms = (
+                {"target", "dropped"} if background is full and labels == "abc" else {"target"}
+            )
+            assert set(results.df["term"]) == expected_terms
+            row = results.df[results.df["term"] == "target"].iloc[0]
+            assert (row["N"], row["K"], row["k"], row["n"]) == (N, K, 2, len(labels))
+            assert row["pval"] == pytest.approx(hypergeom.sf(1, N, K, len(labels)))
+
+
+@pytest.mark.api
+def test_explicit_background_applies_term_size_limits_in_selected_universe():
+    """
+    Ensures both size bounds apply to background counts, including global zooms.
+    """
+    full = Matrix(pd.DataFrame({"x": range(8)}, index=list("abcdefgh")))
+    matrix = Matrix(full.df.loc[list("abcd")])
+    annotations = Annotations(
+        {
+            "small": ["a"],
+            "kept": list("ab"),
+            "large": list("abc"),
+            "global": list("aef"),
+            "expanded": list("abef"),
+        },
+        matrix,
+        min_term_size=2,
+        max_term_size=3,
+    )
+    clusters = cluster(matrix, linkage_threshold=100.0)
+    local = run_cluster_hypergeom(matrix, clusters, annotations)
+    explicit = run_cluster_hypergeom(matrix, clusters, annotations, background=matrix)
+    pd.testing.assert_frame_equal(local.df, explicit.df)
+    global_results = run_cluster_hypergeom(matrix, clusters, annotations, background=full)
+    assert set(global_results.df["term"]) == {"kept", "large", "global"}
+    row = global_results.df[global_results.df["term"] == "global"].iloc[0]
+    assert (row["N"], row["K"], row["k"], row["n"]) == (8, 3, 1, 4)
+    assert row["pval"] == pytest.approx(hypergeom.sf(0, 8, 3, 4))
+
+
+@pytest.mark.api
+def test_explicit_same_background_does_not_revive_large_terms():
+    """
+    Ensures an explicit analysis matrix does not bypass the maximum term size.
+    """
+    matrix = Matrix(pd.DataFrame({"x": range(4)}, index=list("abcd")))
+    annotations = Annotations(
+        {"kept": list("ab"), "large": list("abc")}, matrix, max_term_size=2
+    )
+    clusters = cluster(matrix, linkage_threshold=100.0)
+    local = run_cluster_hypergeom(matrix, clusters, annotations)
+    explicit = run_cluster_hypergeom(matrix, clusters, annotations, background=matrix)
+    pd.testing.assert_frame_equal(local.df, explicit.df)
+
+
+@pytest.mark.api
 def test_subset_background_must_cover_all_subset_labels():
     """
     Ensures subset + background enrichment validates that the background covers

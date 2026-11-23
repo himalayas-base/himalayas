@@ -137,7 +137,9 @@ def test_annotations_from_gmt_ignores_description_and_blank_lines(toy_matrix, tm
     path.write_text("t1\tsome text\ta\tb\tz\n\nt2\tx\tc\td\n", encoding="utf-8")
     annotations = Annotations.from_gmt(path, toy_matrix)
     assert annotations.term_to_labels == {"t1": {"a", "b"}, "t2": {"c", "d"}}
+    assert annotations.labels_for_universe(["a", "z"]) == {"t1": {"a", "z"}}
     assert annotations.labels_for_universe(["z"]) == {"t1": {"z"}}
+    assert annotations.labels_for_universe(["z"], filter_sizes=True) == {}
 
 
 @pytest.mark.api

@@ -147,6 +147,8 @@ class Analysis:
                 threshold are excluded. Defaults to 1. (Separate from `Annotations`'
                 `min_term_size`.)
             background (Optional[Matrix]): Background matrix defining enrichment universe.
+                Annotation size limits are reapplied to source term memberships in this
+                universe, allowing locally excluded terms to qualify in a larger background.
                 Defaults to None, which uses the current matrix as the universe.
 
         Returns:
