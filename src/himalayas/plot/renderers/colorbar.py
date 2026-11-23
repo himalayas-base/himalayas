@@ -190,10 +190,14 @@ def _render_colorbar_cell(
     if text_color is None:
         text_color = layout["color"]
     font = layout.get("font", None)
+    # Older Matplotlib ColorbarBase requires a Colormap rather than its name.
+    cmap = cb["cmap"]
+    if isinstance(cmap, str):
+        cmap = plt.get_cmap(cmap)
     # Create colorbar
     cbar = ColorbarBase(
         ax_cb,
-        cmap=cb["cmap"],
+        cmap=cmap,
         norm=cb["norm"],
         orientation="horizontal",
         ticks=cb.get("ticks", None),

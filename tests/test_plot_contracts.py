@@ -371,6 +371,42 @@ def test_plotter_colorbars_only_renders_without_matrix(toy_results):
 
 
 @pytest.mark.api
+@pytest.mark.parametrize("cmap_as_object", [False, True])
+@pytest.mark.parametrize("extension", ["png", "pdf", "svg"])
+def test_plotter_colorbar_exports(toy_results, tmp_path, cmap_as_object, extension):
+    """
+    Ensures named and object colormaps render gradients and export to raster and vector files.
+
+    Args:
+        toy_results (Results): Results fixture with clusters and layout.
+        tmp_path (Path): Temporary output directory.
+        cmap_as_object (bool): Whether to supply a Colormap object instead of a name.
+        extension (str): Export format.
+    """
+    plt = use_agg_backend()
+    cmap = plt.get_cmap("RdBu_r") if cmap_as_object else "RdBu_r"
+    plotter = (
+        Plotter(toy_results)
+        .add_colorbar(name="matrix", cmap=cmap, norm=Normalize(-1, 1))
+        .plot_colorbars()
+    )
+    out = tmp_path / f"colorbar.{extension}"
+    plotter.save(out, dpi=100, bbox_inches="tight")
+    assert out.stat().st_size > 1000
+    fig = plt.gcf()
+    fig.canvas.draw()
+    # Verify the rendered mappable uses the requested end-point colors.
+    meshes = [
+        artist
+        for ax in fig.axes
+        for artist in ax.collections
+        if artist.get_array() is not None and artist.get_array().size > 1
+    ]
+    assert meshes
+    np.testing.assert_allclose(meshes[-1].cmap([0.0, 1.0]), plt.get_cmap("RdBu_r")([0.0, 1.0]))
+
+
+@pytest.mark.api
 def test_plotter_colorbars_only_save_crops_tightly(toy_results, tmp_path):
     """
     Ensures a colorbars-only save with bbox_inches="tight" crops around the
@@ -736,6 +772,7 @@ def test_plot_colorbars_tick_decimals_contract(toy_results):
         )
         plotter.show()
         fig = plotter._fig
+        fig.canvas.draw()
         tick_texts = [t.get_text() for ax in fig.axes for t in ax.get_xticklabels()]
         tick_texts = [txt for txt in tick_texts if txt]
         assert "0.12" in tick_texts
